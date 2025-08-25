@@ -246,18 +246,29 @@ export class LangChainProvider {
     maxTokens?: number, 
     streaming: boolean = true
   ): ChatOpenAI {
-    const model = new ChatOpenAI({
-      modelName: DEFAULT_NXTSCAPE_MODEL,
-      temperature,
-      maxTokens,
-      streaming,
+    const modelId = DEFAULT_NXTSCAPE_MODEL
+    const isReasoningModel = this._isReasoningModel(modelId)
+    
+    const config: any = {
+      modelName: modelId,
+      temperature: isReasoningModel ? undefined : temperature,
+      streaming: isReasoningModel ? false : streaming,
       openAIApiKey: process.env.LITELLM_API_KEY || 'nokey',
       configuration: {
         baseURL: DEFAULT_NXTSCAPE_PROXY_URL,
         apiKey: process.env.LITELLM_API_KEY || 'nokey',
         dangerouslyAllowBrowser: true
       }
-    })
+    }
+    
+    // For reasoning models, use reasoning effort instead of maxTokens
+    if (isReasoningModel) {
+      config.reasoningEffort = 'medium'
+    } else {
+      config.maxTokens = maxTokens
+    }
+    
+    const model = new ChatOpenAI(config)
     
     return this._patchTokenCounting(model)
   }
@@ -275,18 +286,32 @@ export class LangChainProvider {
         'warning')
     }
     
-    const model = new ChatOpenAI({
-      modelName: provider.modelId || DEFAULT_OPENAI_MODEL,
-      temperature,
-      maxTokens,
-      streaming,
+    const modelId = provider.modelId || DEFAULT_OPENAI_MODEL
+    
+    // Check if this is a reasoning model (o1, o3, o4-mini, gpt-5 series)
+    const isReasoningModel = this._isReasoningModel(modelId)
+    
+    const config: any = {
+      modelName: modelId,
+      temperature: isReasoningModel ? undefined : temperature,  // Reasoning models don't support temperature
+      streaming: isReasoningModel ? false : streaming,  // Reasoning models don't support streaming
       openAIApiKey: provider.apiKey || 'nokey',
       configuration: {
         baseURL: provider.baseUrl || 'https://api.openai.com/v1',
         apiKey: provider.apiKey || 'nokey',
         dangerouslyAllowBrowser: true
       }
-    })
+    }
+    
+    // For reasoning models, use reasoning effort instead of maxTokens
+    if (isReasoningModel) {
+      config.reasoningEffort = 'medium'  // Options: 'minimal', 'low', 'medium', 'high'
+      // Don't set maxTokens for reasoning models - they use different parameter structure
+    } else {
+      config.maxTokens = maxTokens
+    }
+    
+    const model = new ChatOpenAI(config)
     
     return this._patchTokenCounting(model)
   }
@@ -356,6 +381,20 @@ export class LangChainProvider {
     const model = new ChatOllama(ollamaConfig)
     
     return this._patchTokenCounting(model)
+  }
+  
+  // Helper method to detect reasoning models (o1, o3, o4-mini, gpt-5 series)
+  private _isReasoningModel(modelId: string): boolean {
+    const reasoningModels = [
+      'o1', 'o1-preview', 'o1-mini',
+      'o3', 'o3-preview', 'o3-mini', 
+      'o4-mini',
+      'gpt-5'
+    ]
+    
+    return reasoningModels.some(model => 
+      modelId.toLowerCase().includes(model.toLowerCase())
+    )
   }
   
   // Cache key includes all relevant provider settings and options
