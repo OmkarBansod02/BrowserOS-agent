@@ -37,6 +37,19 @@ class FeedbackService {
   }
 
   /**
+   * Detect operating system from user agent
+   */
+  private _detectOperatingSystem(): string {
+    const userAgent = navigator.userAgent.toLowerCase()
+    
+    if (userAgent.includes('mac')) return 'Mac'
+    if (userAgent.includes('win')) return 'Windows'  
+    if (userAgent.includes('linux')) return 'Linux'
+    
+    return 'Unknown'
+  }
+
+  /**
    * Initialize Firebase (lazy loading)
    * This will be called only when feedback is actually submitted
    */
@@ -82,23 +95,23 @@ class FeedbackService {
       if (!isInitialized) {
         // Firebase not configured - log locally for now
         console.log('Feedback stored locally (Firebase not configured):', {
-          feedbackId: feedback.feedbackId,
-          messageId: feedback.messageId,
-          type: feedback.type,
-          hasTextFeedback: !!feedback.textFeedback,
-          timestamp: feedback.timestamp
+          agentResponse: feedback.agentResponse || 'No response available',
+          feedbackText: feedback.textFeedback || 'No feedback text', 
+          operatingSystem: this._detectOperatingSystem(),
+          submittedAt: new Date().toLocaleString()
         })
         return
       }
 
       // Submit to Firebase when enabled
-      const { collection, addDoc, Timestamp } = await import('firebase/firestore')
+      const { collection, addDoc, serverTimestamp } = await import('firebase/firestore')
       
+      // Simplified data structure - only 3 fields
       const feedbackData = {
-        ...feedback,
-        timestamp: Timestamp.fromDate(feedback.timestamp),
-        userAgent: navigator.userAgent,
-        version: chrome.runtime.getManifest().version || 'unknown'
+        agentResponse: feedback.agentResponse || 'No response available',
+        feedbackText: feedback.textFeedback || 'No feedback text',
+        operatingSystem: this._detectOperatingSystem(),
+        submittedAt: serverTimestamp()  // Human readable timestamp
       }
       
       await addDoc(collection(this.db, 'feedbacks'), feedbackData)
