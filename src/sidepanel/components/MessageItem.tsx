@@ -1,4 +1,4 @@
-import React, { memo, useEffect, useState, useMemo, useCallback } from 'react'
+import React, { memo, useEffect, useState, useMemo, useCallback, useRef } from 'react'
 import { MarkdownContent } from './shared/Markdown'
 import { ExpandableSection } from './shared/ExpandableSection'
 import { cn } from '@/sidepanel/lib/utils'
@@ -8,6 +8,9 @@ import { ChevronDown, ChevronUp, Copy, Check } from 'lucide-react'
 import { TaskManagerDropdown } from './TaskManagerDropdown'
 import { useSettingsStore } from '@/sidepanel/stores/settingsStore'
 import { useCopyToClipboard } from '@/sidepanel/hooks/useCopyToClipboard'
+import { FeedbackButtons } from './feedback/FeedbackButtons'
+import { FeedbackModal } from './feedback/FeedbackModal'
+import type { FeedbackType } from '@/lib/types/feedback'
 
 interface MessageItemProps {
   message: Message
@@ -326,6 +329,7 @@ const ToolResultInline = ({ name, content, autoCollapseAfterMs }: ToolResultInli
 export const MessageItem = memo<MessageItemProps>(function MessageItem({ message, shouldIndent = false, showLocalIndentLine = false, applyIndentMargin = true }: MessageItemProps) {
   const { autoCollapseTools } = useSettingsStore()
   const messages = useChatStore(state => state.messages)
+  const { submitFeedback, getFeedbackForMessage, getFeedbackUIState, setFeedbackUIState } = useChatStore()
   const { copyToClipboard, isCopied } = useCopyToClipboard()
   
   // Check if this is the latest thinking message (for shimmer effect)
@@ -358,6 +362,44 @@ export const MessageItem = memo<MessageItemProps>(function MessageItem({ message
   
   // Special cases we still need to detect
   const isTodoTable = message.content.includes('| # | Status | Task |')
+  
+  // Feedback functionality
+  const feedback = getFeedbackForMessage(message.msgId)
+  const feedbackUI = getFeedbackUIState(message.msgId)
+  
+  // Check if this is the latest message (still streaming)
+  const isLatestMessage = useMemo(() => {
+    const lastMessage = messages[messages.length - 1]
+    return lastMessage?.msgId === message.msgId
+  }, [message.msgId, messages])
+  
+  // Determine if we should show feedback buttons
+  const shouldShowFeedback = useMemo(() => {
+    return message.role === 'assistant' && 
+           !isLatestMessage && 
+           !isTodoTable &&
+           !feedback
+  }, [message.role, isLatestMessage, isTodoTable, feedback])
+  
+  // Handle feedback submission
+  const handleFeedback = useCallback(async (messageId: string, type: FeedbackType) => {
+    if (type === 'thumbs_up') {
+      await submitFeedback(messageId, type)
+    } else {
+      // Open modal for thumbs down
+      setFeedbackUIState(messageId, { showModal: true })
+    }
+  }, [submitFeedback, setFeedbackUIState])
+  
+  // Handle feedback modal submission
+  const handleFeedbackModalSubmit = useCallback(async (textFeedback: string) => {
+    await submitFeedback(message.msgId, 'thumbs_down', textFeedback)
+  }, [submitFeedback, message.msgId])
+  
+  // Handle feedback modal close
+  const handleFeedbackModalClose = useCallback(() => {
+    setFeedbackUIState(message.msgId, { showModal: false })
+  }, [setFeedbackUIState, message.msgId])
 
   // Dynamic message styling based on role and content type
   const messageStyling = useMemo(() => {
@@ -626,26 +668,62 @@ export const MessageItem = memo<MessageItemProps>(function MessageItem({ message
             {renderContent()}
           </div>
           
-          {/* Copy button for assistant messages */}
+          {/* Action buttons container for assistant messages */}
           {message.role === 'assistant' && (
-            <button
-              onClick={handleCopyMessage}
-              className={cn(
-                'absolute top-1 right-1 p-1.5 rounded-md transition-all duration-200',
-                'opacity-0 group-hover:opacity-100',
-                'hover:bg-muted/80 active:bg-muted',
-                'text-muted-foreground hover:text-foreground',
-                'focus:opacity-100 focus:outline-none focus:ring-2 focus:ring-brand/20'
+            <div className="absolute top-1 right-1 flex items-center gap-1">
+              {/* Copy button */}
+              <button
+                onClick={handleCopyMessage}
+                className={cn(
+                  'p-1.5 rounded-md transition-all duration-200',
+                  'opacity-0 group-hover:opacity-100',
+                  'hover:bg-muted/80 active:bg-muted',
+                  'text-muted-foreground hover:text-foreground',
+                  'focus:opacity-100 focus:outline-none focus:ring-2 focus:ring-brand/20'
+                )}
+                title={isCopied ? 'Copied!' : 'Copy response'}
+                aria-label={isCopied ? 'Copied to clipboard' : 'Copy response to clipboard'}
+              >
+                {isCopied ? (
+                  <Check className="h-3.5 w-3.5 text-green-600" />
+                ) : (
+                  <Copy className="h-3.5 w-3.5" />
+                )}
+              </button>
+              
+              {/* Feedback buttons */}
+              {shouldShowFeedback && (
+                <div className={cn(
+                  'opacity-0 group-hover:opacity-100 transition-opacity duration-200',
+                  feedback && 'opacity-100'
+                )}>
+                  <FeedbackButtons
+                    messageId={message.msgId}
+                    onFeedback={handleFeedback}
+                    isSubmitted={!!feedback}
+                    submittedType={feedback?.type}
+                    isSubmitting={feedbackUI.isSubmitting}
+                  />
+                </div>
               )}
-              title={isCopied ? 'Copied!' : 'Copy response'}
-              aria-label={isCopied ? 'Copied to clipboard' : 'Copy response to clipboard'}
-            >
-              {isCopied ? (
-                <Check className="h-3.5 w-3.5 text-green-600" />
-              ) : (
-                <Copy className="h-3.5 w-3.5" />
+              
+              {/* Thank you message for submitted feedback */}
+              {feedback && !feedbackUI.showModal && (
+                <div className="text-xs text-green-600 px-2 py-1 bg-green-50 rounded-md">
+                  {feedback.type === 'thumbs_up' ? 'Thanks for your feedback!' : 'Feedback submitted'}
+                </div>
               )}
-            </button>
+            </div>
+          )}
+          
+          {/* Feedback modal */}
+          {feedbackUI.showModal && (
+            <FeedbackModal
+              isOpen={feedbackUI.showModal}
+              onClose={handleFeedbackModalClose}
+              onSubmit={handleFeedbackModalSubmit}
+              isSubmitting={feedbackUI.isSubmitting}
+            />
           )}
         </div>
       )}
