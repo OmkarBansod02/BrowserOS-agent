@@ -366,20 +366,26 @@ export const MessageItem = memo<MessageItemProps>(function MessageItem({ message
   // Feedback functionality
   const feedback = getFeedbackForMessage(message.msgId)
   const feedbackUI = getFeedbackUIState(message.msgId)
+  const [showThankYou, setShowThankYou] = useState(false)
   
-  // Check if this is the latest message (still streaming)
-  const isLatestMessage = useMemo(() => {
+  // Check if this is the latest assistant message (for completed responses)
+  const isLatestAssistant = useMemo(() => {
+    if (message.role !== 'assistant') return false
     const lastMessage = messages[messages.length - 1]
     return lastMessage?.msgId === message.msgId
-  }, [message.msgId, messages])
+  }, [message.role, message.msgId, messages])
+  
+  // Check if agent is currently processing (streaming)
+  const { isProcessing } = useChatStore(state => ({ isProcessing: state.isProcessing }))
   
   // Determine if we should show feedback buttons
   const shouldShowFeedback = useMemo(() => {
     return message.role === 'assistant' && 
-           !isLatestMessage && 
            !isTodoTable &&
-           !feedback
-  }, [message.role, isLatestMessage, isTodoTable, feedback])
+           !feedback &&
+           // Show feedback for completed assistant messages (not currently streaming)
+           (!isLatestAssistant || !isProcessing)
+  }, [message.role, isTodoTable, feedback, isLatestAssistant, isProcessing])
   
   // Handle feedback submission
   const handleFeedback = useCallback(async (messageId: string, type: FeedbackType) => {
@@ -400,6 +406,18 @@ export const MessageItem = memo<MessageItemProps>(function MessageItem({ message
   const handleFeedbackModalClose = useCallback(() => {
     setFeedbackUIState(message.msgId, { showModal: false })
   }, [setFeedbackUIState, message.msgId])
+  
+ 
+  useEffect(() => {
+    if (feedback && !feedbackUI.showModal) {
+      setShowThankYou(true)
+      const timer = setTimeout(() => {
+        setShowThankYou(false)
+      }, 2000) 
+      
+      return () => clearTimeout(timer)
+    }
+  }, [feedback, feedbackUI.showModal])
 
   // Dynamic message styling based on role and content type
   const messageStyling = useMemo(() => {
@@ -668,48 +686,47 @@ export const MessageItem = memo<MessageItemProps>(function MessageItem({ message
             {renderContent()}
           </div>
           
-          {/* Action buttons container for assistant messages */}
+          {/* Copy button for assistant messages */}
           {message.role === 'assistant' && (
-            <div className="absolute top-1 right-1 flex items-center gap-1">
-              {/* Copy button */}
-              <button
-                onClick={handleCopyMessage}
-                className={cn(
-                  'p-1.5 rounded-md transition-all duration-200',
-                  'opacity-0 group-hover:opacity-100',
-                  'hover:bg-muted/80 active:bg-muted',
-                  'text-muted-foreground hover:text-foreground',
-                  'focus:opacity-100 focus:outline-none focus:ring-2 focus:ring-brand/20'
-                )}
-                title={isCopied ? 'Copied!' : 'Copy response'}
-                aria-label={isCopied ? 'Copied to clipboard' : 'Copy response to clipboard'}
-              >
-                {isCopied ? (
-                  <Check className="h-3.5 w-3.5 text-green-600" />
-                ) : (
-                  <Copy className="h-3.5 w-3.5" />
-                )}
-              </button>
-              
-              {/* Feedback buttons */}
+            <button
+              onClick={handleCopyMessage}
+              className={cn(
+                'absolute top-1 right-1 p-1.5 rounded-md transition-all duration-200',
+                'opacity-0 group-hover:opacity-100',
+                'hover:bg-muted/80 active:bg-muted',
+                'text-muted-foreground hover:text-foreground',
+                'focus:opacity-100 focus:outline-none focus:ring-2 focus:ring-brand/20'
+              )}
+              title={isCopied ? 'Copied!' : 'Copy response'}
+              aria-label={isCopied ? 'Copied to clipboard' : 'Copy response to clipboard'}
+            >
+              {isCopied ? (
+                <Check className="h-3.5 w-3.5 text-green-600" />
+              ) : (
+                <Copy className="h-3.5 w-3.5" />
+              )}
+            </button>
+          )}
+          
+          {/* Feedback section below content for assistant messages */}
+          {message.role === 'assistant' && (shouldShowFeedback || feedback) && (
+            <div className="mt-3 flex items-center justify-start">
               {shouldShowFeedback && (
-                <div className={cn(
-                  'opacity-0 group-hover:opacity-100 transition-opacity duration-200',
-                  feedback && 'opacity-100'
-                )}>
-                  <FeedbackButtons
-                    messageId={message.msgId}
-                    onFeedback={handleFeedback}
-                    isSubmitted={!!feedback}
-                    submittedType={feedback?.type}
-                    isSubmitting={feedbackUI.isSubmitting}
-                  />
-                </div>
+                <FeedbackButtons
+                  messageId={message.msgId}
+                  onFeedback={handleFeedback}
+                  isSubmitted={!!feedback}
+                  submittedType={feedback?.type}
+                  isSubmitting={feedbackUI.isSubmitting}
+                />
               )}
               
               {/* Thank you message for submitted feedback */}
-              {feedback && !feedbackUI.showModal && (
-                <div className="text-xs text-green-600 px-2 py-1 bg-green-50 rounded-md">
+              {showThankYou && feedback && !feedbackUI.showModal && (
+                <div className={cn(
+                  "text-xs text-green-600 px-2 py-1 bg-green-50 rounded-md ml-2 transition-all duration-300",
+                  "animate-in fade-in-0 slide-in-from-bottom-1"
+                )}>
                   {feedback.type === 'thumbs_up' ? 'Thanks for your feedback!' : 'Feedback submitted'}
                 </div>
               )}
