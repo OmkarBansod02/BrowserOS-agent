@@ -6,20 +6,24 @@ import type { FeedbackSubmission } from '@/lib/types/feedback'
  * Note: Firebase configuration should be added to the project
  */
 
-// Firebase configuration (to be set up later)
-// Using fallback values since process.env is not available in Chrome extension context
+// Firebase configuration from environment variables
 const FIREBASE_CONFIG = {
-  apiKey: '',  // Will be configured when Firebase is set up
-  authDomain: '',
-  projectId: '',
-  storageBucket: '',
-  messagingSenderId: '',
-  appId: ''
-}
+  apiKey: process.env.FIREBASE_API_KEY || '',
+  authDomain: process.env.FIREBASE_AUTH_DOMAIN || '',
+  projectId: process.env.FIREBASE_PROJECT_ID || '',
+  storageBucket: process.env.FIREBASE_STORAGE_BUCKET || '',
+  messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID || '',
+  appId: process.env.FIREBASE_APP_ID || '',
+  measurementId: process.env.FIREBASE_MEASUREMENT_ID || ''
+};
+
+// Firebase will be enabled if projectId is provided
+const FIREBASE_ENABLED = !!process.env.FIREBASE_PROJECT_ID;
 
 class FeedbackService {
-  private static instance: FeedbackService
-  private initialized = false
+  private static instance: FeedbackService;
+  private initialized = false;
+  private db: any = null; // Firestore instance
 
   static getInstance(): FeedbackService {
     if (!FeedbackService.instance) {
@@ -38,14 +42,14 @@ class FeedbackService {
    */
   private async _initializeFirebase(): Promise<boolean> {
     if (this.initialized) return true
+    if (!FIREBASE_ENABLED) return false
 
     try {
-      // TODO: Add Firebase initialization when ready
-      // const { initializeApp } = await import('firebase/app')
-      // const { getFirestore } = await import('firebase/firestore')
-      // 
-      // const app = initializeApp(FIREBASE_CONFIG)
-      // this.db = getFirestore(app)
+      const { initializeApp } = await import('firebase/app')
+      const { getFirestore } = await import('firebase/firestore')
+      
+      const app = initializeApp(FIREBASE_CONFIG)
+      this.db = getFirestore(app)
       
       this.initialized = true
       return true
@@ -75,19 +79,31 @@ class FeedbackService {
     }
 
     try {
-      // TODO: Implement actual Firebase submission when ready
-      // const { collection, addDoc } = await import('firebase/firestore')
-      // 
-      // const feedbackData = {
-      //   ...feedback,
-      //   timestamp: Timestamp.fromDate(feedback.timestamp),
-      //   userAgent: navigator.userAgent,
-      //   version: chrome.runtime.getManifest().version || 'unknown'
-      // }
-      // 
-      // await addDoc(collection(this.db, 'feedbacks'), feedbackData)
+      if (!isInitialized) {
+        // Firebase not configured - log locally for now
+        console.log('Feedback stored locally (Firebase not configured):', {
+          feedbackId: feedback.feedbackId,
+          messageId: feedback.messageId,
+          type: feedback.type,
+          hasTextFeedback: !!feedback.textFeedback,
+          timestamp: feedback.timestamp
+        })
+        return
+      }
+
+      // Submit to Firebase when enabled
+      const { collection, addDoc, Timestamp } = await import('firebase/firestore')
       
-      console.log('Feedback would be submitted to Firebase:', feedback)
+      const feedbackData = {
+        ...feedback,
+        timestamp: Timestamp.fromDate(feedback.timestamp),
+        userAgent: navigator.userAgent,
+        version: chrome.runtime.getManifest().version || 'unknown'
+      }
+      
+      await addDoc(collection(this.db, 'feedbacks'), feedbackData)
+      console.log('Feedback successfully submitted to Firebase!')
+      
       
     } catch (error) {
       console.error('Failed to submit feedback to Firebase:', error)
