@@ -95,9 +95,9 @@ class FeedbackService {
       if (!isInitialized) {
         // Firebase not configured - log locally for now
         console.log('Feedback stored locally (Firebase not configured):', {
-          agentResponse: feedback.agentResponse || 'No response available',
-          feedbackText: feedback.textFeedback || 'No feedback text', 
+          userQuery: feedback.userQuery || 'No user query',
           operatingSystem: this._detectOperatingSystem(),
+          feedbackText: feedback.textFeedback || 'No feedback text',
           submittedAt: new Date().toLocaleString()
         })
         return
@@ -106,12 +106,13 @@ class FeedbackService {
       // Submit to Firebase when enabled
       const { collection, addDoc, serverTimestamp } = await import('firebase/firestore')
       
-      // Simplified data structure - only 3 fields
+    
       const feedbackData = {
+        userQuery: feedback.userQuery || 'No user query',
         agentResponse: feedback.agentResponse || 'No response available',
         feedbackText: feedback.textFeedback || 'No feedback text',
         operatingSystem: this._detectOperatingSystem(),
-        submittedAt: serverTimestamp()  // Human readable timestamp
+        submittedAt: serverTimestamp() 
       }
       
       await addDoc(collection(this.db, 'feedbacks'), feedbackData)
@@ -133,7 +134,7 @@ class FeedbackService {
     positiveRatio: number
     commonIssues: string[]
   }> {
-    // TODO: Implement when Firebase is set up
+  
     return {
       totalFeedback: 0,
       positiveRatio: 0,

@@ -169,7 +169,20 @@ export const useChatStore = create<ChatState & ChatActions>((set) => ({
     }))
 
     try {
-      const message = useChatStore.getState().messages.find((m: Message) => m.msgId === messageId)
+      const state = useChatStore.getState()
+      const message = state.messages.find((m: Message) => m.msgId === messageId)
+      
+      // Find the user message that triggered this agent response
+      const messageIndex = state.messages.findIndex((m: Message) => m.msgId === messageId)
+      let userQuery = 'No user query found'
+      
+      // Look backwards from agent message to find the most recent user message
+      for (let i = messageIndex - 1; i >= 0; i--) {
+        if (state.messages[i].role === 'user') {
+          userQuery = state.messages[i].content
+          break
+        }
+      }
       
       const feedback: FeedbackSubmission = {
         feedbackId,
@@ -178,7 +191,8 @@ export const useChatStore = create<ChatState & ChatActions>((set) => ({
         type,
         textFeedback,
         timestamp: new Date(),
-        agentResponse: message?.content
+        agentResponse: message?.content,
+        userQuery
       }
 
       // Store feedback locally

@@ -12,7 +12,8 @@ export const FeedbackSubmissionSchema = z.object({
   type: FeedbackTypeSchema,  // thumbs_up or thumbs_down
   textFeedback: z.string().optional(),  // Additional text for thumbs_down
   timestamp: z.date(),  // When feedback was submitted
-  agentResponse: z.string().optional()  // The agent response being rated
+  agentResponse: z.string().optional(),  // The agent response being rated
+  userQuery: z.string().optional()  // The user query that triggered the agent response
 })
 
 export type FeedbackSubmission = z.infer<typeof FeedbackSubmissionSchema>
