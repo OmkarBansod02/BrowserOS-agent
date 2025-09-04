@@ -43,6 +43,18 @@ export const FeedbackModal = memo<FeedbackModalProps>(function FeedbackModal({
     }
   }, [onClose, isSubmitting])
 
+  // Handle Enter key in textarea to submit (Ctrl+Enter for new line)
+  const handleTextareaKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // Submit on Enter (unless Ctrl/Cmd is pressed for new line)
+    if (e.key === 'Enter' && !e.ctrlKey && !e.metaKey && !isSubmitting) {
+      e.preventDefault()
+      const trimmedFeedback = textFeedback.trim()
+      if (trimmedFeedback) {
+        onSubmit(trimmedFeedback)
+      }
+    }
+  }, [textFeedback, onSubmit, isSubmitting])
+
   // Reset text when modal closes
   useEffect(() => {
     if (!isOpen) {
@@ -93,6 +105,7 @@ export const FeedbackModal = memo<FeedbackModalProps>(function FeedbackModal({
                 ref={textareaRef}
                 value={textFeedback}
                 onChange={(e) => setTextFeedback(e.target.value.slice(0, MAX_FEEDBACK_LENGTH))}
+                onKeyDown={handleTextareaKeyDown}
                 placeholder="Describe the issue you experienced..."
                 className={cn(
                   'w-full h-20 px-3 py-2 text-xs',
@@ -106,6 +119,9 @@ export const FeedbackModal = memo<FeedbackModalProps>(function FeedbackModal({
               <div className="flex justify-between items-center">
                 <span className="text-xs text-muted-foreground">
                   {textFeedback.length}/{MAX_FEEDBACK_LENGTH}
+                </span>
+                <span className="text-xs text-muted-foreground">
+                  Press Enter to submit, Ctrl+Enter for new line
                 </span>
               </div>
             </div>
