@@ -9,23 +9,30 @@ interface TypingIndicatorProps {
 }
 
 /**
- * Minimalistic thinking animation
- * Simple, clean animation without complex typing indicators
+ * Simple gray pulsing dots animation
+ * Clean loading indicator with gray dots
  */
 export function TypingIndicator({ 
   className, 
   variant = 'dots', 
   size = 'md' 
 }: TypingIndicatorProps) {
-  // Minimalistic thinking animation - just a simple pulsing dot
+  // Simple gray pulsing dots
   return (
     <div className={cn(
-      'flex items-center gap-2 px-3 py-2',
-      'text-muted-foreground text-sm',
+      'flex items-center gap-1 px-3 py-2',
       className
     )}>
-      <div className="w-1.5 h-1.5 bg-brand rounded-full animate-pulse" />
-      <span>Thinking</span>
+      {[0, 1, 2].map((i) => (
+        <div
+          key={i}
+          className="w-2 h-2 bg-gray-400 rounded-full animate-pulse"
+          style={{
+            animationDelay: `${i * 200}ms`,
+            animationDuration: '1.5s'
+          }}
+        />
+      ))}
     </div>
   )
 }
