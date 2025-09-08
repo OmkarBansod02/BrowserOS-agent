@@ -52,11 +52,11 @@ export function GroupedExecutionSection({ messages, isLatest = false, className 
       >
         <div className="flex items-center gap-2 flex-1">
           {/* Zap icon */}
-          <Zap className="w-5 h-5 text-green-500" />
+          <Zap className="w-5 h-5 text-muted-foreground" />
           
           {/* Enhanced title with current step */}
           <div className="flex flex-col">
-            <span className="text-base font-extrabold bg-gradient-to-r from-green-500 to-emerald-600 bg-clip-text text-transparent inline-block">
+            <span className="text-xs font-extrabold text-muted-foreground">
               Execution
             </span>
             {currentStep && isLatest && (
@@ -91,7 +91,7 @@ export function GroupedExecutionSection({ messages, isLatest = false, className 
                   <div className="relative">
                     <MarkdownContent
                       content={message.content}
-                      className="break-words text-sm text-muted-foreground/80"
+                      className="break-words text-xs text-muted-foreground/80"
                       compact={true}
                     />
                     {/* Minimal shimmer effect */}
@@ -101,7 +101,7 @@ export function GroupedExecutionSection({ messages, isLatest = false, className 
                   // Regular execution content
                   <MarkdownContent
                     content={message.content}
-                    className="break-words text-sm text-muted-foreground/80"
+                    className="break-words text-xs text-muted-foreground/80"
                     compact={true}
                   />
                 )}

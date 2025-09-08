@@ -5,6 +5,7 @@ import { TypingIndicator } from './TypingIndicator'
 import { GroupedThinkingSection } from './GroupedThinkingSection'
 import { GroupedPlanningSection } from './GroupedPlanningSection'
 import { GroupedExecutionSection } from './GroupedExecutionSection'
+import { ParentCollapsibleWrapper } from './ParentCollapsibleWrapper'
 import { Button } from '@/sidepanel/components/ui/button'
 import { useAutoScroll } from '../hooks/useAutoScroll'
 import { useAnalytics } from '../hooks/useAnalytics'
@@ -503,61 +504,84 @@ export function MessageList({ messages, isProcessing = false, onScrollStateChang
         {/* Messages List */}
         <div className="p-6 space-y-3 pb-4">
           {/* Render thinking groups and other messages */}
-          {messageGroups.map((group, groupIndex) => {
-            const key = `group-${groupIndex}`
+          {(() => {
+            const elements = []
+            const groupedSections = []
             
-            if (group.type === 'thinking-group') {
-              // Render grouped thinking messages in a collapsible section
-              return (
-                <GroupedThinkingSection
-                  key={key}
-                  messages={group.messages}
-                  isLatest={groupIndex === messageGroups.length - 1}
-                />
-              )
-            } else if (group.type === 'planning-group') {
-              // Render grouped planning messages in a collapsible section
-              return (
-                <GroupedPlanningSection
-                  key={key}
-                  messages={group.messages}
-                  isLatest={groupIndex === messageGroups.length - 1}
-                />
-              )
-            } else if (group.type === 'execution-group') {
-              // Render grouped execution messages in a collapsible section
-              return (
-                <GroupedExecutionSection
-                  key={key}
-                  messages={group.messages}
-                  isLatest={groupIndex === messageGroups.length - 1}
-                />
-              )
-            } else {
-              // Render single message normally (skip thinking/execution messages as they're handled by groups)
-              const message = group.messages[0]
-              if (!message) return null
+            for (let groupIndex = 0; groupIndex < messageGroups.length; groupIndex++) {
+              const group = messageGroups[groupIndex]
+              const key = `group-${groupIndex}`
               
-              // Skip thinking and execution messages - they should be in groups
-              if (message.role === 'thinking') return null
-              
-              const isNewMessage = newMessageIdsRef.current.has(message.msgId)
-              
-              return (
-                <div
-                  key={message.msgId}
-                  className={isNewMessage ? 'animate-fade-in' : ''}
-                  style={{ animationDelay: isNewMessage ? '0.1s' : undefined }}
-                >
-                  <MessageItem 
-                    message={message} 
-                    shouldIndent={false}
-                    showLocalIndentLine={false}
-                  />
-                </div>
+              if (group.type === 'thinking-group' || group.type === 'planning-group' || group.type === 'execution-group') {
+                // Collect ALL grouped sections for single parent wrapper (all cycles)
+                if (group.type === 'thinking-group') {
+                  groupedSections.push(
+                    <GroupedThinkingSection
+                      key={key}
+                      messages={group.messages}
+                      isLatest={groupIndex === messageGroups.length - 1}
+                    />
+                  )
+                } else if (group.type === 'planning-group') {
+                  groupedSections.push(
+                    <GroupedPlanningSection
+                      key={key}
+                      messages={group.messages}
+                      isLatest={groupIndex === messageGroups.length - 1}
+                    />
+                  )
+                } else if (group.type === 'execution-group') {
+                  groupedSections.push(
+                    <GroupedExecutionSection
+                      key={key}
+                      messages={group.messages}
+                      isLatest={groupIndex === messageGroups.length - 1}
+                    />
+                  )
+                }
+              } else {
+                // Only break parent wrapper for actual user/assistant messages (not between cycles)
+                const message = group.messages[0]
+                if (message && message.role !== 'thinking' && (message.role === 'user' || message.role === 'assistant')) {
+                  // Before adding user/assistant message, wrap any collected grouped sections
+                  if (groupedSections.length > 0) {
+                    elements.push(
+                      <ParentCollapsibleWrapper key={`parent-${elements.length}`}>
+                        {groupedSections.splice(0)}
+                      </ParentCollapsibleWrapper>
+                    )
+                  }
+                  
+                  const isNewMessage = newMessageIdsRef.current.has(message.msgId)
+                  
+                  elements.push(
+                    <div
+                      key={message.msgId}
+                      className={isNewMessage ? 'animate-fade-in' : ''}
+                      style={{ animationDelay: isNewMessage ? '0.1s' : undefined }}
+                    >
+                      <MessageItem 
+                        message={message} 
+                        shouldIndent={false}
+                        showLocalIndentLine={false}
+                      />
+                    </div>
+                  )
+                }
+              }
+            }
+            
+            // Add any remaining grouped sections at the end (all remaining cycles)
+            if (groupedSections.length > 0) {
+              elements.push(
+                <ParentCollapsibleWrapper key={`parent-${elements.length}`}>
+                  {groupedSections}
+                </ParentCollapsibleWrapper>
               )
             }
-          })}
+            
+            return elements
+          })()}
           
           {/* Narration blocks rendering (only for actual narration messages) */}
           {narrationBlocks.map((block, index) => {

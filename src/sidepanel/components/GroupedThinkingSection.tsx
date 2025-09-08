@@ -31,10 +31,10 @@ export function GroupedThinkingSection({ messages, isLatest = false, className }
       >
         <div className="flex items-center gap-2 flex-1">
           {/* Brain icon */}
-          <Brain className="w-5 h-5 text-brand" />
+          <Brain className="w-5 h-5 text-muted-foreground" />
           
           {/* Enhanced title with gradient */}
-          <span className="text-base font-extrabold bg-gradient-to-r from-orange-500 to-amber-600 bg-clip-text text-transparent inline-block">
+          <span className="text-xs font-extrabold text-muted-foreground">
             Thinking
           </span>
         </div>
@@ -63,7 +63,7 @@ export function GroupedThinkingSection({ messages, isLatest = false, className }
                   <div className="relative">
                     <MarkdownContent
                       content={message.content}
-                      className="break-words text-sm text-muted-foreground/80"
+                      className="break-words text-xs text-muted-foreground/80"
                       compact={true}
                     />
                     {/* Minimal shimmer effect */}
@@ -73,7 +73,7 @@ export function GroupedThinkingSection({ messages, isLatest = false, className }
                   // Regular thinking content
                   <MarkdownContent
                     content={message.content}
-                    className="break-words text-sm text-muted-foreground/80"
+                    className="break-words text-xs text-muted-foreground/80"
                     compact={true}
                   />
                 )}
