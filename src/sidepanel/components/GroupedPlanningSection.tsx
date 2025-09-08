@@ -51,7 +51,7 @@ export function GroupedPlanningSection({ messages, isLatest = false, className }
 
       {/* Grouped Planning Content */}
       {isExpanded && (
-        <div className="mt-1 ml-4 pl-2 border-l-2 border-blue-500/30 space-y-2">
+        <div className="mt-1 ml-4 pl-2 border-l-2 border-muted-foreground/20 space-y-2">
           {messages.map((message, index) => {
             const isLastMessage = index === messages.length - 1
             const showShimmer = isLatest && isLastMessage

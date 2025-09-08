@@ -60,7 +60,7 @@ export function GroupedExecutionSection({ messages, isLatest = false, className 
               Execution
             </span>
             {currentStep && isLatest && (
-              <span className="text-xs text-green-600 font-medium">
+              <span className="text-xs text-muted-foreground font-medium">
                 {currentStep}
               </span>
             )}
@@ -79,7 +79,7 @@ export function GroupedExecutionSection({ messages, isLatest = false, className 
 
       {/* Grouped Execution Content */}
       {isExpanded && (
-        <div className="mt-1 ml-4 pl-2 border-l-2 border-green-500/30 space-y-2">
+        <div className="mt-1 ml-4 pl-2 border-l-2 border-muted-foreground/20 space-y-2">
           {messages.map((message, index) => {
             const isLastMessage = index === messages.length - 1
             const showShimmer = isLatest && isLastMessage
