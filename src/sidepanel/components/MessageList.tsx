@@ -6,6 +6,7 @@ import { GroupedThinkingSection } from './GroupedThinkingSection'
 import { GroupedPlanningSection } from './GroupedPlanningSection'
 import { GroupedExecutionSection } from './GroupedExecutionSection'
 import { ParentCollapsibleWrapper } from './ParentCollapsibleWrapper'
+import { AgentActivitySkeleton } from './AgentActivitySkeleton'
 import { Button } from '@/sidepanel/components/ui/button'
 import { useAutoScroll } from '../hooks/useAutoScroll'
 import { useAnalytics } from '../hooks/useAnalytics'
@@ -627,8 +628,17 @@ export function MessageList({ messages, isProcessing = false, onScrollStateChang
             return null
           })}
           
+          {/* Show skeleton when processing starts and no agent activity yet */}
+          {isProcessing && messageGroups.filter(g => 
+            g.type === 'thinking-group' || g.type === 'planning-group' || g.type === 'execution-group'
+          ).length === 0 && (
+            <AgentActivitySkeleton />
+          )}
+          
           {/* Show typing indicator when processing and no recent thinking messages */}
-          {isProcessing && !messages.some(m => m.role === 'thinking' && Date.now() - m.timestamp.getTime() < 500) && (
+          {isProcessing && !messages.some(m => m.role === 'thinking' && Date.now() - m.timestamp.getTime() < 500) && messageGroups.filter(g => 
+            g.type === 'thinking-group' || g.type === 'planning-group' || g.type === 'execution-group'
+          ).length > 0 && (
             <div className="flex justify-start px-4 py-2">
               <TypingIndicator className="message-enter" />
             </div>
