@@ -299,7 +299,7 @@ export function ChatInput({ isConnected, isProcessing }: ChatInputProps) {
 
   
   return (
-    <div className="relative bg-[hsl(var(--header))] border-t border-border/50 px-2 py-1 flex-shrink-0 overflow-hidden z-20">
+    <div className="relative bg-[hsl(var(--header))] border-t border-border/50 px-3 py-2 pb-4 flex-shrink-0 overflow-hidden z-20">
       
       {/* Mode Toggle - top left, above input */}
       <div className="px-2 mb-2">
@@ -367,7 +367,7 @@ export function ChatInput({ isConnected, isProcessing }: ChatInputProps) {
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="w-full px-2" role="form" aria-label="Chat input form">
+        <form onSubmit={handleSubmit} className="w-full" role="form" aria-label="Chat input form">
           <div className="relative flex items-end w-full transition-all duration-300 ease-out">
             {/* Textarea grows to fill available width */}
             <div className="relative flex-1">
@@ -456,15 +456,6 @@ export function ChatInput({ isConnected, isProcessing }: ChatInputProps) {
           </div>
         </form>
         
-        <div 
-          id="input-hint" 
-          className="mt-1 sm:mt-2 text-center text-xs text-muted-foreground font-medium flex items-center justify-center gap-2 px-2"
-          role="status"
-          aria-live="polite"
-        >
-          {/*getLoadingIndicator()*/}
-          <span>{getHintText()}</span>
-        </div>
       </div>
     </div>
   )
