@@ -7,6 +7,9 @@ import { GroupedPlanningSection } from './GroupedPlanningSection'
 import { GroupedExecutionSection } from './GroupedExecutionSection'
 import { ParentCollapsibleWrapper } from './ParentCollapsibleWrapper'
 import { AgentActivitySkeleton } from './AgentActivitySkeleton'
+import { ThinkingSkeleton } from './ThinkingSkeleton'
+import { PlanningSkeleton } from './PlanningSkeleton'
+import { ExecutionSkeleton } from './ExecutionSkeleton'
 import { Button } from '@/sidepanel/components/ui/button'
 import { useAutoScroll } from '../hooks/useAutoScroll'
 import { useAnalytics } from '../hooks/useAnalytics'
@@ -628,21 +631,29 @@ export function MessageList({ messages, isProcessing = false, onScrollStateChang
             return null
           })}
           
-          {/* Show skeleton when processing starts and no agent activity yet */}
-          {isProcessing && messageGroups.filter(g => 
-            g.type === 'thinking-group' || g.type === 'planning-group' || g.type === 'execution-group'
-          ).length === 0 && (
-            <AgentActivitySkeleton />
-          )}
-          
-          {/* Show typing indicator when processing and no recent thinking messages */}
-          {isProcessing && !messages.some(m => m.role === 'thinking' && Date.now() - m.timestamp.getTime() < 500) && messageGroups.filter(g => 
-            g.type === 'thinking-group' || g.type === 'planning-group' || g.type === 'execution-group'
-          ).length > 0 && (
-            <div className="flex justify-start px-4 py-2">
-              <TypingIndicator className="message-enter" />
-            </div>
-          )}
+          {/* Smart skeleton logic - full initially, then section-wise */}
+          {isProcessing && (() => {
+            const hasThinking = messageGroups.some(g => g.type === 'thinking-group')
+            const hasPlanning = messageGroups.some(g => g.type === 'planning-group')
+            const hasExecution = messageGroups.some(g => g.type === 'execution-group')
+            
+            // If no sections exist yet, show full skeleton
+            if (!hasThinking && !hasPlanning && !hasExecution) {
+              return <AgentActivitySkeleton />
+            }
+            
+            // Otherwise show skeleton for next expected section
+            if (!hasThinking) {
+              return <ThinkingSkeleton />
+            } else if (!hasPlanning) {
+              return <PlanningSkeleton />
+            } else if (!hasExecution) {
+              return <ExecutionSkeleton />
+            }
+            
+            // If all sections exist, show execution skeleton (for ongoing execution)
+            return <ExecutionSkeleton />
+          })()}
         </div>
       </div>
       
