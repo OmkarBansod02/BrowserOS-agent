@@ -813,7 +813,7 @@ p, span, div, h1, h2, h3, h4, h5, h6, li, td, th, label, input, textarea, button
 }
 
 .animate-shimmer {
-  animation: shimmer 2s linear infinite;
+  animation: shimmer 1.5s linear infinite;
 }
 
 /* Subtle pulse animation for star button */
