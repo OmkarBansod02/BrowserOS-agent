@@ -464,14 +464,29 @@ export const MessageItem = memo<MessageItemProps>(function MessageItem({ message
         )
 
       case 'error':
-        // Error messages with red styling
+        // Simple, minimalistic error messages with clickable links
+        const urlRegex = /(https?:\/\/[^\s]+)/g
+        const parts = message.content.split(urlRegex)
+        
         return (
-          <div className="text-red-500 font-medium">
-            <MarkdownContent
-              content={message.content}
-              className="break-words"
-              compact={false}
-            />
+          <div className="text-red-500 text-sm">
+            <span className="font-medium">⚠️ Error: </span>
+            {parts.map((part, index) => {
+              if (urlRegex.test(part)) {
+                return (
+                  <a
+                    key={index}
+                    href={part}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-500 underline hover:text-blue-400 transition-colors"
+                  >
+                    {part}
+                  </a>
+                )
+              }
+              return <span key={index}>{part}</span>
+            })}
           </div>
         )
 

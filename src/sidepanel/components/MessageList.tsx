@@ -546,7 +546,7 @@ export function MessageList({ messages, isProcessing = false, onScrollStateChang
               } else {
                 // Only break parent wrapper for actual user/assistant messages (not between cycles)
                 const message = group.messages[0]
-                if (message && message.role !== 'thinking' && (message.role === 'user' || message.role === 'assistant')) {
+                if (message && message.role !== 'thinking' && (message.role === 'user' || message.role === 'assistant' || message.role === 'error')) {
                   // Before adding user/assistant message, wrap any collected grouped sections
                   if (groupedSections.length > 0) {
                     elements.push(
