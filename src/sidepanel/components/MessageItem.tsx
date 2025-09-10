@@ -1,8 +1,6 @@
 import React, { memo, useEffect, useState, useMemo, useCallback } from 'react'
 import { MarkdownContent } from './shared/Markdown'
 import { ExpandableSection } from './shared/ExpandableSection'
-import { ThinkingSection } from './ThinkingSection'
-import { ExecutionSection } from './ExecutionSection'
 import { cn } from '@/sidepanel/lib/utils'
 import type { Message } from '../stores/chatStore'
 import { useChatStore } from '../stores/chatStore'
@@ -434,20 +432,22 @@ export const MessageItem = memo<MessageItemProps>(function MessageItem({ message
           )
         }
         
-        // Regular thinking message - use ThinkingSection
+        // Regular thinking message - use MarkdownContent
         return (
-          <ThinkingSection 
+          <MarkdownContent
             content={message.content}
-            isLatest={isLatestThinking && !isTodoTable}
+            className="break-words text-xs text-muted-foreground/80"
+            compact={true}
           />
         )
 
       case 'narration':
-        // Regular narration message - use ThinkingSection for consistency
+        // Regular narration message - use MarkdownContent
         return (
-          <ThinkingSection 
+          <MarkdownContent
             content={message.content}
-            isLatest={isLatestNarration && !isTodoTable}
+            className="break-words text-xs text-muted-foreground/80"
+            compact={true}
           />
         )
 
