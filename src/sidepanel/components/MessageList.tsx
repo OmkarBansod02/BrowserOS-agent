@@ -142,6 +142,26 @@ export function MessageList({ messages, isProcessing = false, onScrollStateChang
     return messages.some(msg => msg.role === 'assistant')
   }, [messages])
   
+  // Scroll to latest assistant message when task completes
+  useEffect(() => {
+    if (isTaskCompleted) {
+      const latestAssistantMessage = messages.findLast(msg => msg.role === 'assistant')
+      if (latestAssistantMessage) {
+        // Small delay to let sections collapse first
+        setTimeout(() => {
+          const messageElement = document.querySelector(`[data-message-id="${latestAssistantMessage.msgId}"]`)
+          if (messageElement) {
+            messageElement.scrollIntoView({ 
+              behavior: 'smooth', 
+              block: 'start',
+              inline: 'nearest'
+            })
+          }
+        }, 100) // Minimal delay just for collapse animation
+      }
+    }
+  }, [isTaskCompleted, messages])
+  
   // Track currently executing narration for legacy narration blocks only
   const currentlyExecutingNarration = useMemo(() => {
     const lastNarrationIndex = messages.findLastIndex(m => m.role === 'narration')
@@ -393,6 +413,7 @@ export function MessageList({ messages, isProcessing = false, onScrollStateChang
               return (
                 <div
                   key={message.msgId}
+                  data-message-id={message.msgId}
                   className={isNewMessage ? 'animate-fade-in' : ''}
                   style={{ animationDelay: isNewMessage ? '0.1s' : undefined }}
                 >
