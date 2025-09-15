@@ -14,6 +14,7 @@ import { Button } from '@/sidepanel/components/ui/button'
 import { useAutoScroll } from '../hooks/useAutoScroll'
 import { useAnalytics } from '../hooks/useAnalytics'
 import { cn } from '@/sidepanel/lib/utils'
+import { groupMessages } from '../utils/messageGrouping'
 import type { Message } from '../stores/chatStore'
 
 interface MessageListProps {
@@ -131,153 +132,9 @@ export function MessageList({ messages, isProcessing = false, onScrollStateChang
     previousMessageIdsRef.current = currentMessageIds
   }, [messages])
 
-  // Group consecutive thinking, planning, and execution messages
+  // Use simplified message grouping for new agent architecture
   const messageGroups = useMemo(() => {
-    const groups: Array<{ type: 'thinking-group' | 'planning-group' | 'execution-group' | 'single', messages: Message[] }> = []
-    let currentGroup: Message[] = []
-    let currentGroupType: 'thinking' | 'planning' | 'execution' | null = null
-    
-    const isThinkingMessage = (message: Message) => {
-      return message.role === 'thinking' && 
-             !message.content.includes('| # | Status | Task |') && // Not a TODO table
-             !message.metadata?.toolName && // Not a tool result
-             !message.content.includes('_tool') // Not a tool-related message
-    }
-    
-    const isPlanCreatedMessage = (message: Message) => {
-      return message.role === 'thinking' && 
-             /Created plan with \d+ steps?/i.test(message.content)
-    }
-    
-    const isPlanningMessage = (message: Message) => {
-      if (message.role !== 'thinking') return false
-      
-      // Check for planning patterns
-      const planningPatterns = [
-        /Created \d+ step execution plan/i,    // Created 5 step execution plan
-        /^- \[ \]/m,                          // Unchecked task items (plan steps)
-        /Navigate to/i,                       // Plan steps like "Navigate to Amazon.com"
-        /Search for/i,                        // Plan steps like "Search for 'pen'"
-        /Select a suitable/i,                 // Plan steps like "Select a suitable pen"
-        /Add the selected/i,                  // Plan steps like "Add the selected pen to cart"
-        /Proceed to checkout/i,               // Plan steps like "Proceed to checkout"
-        /execution plan/i                     // General execution plan mentions
-      ]
-      
-      return planningPatterns.some(pattern => pattern.test(message.content))
-    }
-    
-    const isExecutionMessage = (message: Message) => {
-      if (message.role !== 'thinking') return false
-      
-      // Check for actual execution patterns from the logs
-      const executionPatterns = [
-        /Navigating to:/i,           // Navigating to: https://...
-        /Finding element/i,          // Finding element to click/type
-        /Typed .* into/i,            // Typed "text" into element
-        /Clicked element/i,          // Clicked element: button
-        /Pressing key/i,             // Pressing key
-        /Scrolling/i,                // Scrolling
-        /Taking screenshot/i,        // Taking screenshot
-        /## Step \d+/,              // ## Step 1
-        /### Step \d+/,             // ### Step 1  
-        /\*\*Step \d+/,             // **Step 1
-        /Step \d+:/,                // Step 1:
-        /Executing step/i,          // Executing step
-        /\*\*Execution Plan\*\*/,   // **Execution Plan**
-        /_tool/,                    // Tool-related
-        /Calling tool/i,            // Calling tool
-        /Tool call/i,               // Tool call
-        /Using tool/i,              // Using tool
-        /^- \[x\]/m,                // Completed task checkboxes (execution updates)
-        /Current URL:/i,            // Browser state updates
-        /next uncompleted task/i    // Task execution updates
-      ]
-      
-      // Check metadata for tool usage
-      if (message.metadata?.toolName) {
-        return true
-      }
-      
-      // Check content patterns
-      return executionPatterns.some(pattern => pattern.test(message.content))
-    }
-    
-    const finishCurrentGroup = () => {
-      if (currentGroup.length > 0) {
-        if (currentGroup.length > 1 && currentGroupType) {
-          const groupType = currentGroupType === 'thinking' ? 'thinking-group' : 
-                           currentGroupType === 'planning' ? 'planning-group' : 'execution-group'
-          groups.push({ 
-            type: groupType, 
-            messages: [...currentGroup] 
-          })
-        } else {
-          groups.push({ type: 'single', messages: [...currentGroup] })
-        }
-        currentGroup = []
-        currentGroupType = null
-      }
-    }
-    
-    messages.forEach(message => {
-      const isThinking = isThinkingMessage(message)
-      const isPlanning = isPlanningMessage(message)
-      const isExecution = isExecutionMessage(message)
-      
-      if (isThinking && !isPlanning && !isExecution) {
-        // Check if this is a plan creation message that ends thinking phase
-        if (isPlanCreatedMessage(message)) {
-          // Add this message to current thinking group (if any)
-          if (currentGroupType === 'thinking') {
-            currentGroup.push(message)
-          } else {
-            // Start a new thinking group with just this message
-            finishCurrentGroup()
-            currentGroup = [message]
-            currentGroupType = 'thinking'
-          }
-          // Finish the thinking group after plan creation
-          finishCurrentGroup()
-        } else {
-          // Regular thinking message
-          if (currentGroupType === 'thinking') {
-            currentGroup.push(message)
-          } else {
-            finishCurrentGroup()
-            currentGroup = [message]
-            currentGroupType = 'thinking'
-          }
-        }
-      } else if (isPlanning) {
-        // Planning message
-        if (currentGroupType === 'planning') {
-          currentGroup.push(message)
-        } else {
-          finishCurrentGroup()
-          currentGroup = [message]
-          currentGroupType = 'planning'
-        }
-      } else if (isExecution) {
-        // Execution message
-        if (currentGroupType === 'execution') {
-          currentGroup.push(message)
-        } else {
-          finishCurrentGroup()
-          currentGroup = [message]
-          currentGroupType = 'execution'
-        }
-      } else {
-        // Other message types (user, assistant, etc.)
-        finishCurrentGroup()
-        groups.push({ type: 'single', messages: [message] })
-      }
-    })
-    
-    // Handle remaining messages in group
-    finishCurrentGroup()
-    
-    return groups
+    return groupMessages(messages)
   }, [messages])
   
   // Track currently executing narration for legacy narration blocks only
@@ -507,85 +364,41 @@ export function MessageList({ messages, isProcessing = false, onScrollStateChang
       >
         {/* Messages List */}
         <div className="p-6 space-y-3 pb-4">
-          {/* Render thinking groups and other messages */}
-          {(() => {
-            const elements = []
-            const groupedSections = []
+          {/* Simplified rendering for new agent architecture */}
+          {messageGroups.map((group, groupIndex) => {
+            const key = `group-${groupIndex}`
             
-            for (let groupIndex = 0; groupIndex < messageGroups.length; groupIndex++) {
-              const group = messageGroups[groupIndex]
-              const key = `group-${groupIndex}`
+            if (group.type === 'thinking') {
+              // Render thinking section directly - no complex wrapper needed
+              return (
+                <GroupedThinkingSection
+                  key={key}
+                  messages={group.messages}
+                  isLatest={groupIndex === messageGroups.length - 1}
+                />
+              )
+            } else {
+              // Single message (user, assistant, error, etc.)
+              const message = group.messages[0]
+              if (!message) return null
               
-              if (group.type === 'thinking-group' || group.type === 'planning-group' || group.type === 'execution-group') {
-                // Collect ALL grouped sections for single parent wrapper (all cycles)
-                if (group.type === 'thinking-group') {
-                  groupedSections.push(
-                    <GroupedThinkingSection
-                      key={key}
-                      messages={group.messages}
-                      isLatest={groupIndex === messageGroups.length - 1}
-                    />
-                  )
-                } else if (group.type === 'planning-group') {
-                  groupedSections.push(
-                    <GroupedPlanningSection
-                      key={key}
-                      messages={group.messages}
-                      isLatest={groupIndex === messageGroups.length - 1}
-                    />
-                  )
-                } else if (group.type === 'execution-group') {
-                  groupedSections.push(
-                    <GroupedExecutionSection
-                      key={key}
-                      messages={group.messages}
-                      isLatest={groupIndex === messageGroups.length - 1}
-                    />
-                  )
-                }
-              } else {
-                // Only break parent wrapper for actual user/assistant messages (not between cycles)
-                const message = group.messages[0]
-                if (message && message.role !== 'thinking' && (message.role === 'user' || message.role === 'assistant' || message.role === 'error')) {
-                  // Before adding user/assistant message, wrap any collected grouped sections
-                  if (groupedSections.length > 0) {
-                    elements.push(
-                      <ParentCollapsibleWrapper key={`parent-${elements.length}`}>
-                        {groupedSections.splice(0)}
-                      </ParentCollapsibleWrapper>
-                    )
-                  }
-                  
-                  const isNewMessage = newMessageIdsRef.current.has(message.msgId)
-                  
-                  elements.push(
-                    <div
-                      key={message.msgId}
-                      className={isNewMessage ? 'animate-fade-in' : ''}
-                      style={{ animationDelay: isNewMessage ? '0.1s' : undefined }}
-                    >
-                      <MessageItem 
-                        message={message} 
-                        shouldIndent={false}
-                        showLocalIndentLine={false}
-                      />
-                    </div>
-                  )
-                }
-              }
-            }
-            
-            // Add any remaining grouped sections at the end (all remaining cycles)
-            if (groupedSections.length > 0) {
-              elements.push(
-                <ParentCollapsibleWrapper key={`parent-${elements.length}`}>
-                  {groupedSections}
-                </ParentCollapsibleWrapper>
+              const isNewMessage = newMessageIdsRef.current.has(message.msgId)
+              
+              return (
+                <div
+                  key={message.msgId}
+                  className={isNewMessage ? 'animate-fade-in' : ''}
+                  style={{ animationDelay: isNewMessage ? '0.1s' : undefined }}
+                >
+                  <MessageItem 
+                    message={message} 
+                    shouldIndent={false}
+                    showLocalIndentLine={false}
+                  />
+                </div>
               )
             }
-            
-            return elements
-          })()}
+          })}
           
           {/* Narration blocks rendering (only for actual narration messages) */}
           {narrationBlocks.map((block, index) => {
@@ -631,29 +444,10 @@ export function MessageList({ messages, isProcessing = false, onScrollStateChang
             return null
           })}
           
-          {/* Smart skeleton logic - full initially, then section-wise */}
-          {isProcessing && (() => {
-            const hasThinking = messageGroups.some(g => g.type === 'thinking-group')
-            const hasPlanning = messageGroups.some(g => g.type === 'planning-group')
-            const hasExecution = messageGroups.some(g => g.type === 'execution-group')
-            
-            // If no sections exist yet, show full skeleton
-            if (!hasThinking && !hasPlanning && !hasExecution) {
-              return <AgentActivitySkeleton />
-            }
-            
-            // Otherwise show skeleton for next expected section
-            if (!hasThinking) {
-              return <ThinkingSkeleton />
-            } else if (!hasPlanning) {
-              return <PlanningSkeleton />
-            } else if (!hasExecution) {
-              return <ExecutionSkeleton />
-            }
-            
-            // If all sections exist, show execution skeleton (for ongoing execution)
-            return <ExecutionSkeleton />
-          })()}
+          {/* Show skeleton during processing - either initially or during delays */}
+          {isProcessing && (
+            <ThinkingSkeleton />
+          )}
         </div>
       </div>
       

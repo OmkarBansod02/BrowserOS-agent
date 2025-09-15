@@ -1,39 +1,22 @@
 import type { Message } from '../stores/chatStore'
 
 export interface MessageGroup {
-  type: 'thinking' | 'execution' | 'single'
+  type: 'thinking' | 'single'
   messages: Message[]
   isLatest?: boolean
 }
 
 /**
- * Groups consecutive thinking/narration messages together until execution starts
+ * Simplified grouping for new agent architecture
+ * Groups consecutive thinking messages together - no separate planning/execution phases
  * Returns array of MessageGroup objects for clean UI rendering
  */
 export function groupMessages(messages: Message[]): MessageGroup[] {
   const groups: MessageGroup[] = []
   let currentThinkingGroup: Message[] = []
   
-  const isExecutionContent = (message: Message): boolean => {
-    const content = message.content.toLowerCase()
-    return (
-      // Step-like markdown patterns
-      /^(\s*-\s*\[\s*[x\s]\s*\]|\s*\d+\.\s+|\s*step\s+\d+)/mi.test(message.content) ||
-      // Execution keywords
-      content.includes('executing') ||
-      content.includes('running') ||
-      content.includes('completed step') ||
-      content.includes('step completed') ||
-      content.includes('execution plan') ||
-      content.includes('following steps')
-    )
-  }
-  
   const isThinkingContent = (message: Message): boolean => {
-    return (
-      message.role === 'thinking' || 
-      message.role === 'narration'
-    ) && !isExecutionContent(message)
+    return message.role === 'thinking' || message.role === 'narration'
   }
   
   for (let i = 0; i < messages.length; i++) {
@@ -54,21 +37,12 @@ export function groupMessages(messages: Message[]): MessageGroup[] {
         currentThinkingGroup = []
       }
       
-      // Handle execution messages
-      if (isExecutionContent(message)) {
-        groups.push({
-          type: 'execution',
-          messages: [message],
-          isLatest: isLast
-        })
-      } else {
-        // Single message (user, assistant, etc.)
-        groups.push({
-          type: 'single',
-          messages: [message],
-          isLatest: isLast
-        })
-      }
+      // Single message (user, assistant, error, etc.)
+      groups.push({
+        type: 'single',
+        messages: [message],
+        isLatest: isLast
+      })
     }
   }
   
