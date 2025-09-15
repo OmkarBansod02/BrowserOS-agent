@@ -137,6 +137,11 @@ export function MessageList({ messages, isProcessing = false, onScrollStateChang
     return groupMessages(messages)
   }, [messages])
   
+  // Detect if task is completed (assistant message exists after thinking messages)
+  const isTaskCompleted = useMemo(() => {
+    return messages.some(msg => msg.role === 'assistant')
+  }, [messages])
+  
   // Track currently executing narration for legacy narration blocks only
   const currentlyExecutingNarration = useMemo(() => {
     const lastNarrationIndex = messages.findLastIndex(m => m.role === 'narration')
@@ -375,6 +380,7 @@ export function MessageList({ messages, isProcessing = false, onScrollStateChang
                   key={key}
                   messages={group.messages}
                   isLatest={groupIndex === messageGroups.length - 1}
+                  isTaskCompleted={isTaskCompleted}
                 />
               )
             } else {

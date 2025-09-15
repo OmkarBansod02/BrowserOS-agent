@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { cn } from '@/sidepanel/lib/utils'
 import { ChevronDown, ChevronRight, Brain } from 'lucide-react'
 import { MarkdownContent } from './shared/Markdown'
@@ -7,6 +7,7 @@ import type { Message } from '../stores/chatStore'
 interface GroupedThinkingSectionProps {
   messages: Message[]
   isLatest?: boolean  // For shimmer effect on last message
+  isTaskCompleted?: boolean  // Auto-collapse when task is completed
   className?: string
 }
 
@@ -14,8 +15,16 @@ interface GroupedThinkingSectionProps {
  * GroupedThinkingSection - groups consecutive thinking messages under single collapsible block
  * Like Windsurf/Cursor behavior where all thinking is consolidated
  */
-export function GroupedThinkingSection({ messages, isLatest = false, className }: GroupedThinkingSectionProps) {
+export function GroupedThinkingSection({ messages, isLatest = false, isTaskCompleted = false, className }: GroupedThinkingSectionProps) {
   const [isExpanded, setIsExpanded] = useState(true)  // Default expanded
+  
+  // Auto-collapse immediately when task is completed
+  useEffect(() => {
+    if (isTaskCompleted && !isLatest) {
+      // Immediate smooth collapse when result appears
+      setIsExpanded(false)
+    }
+  }, [isTaskCompleted, isLatest])
   
   if (messages.length === 0) return null
 
@@ -49,9 +58,12 @@ export function GroupedThinkingSection({ messages, isLatest = false, className }
         </div>
       </button>
 
-      {/* Grouped Thinking Content */}
-      {isExpanded && (
-        <div className="mt-1 ml-4 pl-2 border-l-2 border-muted-foreground/20 space-y-2">
+      {/* Grouped Thinking Content with smooth collapse animation */}
+      <div className={cn(
+        "transition-all duration-500 ease-out overflow-hidden",
+        isExpanded ? "max-h-[2000px] opacity-100 mt-1" : "max-h-0 opacity-0 mt-0"
+      )}>
+        <div className="ml-4 pl-2 border-l-2 border-muted-foreground/20 space-y-2">
           {messages.map((message, index) => {
             const isLastMessage = index === messages.length - 1
             const showShimmer = isLatest && isLastMessage
@@ -81,7 +93,7 @@ export function GroupedThinkingSection({ messages, isLatest = false, className }
             )
           })}
         </div>
-      )}
+      </div>
     </div>
   )
 }
