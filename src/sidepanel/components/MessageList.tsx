@@ -55,9 +55,8 @@ export function MessageList({ messages, isProcessing = false, onScrollStateChang
   // Use external container ref if provided, otherwise use internal one
   const containerRef = externalContainerRef || internalContainerRef
   
-  // Display count is fixed - no viewport adjustment needed
 
-  // Track new messages for animation
+  // Track new messages for animation 
   useEffect(() => {
     const currentMessageIds = new Set(messages.map(msg => msg.msgId))
     const previousIds = previousMessageIdsRef.current
@@ -150,11 +149,6 @@ export function MessageList({ messages, isProcessing = false, onScrollStateChang
     return blocks
   }, [messages])
 
-  // Examples are fixed - no initialization needed
-
-  // No random example generation needed - using fixed examples
-
-  // No example refresh needed - using fixed examples
 
   // Check if we're at the bottom of the scroll container
   useEffect(() => {
