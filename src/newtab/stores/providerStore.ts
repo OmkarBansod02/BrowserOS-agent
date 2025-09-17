@@ -145,9 +145,12 @@ function buildQueryInjectionScript(query: string) {
     (function() {
       const value = ${JSON.stringify(query)};
       const selectorGroups = [
+        'input[name="search_query"]',
+        'input[type="search"]', 
         'textarea[id="prompt-textarea"]',
         'textarea[data-id="chat-input"]',
         'textarea[data-testid="textbox"]',
+        'input[type="text"]',
         'textarea',
         'div[contenteditable="true"]',
         'div[role="textbox"]',
