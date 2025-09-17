@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useMemo } from 'react'
 import { useProviderStore, type Provider } from '../stores/providerStore'
 
 interface SearchDropdownProps {
@@ -31,7 +31,18 @@ function getProviderIcon(provider: Provider) {
 }
 
 export function SearchDropdown({ query, onSelect, onClose }: SearchDropdownProps) {
-  const providers = useProviderStore(state => state.getEnabledProviders())
+  const enabledProviderIds = useProviderStore(state => state.enabledProviderIds)
+  const defaultProviders = useProviderStore(state => state.providers)
+  const customProviders = useProviderStore(state => state.customProviders)
+  
+  const providers = useMemo(() => {
+    const allProviders = [...defaultProviders, ...customProviders]
+    const providerMap = new Map(allProviders.map(provider => [provider.id, provider]))
+    return enabledProviderIds
+      .map(id => providerMap.get(id))
+      .filter((provider): provider is Provider => Boolean(provider))
+  }, [enabledProviderIds, defaultProviders, customProviders])
+  
   const [activeIndex, setActiveIndex] = useState(0)
 
   useEffect(() => {

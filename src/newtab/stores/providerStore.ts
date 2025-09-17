@@ -139,6 +139,112 @@ function moveItem<T>(items: T[], from: number, to: number) {
   return list
 }
 
+
+function buildQueryInjectionScript(query: string) {
+  return `
+    (function() {
+      const value = ${JSON.stringify(query)};
+      const selectorGroups = [
+        'textarea[id="prompt-textarea"]',
+        'textarea[data-id="chat-input"]',
+        'textarea[data-testid="textbox"]',
+        'textarea',
+        'div[contenteditable="true"]',
+        'div[role="textbox"]',
+        '[data-testid="textbox"]',
+        '[role="textbox"]'
+      ];
+
+      const isVisible = (el) => {
+        if (!el) return false;
+        const style = window.getComputedStyle(el);
+        if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') {
+          return false;
+        }
+        const rect = el.getBoundingClientRect();
+        return rect.width > 0 && rect.height > 0;
+      };
+
+      const fireEvents = (el) => {
+        try {
+          el.dispatchEvent(new InputEvent('beforeinput', { bubbles: true, inputType: 'insertFromPaste', data: value }));
+        } catch (_) {
+          el.dispatchEvent(new Event('beforeinput', { bubbles: true }));
+        }
+        try {
+          el.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertFromPaste', data: value }));
+        } catch (_) {
+          el.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+      };
+
+      const setValue = (target) => {
+        if (!target) return false;
+        if (target.tagName === 'TEXTAREA' || target.tagName === 'INPUT') {
+          const descriptor = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(target), 'value');
+          if (descriptor && descriptor.set) {
+            descriptor.set.call(target, value);
+          } else {
+            target.value = value;
+          }
+          target.focus();
+          fireEvents(target);
+          return true;
+        }
+        if (target.isContentEditable || target.getAttribute('contenteditable') === 'true') {
+          target.focus();
+          let success = false;
+          if (typeof document.execCommand === 'function') {
+            try {
+              success = document.execCommand('insertText', false, value);
+            } catch (_) {
+              success = false;
+            }
+          }
+          if (!success) {
+            target.innerHTML = '';
+            const paragraph = document.createElement('p');
+            paragraph.textContent = value;
+            target.appendChild(paragraph);
+          }
+          fireEvents(target);
+          return true;
+        }
+        return false;
+      };
+
+      const seen = new Set();
+      const searchRoot = (root) => {
+        if (!root) return null;
+        for (const selector of selectorGroups) {
+          const el = root.querySelector?.(selector);
+          if (el && !seen.has(el) && isVisible(el)) {
+            return el;
+          }
+        }
+        const all = root.querySelectorAll?.('*') || [];
+        for (const el of all) {
+          if (seen.has(el)) continue;
+          seen.add(el);
+          if (!isVisible(el)) continue;
+          if (el.shadowRoot) {
+            const deep = searchRoot(el.shadowRoot);
+            if (deep) return deep;
+          }
+        }
+        return null;
+      };
+
+      const target = searchRoot(document) || (document.activeElement && isVisible(document.activeElement) ? document.activeElement : null);
+      if (!target) {
+        return false;
+      }
+      return setValue(target);
+    })();
+  `;
+}
+
 interface ProviderState {
   providers: Provider[]
   customProviders: Provider[]
@@ -475,58 +581,25 @@ export const useProviderStore = create<ProviderState & ProviderActions>()(
               await new Promise(resolve => setTimeout(resolve, CHAT_PROVIDER_POST_LOAD_DELAY_MS))
 
               if (!hasPlaceholder) {
-                try {
-                  const result = await browserOS.executeJavaScript(tabId, `
-                    (function() {
-                      const value = ${JSON.stringify(query)};
-                      const setTextValue = (el) => {
-                        const proto = Object.getPrototypeOf(el);
-                        const descriptor = proto && Object.getOwnPropertyDescriptor(proto, 'value');
-                        if (descriptor && descriptor.set) {
-                          descriptor.set.call(el, value);
-                        } else {
-                          el.value = value;
-                        }
-                        el.dispatchEvent(new Event('input', { bubbles: true }));
-                        el.dispatchEvent(new Event('change', { bubbles: true }));
-                        el.focus();
-                        return true;
-                      };
+                const injectQuery = async () => {
+                  if (tabId == null) return false;
+                  try {
+                    const script = buildQueryInjectionScript(query);
+                    const result = await browserOS.executeJavaScript(tabId, script);
+                    return Boolean(result);
+                  } catch (error) {
+                    console.warn('Failed to inject query for provider', provider.id, error);
+                    return false;
+                  }
+                };
 
-                      const input = document.querySelector('textarea, input[type="search"], input[type="text"]');
-                      if (input) {
-                        return setTextValue(input);
-                      }
+                queryInjected = await injectQuery();
 
-                      const editable = document.querySelector('[contenteditable="true"]');
-                      if (editable) {
-                        editable.focus();
-                        const selection = window.getSelection && window.getSelection();
-                        if (selection && selection.removeAllRanges) {
-                          const range = document.createRange();
-                          range.selectNodeContents(editable);
-                          selection.removeAllRanges();
-                          selection.addRange(range);
-                        }
-                        let inserted = false;
-                        if (typeof document.execCommand === 'function') {
-                          inserted = document.execCommand('insertText', false, value);
-                        }
-                        if (!inserted) {
-                          editable.textContent = value;
-                        }
-                        const InputEvt = window.InputEvent || window.Event;
-                        editable.dispatchEvent(new InputEvt('input', { bubbles: true, data: value }));
-                        editable.dispatchEvent(new Event('change', { bubbles: true }));
-                        return true;
-                      }
-
-                      return false;
-                    })();
-                  `)
-                  queryInjected = Boolean(result)
-                } catch (error) {
-                  console.warn('Failed to inject query for provider', provider.id, error)
+                if (!queryInjected) {
+                  for (let attempt = 0; attempt < 5 && !queryInjected; attempt++) {
+                    await new Promise(resolve => setTimeout(resolve, 400));
+                    queryInjected = await injectQuery();
+                  }
                 }
               }
 
@@ -651,3 +724,4 @@ export const useProviderStore = create<ProviderState & ProviderActions>()(
     }
   )
 )
+
