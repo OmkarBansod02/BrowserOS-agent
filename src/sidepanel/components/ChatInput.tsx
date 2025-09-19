@@ -140,11 +140,10 @@ export function ChatInput({ isConnected, isProcessing }: ChatInputProps) {
       chatMode  // Include chat mode setting
     })
     
-    // Clear input and selected tabs
+    // Clear input but preserve selected tabs for follow-up queries
     setInput('')
     setHistoryIndex(-1)
     setDraftBeforeHistory('')
-    clearSelectedTabs()
     setShowTabSelector(false)
   }
   
@@ -335,6 +334,19 @@ export function ChatInput({ isConnected, isProcessing }: ChatInputProps) {
                   </button>
                 </div>
               ))}
+
+              {/* Clear all button */}
+              {selectedContextTabs.length > 1 && (
+                <button
+                  type="button"
+                  className="flex items-center gap-1 px-2 py-1 rounded-full bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground text-xs border border-border/50 hover:border-border transition-all duration-200 shrink-0"
+                  onClick={clearSelectedTabs}
+                  aria-label="Clear all selected tabs"
+                  title="Clear all selected tabs"
+                >
+                  Clear all
+                </button>
+              )}
             </div>
           </div>
         )}
