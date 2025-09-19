@@ -114,7 +114,6 @@ export const TabSelector: React.FC<TabSelectorComponentProps> = ({
             if (activeTab) {
               toggleTabSelection(activeTab.id);
               onTabSelect?.(activeTab.id);
-              onClose();
             }
           }
           break;
@@ -219,7 +218,6 @@ export const TabSelector: React.FC<TabSelectorComponentProps> = ({
                   onClick={() => {
                     toggleTabSelection(tab.id);
                     onTabSelect?.(tab.id);
-                    onClose();
                   }}
                   role="option"
                   aria-selected={isSelected}
@@ -262,3 +260,4 @@ export const TabSelector: React.FC<TabSelectorComponentProps> = ({
 
 // Re-export BrowserTab type from store
 export type { BrowserTab };
+
