@@ -4,6 +4,7 @@ import { ExecutionContext } from '@/lib/runtime/ExecutionContext'
 import { toolError } from '@/lib/tools/Tool.interface'
 import { HumanMessage, SystemMessage } from '@langchain/core/messages'
 import { generateExtractorSystemPrompt, generateExtractorTaskPrompt } from './ExtractTool.prompt'
+import { buildPageSnapshotMarkdown } from './accessibility/PageSnapshotFormatter'
 import { invokeWithRetry } from '@/lib/utils/retryable'
 import { PubSub } from '@/lib/pubsub'
 import { TokenCounter } from '@/lib/utils/TokenCounter'
@@ -42,30 +43,20 @@ export function createExtractTool(executionContext: ExecutionContext): DynamicSt
         
         const page = pages[0]
         
-        // Get raw content based on extract_type
-        let rawContent: string
-        if (args.extract_type === 'text') {
-          const textSnapshot = await page.getTextSnapshot()
-          // Convert sections to readable content
-          rawContent = textSnapshot.sections && textSnapshot.sections.length > 0
-            ? textSnapshot.sections.map((section: any) => 
-                section.content || section.text || JSON.stringify(section)
-              ).join('\n')
-            : 'No text content found'
-        } else {
-          const linksSnapshot = await page.getLinksSnapshot()
-          // Convert sections to readable content
-          rawContent = linksSnapshot.sections && linksSnapshot.sections.length > 0
-            ? linksSnapshot.sections.map((section: any) => 
-                section.content || section.text || JSON.stringify(section)
-              ).join('\n')
-            : 'No links found'
-        }
-        
         // Get page metadata
-        const url = await page.url()
+        const url = page.url()
         const title = await page.title()
-        
+
+        const { markdown: structuredSnapshot } = await buildPageSnapshotMarkdown(
+          page,
+          { url, title },
+          { context: 'full' }
+        )
+
+        const contentForLLM = structuredSnapshot.trim().length > 0
+          ? structuredSnapshot
+          : 'No structured content available for extraction.'
+
         // Get LLM instance
         const llm = await executionContext.getLLM({temperature: 0.1})
         
@@ -74,7 +65,7 @@ export function createExtractTool(executionContext: ExecutionContext): DynamicSt
         const taskPrompt = generateExtractorTaskPrompt(
           args.task,
           args.extract_type,
-          rawContent,
+          contentForLLM,
           { url, title }
         )
         
@@ -114,3 +105,7 @@ export function createExtractTool(executionContext: ExecutionContext): DynamicSt
     }
   })
 }
+
+
+
+

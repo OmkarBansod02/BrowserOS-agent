@@ -9,6 +9,8 @@ export type InteractiveSnapshotOptions =
 export type PageLoadStatus = chrome.browserOS.PageLoadStatus;
 export type InteractiveNodeType = chrome.browserOS.InteractiveNodeType;
 export type Rect = chrome.browserOS.BoundingRect;
+export type AccessibilityNode = chrome.browserOS.AccessibilityNode;
+export type AccessibilityTree = chrome.browserOS.AccessibilityTree;
 
 // New snapshot types
 export type SnapshotType = chrome.browserOS.SnapshotType;
@@ -744,3 +746,4 @@ export class BrowserOSAdapter {
 
 // Export singleton instance getter for convenience
 export const getBrowserOSAdapter = () => BrowserOSAdapter.getInstance();
+

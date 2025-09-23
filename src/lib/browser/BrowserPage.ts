@@ -5,6 +5,7 @@ import {
   getBrowserOSAdapter,
   type InteractiveNode,
   type InteractiveSnapshot,
+  type AccessibilityTree,
   type Snapshot,
   type SnapshotOptions,
   type ScreenshotSizeKey,
@@ -770,6 +771,13 @@ export class BrowserPage {
   }
 
   // ============= Snapshot Extraction =============
+
+  /**
+   * Retrieve the accessibility tree for the page
+   */
+  async getAccessibilityTree(): Promise<AccessibilityTree> {
+    return await this._browserOS.getAccessibilityTree(this._tabId);
+  }
 
   /**
    * Get text content snapshot from the page
