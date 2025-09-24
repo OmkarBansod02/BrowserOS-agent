@@ -79,7 +79,7 @@ export class ExecutionHandler {
     const { query, tabIds, chatMode, metadata } = payload
 
     const executionId = this.resolveExecutionId(payload, port)
-    Logging.log('ExecutionHandler', `🎯 Resolved executionId: ${executionId} for query: "${query}"`)
+    Logging.log('ExecutionHandler', `Resolved executionId: ${executionId} for query: "${query}"`)
     const execution = this.registry.getOrCreate(executionId)
 
     const primaryTabId = Array.isArray(tabIds) && tabIds.length > 0
@@ -103,7 +103,7 @@ export class ExecutionHandler {
 
     try {
       if (execution.isRunning()) {
-        Logging.log('ExecutionHandler', `🛑 Cancelling previous task for ${executionId}`)
+        Logging.log('ExecutionHandler', `Cancelling previous task for ${executionId}`)
         execution.cancel()
         // Wait a moment to ensure cancellation is processed
         await new Promise(resolve => setTimeout(resolve, 100))
@@ -306,6 +306,10 @@ export class ExecutionHandler {
     })
 
     try {
+      if (typeof tabId === 'number') {
+        this.portManager?.updateExecutionForTab(tabId, executionId)
+      }
+
       await chrome.sidePanel.open({ tabId })
       await new Promise(resolve => setTimeout(resolve, 200))
 
@@ -340,3 +344,4 @@ export class ExecutionHandler {
     }
   }
 }
+

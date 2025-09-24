@@ -112,22 +112,28 @@ export class PortManager {
 
   updateExecutionForTab(tabId: number, executionId: string): void {
     let updatedPorts = 0
+
     for (const info of this.ports.values()) {
-      // For sidepanel ports, update all of them since they don't have natural tabId association
-      // For other ports, only update those matching the specific tabId
-      if (info.port.name.startsWith('sidepanel') || info.tabId === tabId) {
-        Logging.log('PortManager', `📱 Updating port ${info.port.name} to executionId: ${executionId}`)
-        this.subscribeToChannel(info, executionId)
-        // Update the tabId for sidepanel ports to track the current active tab
-        if (info.port.name.startsWith('sidepanel')) {
-          info.tabId = tabId
-        }
-        updatedPorts++
+      const isSidepanelPort = info.port.name.startsWith('sidepanel')
+      const matchesTab = info.tabId === tabId
+      const needsAssignment = isSidepanelPort && info.tabId === undefined
+      const shouldUpdate = matchesTab || needsAssignment
+
+      if (!shouldUpdate) {
+        continue
       }
+
+      Logging.log('PortManager', `Updating port ${info.port.name} to executionId ${executionId}`)
+      this.subscribeToChannel(info, executionId)
+
+      if (isSidepanelPort) {
+        info.tabId = tabId
+      }
+
+      updatedPorts++
     }
-    Logging.log('PortManager', `🔄 Updated ${updatedPorts} ports for tab ${tabId} -> execution ${executionId}`)
-    
-    // Debug: Log current port state
+
+    Logging.log('PortManager', `Updated ${updatedPorts} port(s) for tab ${tabId} -> execution ${executionId}`)
     this.debugPortState()
   }
 
@@ -135,7 +141,7 @@ export class PortManager {
    * Debug method to log current port state
    */
   private debugPortState(): void {
-    Logging.log('PortManager', '🔍 Current port state:')
+    Logging.log('PortManager', 'Current port state:')
     for (const info of this.ports.values()) {
       Logging.log('PortManager', `  Port: ${info.port.name}, TabId: ${info.tabId}, ExecutionId: ${info.executionId}`)
     }
@@ -196,16 +202,15 @@ export class PortManager {
         executionId: info.executionId,
         tabId: info.tabId
       }
-      Logging.log('PortManager', `🚀 Sending EXECUTION_CONTEXT to ${info.port.name}: ${JSON.stringify(contextPayload)}`)
-      
+      Logging.log('PortManager', `Sending EXECUTION_CONTEXT to ${info.port.name}: ${JSON.stringify(contextPayload)}`)
+
       info.port.postMessage({
         type: MessageType.EXECUTION_CONTEXT,
         payload: contextPayload
       })
     } catch (error) {
-      Logging.log('PortManager', `❌ Failed to notify execution context: ${error}`, 'warning')
+      Logging.log('PortManager', `Failed to notify execution context: ${error}`, 'warning')
     }
   }
-
 }
 
