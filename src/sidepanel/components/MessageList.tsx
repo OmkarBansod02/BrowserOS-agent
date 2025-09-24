@@ -239,16 +239,18 @@ export function MessageList({ messages, isProcessing = false, onScrollStateChang
           
           {/* Tagline */}
           <div className="flex items-center justify-center -mt-4">
-            <h2 className="text-3xl font-bold text-muted-foreground animate-fade-in-up flex items-baseline flex-wrap justify-center gap-2 text-center px-2">
-              <span>Your <span className="text-brand">Agentic</span></span>
-              <span>
-                web assistant{' '}
+            <h2 className="text-3xl font-bold text-muted-foreground animate-fade-in-up text-center px-2">
+              <div className="flex items-center justify-center gap-2">
+                <span>Your <span className="text-brand">Agentic</span></span>
+              </div>
+              <div className="flex items-center justify-center gap-2 mt-1">
+                <span>web assistant</span>
                 <img 
                   src="/assets/browseros.svg" 
                   alt="BrowserOS" 
-                  className="w-8 h-8 inline-block align-text-bottom animate-fade-in-up"
+                  className="w-8 h-8 inline-block align-middle animate-fade-in-up"
                 />
-              </span>
+              </div>
             </h2>
           </div>
 
