@@ -118,13 +118,13 @@ export function ChatInput({ isConnected, isProcessing }: ChatInputProps) {
 
   const submitTask = async (query: string) => {
     if (!query.trim()) return
-    
+
     if (!executionId) {
-      console.warn('[ChatInput] No executionId available, using fallback')
+      console.warn('[ChatInput] Execution context not ready yet, skipping submit')
+      return
     }
-    
-    // Use current timestamp as fallback executionId if missing
-    const finalExecutionId = executionId || `fallback-${Date.now()}`
+
+    const finalExecutionId = executionId
 
     upsertMessage(finalExecutionId, {
       msgId: `user_${Date.now()}`,
@@ -442,7 +442,7 @@ export function ChatInput({ isConnected, isProcessing }: ChatInputProps) {
 
               <Button
                 type="submit"
-                disabled={isProcessing || !input.trim()}
+                disabled={isProcessing || !input.trim() || !executionId}
                 size="sm"
                 className="absolute right-3 bottom-3 h-8 w-8 p-0 rounded-full bg-[hsl(var(--brand))] hover:bg-[hsl(var(--brand))]/90 text-white shadow-lg flex items-center justify-center"
                 variant={'default'}
@@ -458,4 +458,6 @@ export function ChatInput({ isConnected, isProcessing }: ChatInputProps) {
     </div>
   )
 }
+
+
 

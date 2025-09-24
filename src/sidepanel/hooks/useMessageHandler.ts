@@ -122,15 +122,11 @@ export function useMessageHandler() {
       if (message?.type === MessageType.EXECUTION_STARTING) {
         const messageExecutionId = message.executionId
         const currentExecutionId = executionIdRef.current  // Use ref for latest value
-        console.log(`[SidePanel] Execution starting from ${message.source} (executionId: ${messageExecutionId})`)
+        const targetExecutionId = resolveExecutionId(messageExecutionId, currentExecutionId)
+        console.log(`[SidePanel] Execution starting from ${message.source} (executionId: ${messageExecutionId ?? 'unknown'})`)
 
-        // Only handle if it matches our execution or if no execution ID specified
-        if (!messageExecutionId || messageExecutionId === currentExecutionId) {
-          // Set processing state to show UI feedback
-          const targetExecutionId = messageExecutionId || currentExecutionId
-          if (targetExecutionId) {
-            setProcessing(targetExecutionId, true)
-          }
+        if (targetExecutionId) {
+          setProcessing(targetExecutionId, true)
         }
       }
     }
