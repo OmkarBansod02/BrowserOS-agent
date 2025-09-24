@@ -668,7 +668,9 @@ export const MessageItem = memo<MessageItemProps>(function MessageItem({ message
       {/* Show content without bubble for other message types */}
       {!shouldShowBubble && (
         <div className={cn(
-          'relative px-4 py-2 transition-all duration-200',
+          'relative transition-all duration-200',
+          // Match thinking section alignment: assistant messages align with brain icon position
+          isAssistant ? 'pl-3 py-2' : 'px-4 py-2',
           // Indentation styling
           shouldIndent && applyIndentMargin && 'ml-4',
           shouldIndent && showLocalIndentLine && 'border-l border-border/30 pl-3 ml-1',
