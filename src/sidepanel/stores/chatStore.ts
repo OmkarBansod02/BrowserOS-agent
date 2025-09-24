@@ -35,7 +35,9 @@ const ExecutionChatStateSchema = z.object({
 // Global store state schema
 const ChatStateSchema = z.object({
   executions: z.record(z.string(), ExecutionChatStateSchema),  // executionId -> execution state
-  currentExecutionId: z.string().nullable()  // Active execution ID
+  currentExecutionId: z.string().nullable(),  // Active execution ID
+  currentTabId: z.number().nullable(),  // Active browser tab id
+  tabExecutionMap: z.record(z.string(), z.string())  // tabId -> executionId mapping
 })
 
 type ExecutionChatState = z.infer<typeof ExecutionChatStateSchema>
@@ -54,6 +56,10 @@ interface ChatActions {
   // Execution management
   setCurrentExecution: (executionId: string) => void
   getCurrentExecution: () => string | null
+  setCurrentTab: (tabId: number | null) => void
+  setTabExecution: (tabId: number, executionId: string) => void
+  getExecutionForTab: (tabId: number) => string | null
+  migrateExecutionState: (fromExecutionId: string, toExecutionId: string) => void
   
   // Message operations - now with executionId parameter
   upsertMessage: (executionId: string, pubsubMessage: PubSubMessage) => void
@@ -100,7 +106,9 @@ const createDefaultExecutionState = (): ExecutionChatState => ({
 // Initial state
 const initialState: ChatState = {
   executions: {},
-  currentExecutionId: null
+  currentExecutionId: null,
+  currentTabId: null,
+  tabExecutionMap: {}
 }
 
 // Helper function to get or create execution state
@@ -120,20 +128,150 @@ export const useChatStore = create<ChatState & ChatActions>((set, get) => ({
   setCurrentExecution: (executionId: string) => {
     console.log('[ChatStore] Setting current execution to:', executionId)
     set((state) => {
-      const newState = {
+      const executionState = getOrCreateExecution(state, executionId)
+      const mergedExecutions = {
+        ...state.executions,
+        [executionId]: executionState
+      }
+      const updates: Partial<ChatState> = {
         currentExecutionId: executionId,
-        executions: {
-          ...state.executions,
-          [executionId]: getOrCreateExecution(state, executionId)
+        executions: mergedExecutions
+      }
+
+      if (typeof state.currentTabId === 'number') {
+        updates.tabExecutionMap = {
+          ...state.tabExecutionMap,
+          [String(state.currentTabId)]: executionId
         }
       }
-      console.log('[ChatStore] Execution switched. Messages count:', newState.executions[executionId]?.messages?.length || 0)
-      return newState
+
+      console.log('[ChatStore] Execution switched. Messages count:', mergedExecutions[executionId]?.messages?.length || 0)
+      return updates
     })
   },
 
   getCurrentExecution: () => get().currentExecutionId,
-  
+
+  setCurrentTab: (tabId: number | null) => {
+    console.log('[ChatStore] Setting current tab to:', tabId)
+    set((state) => {
+      if (tabId === null) {
+        if (state.currentTabId === null) {
+          return {}
+        }
+        return { currentTabId: null }
+      }
+
+      if (state.currentTabId === tabId && state.currentExecutionId) {
+        return {}
+      }
+
+      const mappedExecutionId = state.tabExecutionMap[String(tabId)]
+      if (!mappedExecutionId) {
+        if (state.currentTabId === tabId) {
+          return {}
+        }
+        return { currentTabId: tabId }
+      }
+
+      const executionState = getOrCreateExecution(state, mappedExecutionId)
+      return {
+        currentTabId: tabId,
+        currentExecutionId: mappedExecutionId,
+        executions: {
+          ...state.executions,
+          [mappedExecutionId]: executionState
+        }
+      }
+    })
+  },
+
+  setTabExecution: (tabId: number, executionId: string) => {
+    set((state) => {
+      const executionState = getOrCreateExecution(state, executionId)
+      const key = String(tabId)
+      const updates: Partial<ChatState> = {
+        executions: {
+          ...state.executions,
+          [executionId]: executionState
+        }
+      }
+
+      if (state.tabExecutionMap[key] !== executionId) {
+        updates.tabExecutionMap = {
+          ...state.tabExecutionMap,
+          [key]: executionId
+        }
+      }
+
+      if (state.currentTabId === tabId && state.currentExecutionId !== executionId) {
+        updates.currentExecutionId = executionId
+      }
+
+      return updates
+    })
+  },
+
+  getExecutionForTab: (tabId: number) => {
+    const state = get()
+    const mapped = state.tabExecutionMap[String(tabId)]
+    return mapped ?? null
+  },
+
+  migrateExecutionState: (fromExecutionId: string, toExecutionId: string) => {
+    if (!fromExecutionId || !toExecutionId || fromExecutionId === toExecutionId) {
+      return
+    }
+
+    set((state) => {
+      const source = state.executions[fromExecutionId]
+      if (!source) {
+        return {}
+      }
+
+      const destination = state.executions[toExecutionId]
+      const mergedState: ExecutionChatState = {
+        messages: destination?.messages?.length ? [...destination.messages] : [...source.messages],
+        isProcessing: destination?.isProcessing ?? source.isProcessing,
+        error: destination?.error ?? source.error,
+        feedbacks: {
+          ...(destination?.feedbacks ?? {}),
+          ...source.feedbacks
+        },
+        feedbackUI: {
+          ...(destination?.feedbackUI ?? {}),
+          ...source.feedbackUI
+        },
+        executedPlans: {
+          ...(destination?.executedPlans ?? {}),
+          ...source.executedPlans
+        }
+      }
+
+      const updatedExecutions = {
+        ...state.executions,
+        [toExecutionId]: mergedState
+      }
+      delete updatedExecutions[fromExecutionId]
+
+      const updatedMap: Record<string, string> = {}
+      for (const [key, value] of Object.entries(state.tabExecutionMap)) {
+        updatedMap[key] = value === fromExecutionId ? toExecutionId : value
+      }
+
+      const result: Partial<ChatState> = {
+        executions: updatedExecutions,
+        tabExecutionMap: updatedMap
+      }
+
+      if (state.currentExecutionId === fromExecutionId) {
+        result.currentExecutionId = toExecutionId
+      }
+
+      return result
+    })
+  },
+
   // Message operations
   upsertMessage: (executionId: string, pubsubMessage: PubSubMessage) => {
     set((state) => {
