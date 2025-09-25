@@ -1,5 +1,6 @@
 import { Execution } from '@/lib/execution/Execution'
 import { Logging } from '@/lib/utils/Logging'
+import { PubSub } from '@/lib/pubsub'
 
 /**
  * Registry that manages Execution instances keyed by executionId.
@@ -15,10 +16,10 @@ export class ExecutionRegistry {
 
   getOrCreate(executionId: string): Execution {
     if (!this.executions.has(executionId)) {
-      console.log(`🆕 ExecutionRegistry: Creating NEW execution for ${executionId}`)
+      Logging.log('ExecutionRegistry', `Creating execution for ${executionId}`)
       this.executions.set(executionId, new Execution(executionId))
     } else {
-      console.log(`♻️ ExecutionRegistry: Reusing existing execution for ${executionId}`)
+      Logging.log('ExecutionRegistry', `Reusing execution for ${executionId}`)
     }
     return this.executions.get(executionId)!
   }
@@ -62,6 +63,7 @@ export class ExecutionRegistry {
       return false
     }
     await execution.dispose()
+    PubSub.deleteChannel(executionId, true)
     this.executions.delete(executionId)
     Logging.log('ExecutionRegistry', `Disposed execution ${executionId}`)
     return true
@@ -73,6 +75,7 @@ export class ExecutionRegistry {
   async disposeAll(): Promise<void> {
     for (const [executionId, execution] of this.executions.entries()) {
       await execution.dispose()
+      PubSub.deleteChannel(executionId, true)
       Logging.log('ExecutionRegistry', `Disposed execution ${executionId}`)
     }
     this.executions.clear()

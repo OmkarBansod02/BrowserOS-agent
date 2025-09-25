@@ -33,6 +33,39 @@ export class ExecutionHandler {
     this.portManager = portManager
   }
 
+  private async updateSidePanelVisibility(tabId: number | undefined, enabled: boolean): Promise<void> {
+    if (typeof tabId !== 'number') {
+      return
+    }
+    if (!chrome?.sidePanel?.setOptions) {
+      return
+    }
+
+    try {
+      await chrome.sidePanel.setOptions({ tabId, enabled })
+      Logging.log('ExecutionHandler', `${enabled ? 'Enabled' : 'Disabled'} sidepanel for tab ${tabId}`)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      Logging.log('ExecutionHandler', `Failed to ${enabled ? 'enable' : 'disable'} sidepanel for tab ${tabId}: ${message}`, 'warning')
+    }
+  }
+
+  private async syncSidePanelVisibility(): Promise<void> {
+    if (!this.portManager) {
+      return
+    }
+    const trackedTabs = this.portManager.getTrackedTabs()
+    if (trackedTabs.length === 0) {
+      return
+    }
+
+    await Promise.all(trackedTabs.map(async (tabId) => {
+      const executionId = this.portManager?.getExecutionForTab(tabId)
+      const shouldEnable = !!executionId && this.registry.has(executionId)
+      await this.updateSidePanelVisibility(tabId, shouldEnable)
+    }))
+  }
+
   /**
    * Resolve an executionId from the payload/port context.
    */
@@ -51,7 +84,9 @@ export class ExecutionHandler {
       return metadataExecutionId.trim()
     }
 
-    const payloadTabId = payload?.tabIds && payload.tabIds.length > 0 ? payload.tabIds[0] : undefined
+    const payloadTabId = Array.isArray(payload?.tabIds)
+      ? payload.tabIds.find((id): id is number => typeof id === 'number')
+      : undefined
     if (typeof payloadTabId === 'number') {
       return `tab-${payloadTabId}`
     }
@@ -82,15 +117,21 @@ export class ExecutionHandler {
     Logging.log('ExecutionHandler', `Resolved executionId: ${executionId} for query: "${query}"`)
     const execution = this.registry.getOrCreate(executionId)
 
-    const primaryTabId = Array.isArray(tabIds) && tabIds.length > 0
-      ? tabIds.find((id): id is number => typeof id === 'number')
-      : port.sender?.tab?.id
+    const normalizedTabIds = Array.isArray(tabIds)
+      ? tabIds.filter((id): id is number => typeof id === 'number')
+      : []
+
+    const senderTabId = port.sender?.tab?.id
+    const primaryTabId = normalizedTabIds[0] ?? (typeof senderTabId === 'number' ? senderTabId : undefined)
 
     this.portManager?.setPortExecution(port, executionId, primaryTabId)
 
+    await this.updateSidePanelVisibility(primaryTabId, true)
+    await this.syncSidePanelVisibility()
+
     Logging.log(
       'ExecutionHandler',
-      `Starting execution ${executionId}: "${query}" (mode: ${chatMode ? 'chat' : 'browse'})`
+      `Starting execution ${executionId}: "${query}" (mode: ${chatMode ? 'chat' : 'browse'}) [tab=${primaryTabId ?? 'unknown'}]`
     )
 
     Logging.logMetric('query_initiated', {
@@ -98,7 +139,8 @@ export class ExecutionHandler {
       executionId,
       source: metadata?.source || 'unknown',
       mode: chatMode ? 'chat' : 'browse',
-      executionMode: metadata?.executionMode || 'dynamic'
+      executionMode: metadata?.executionMode || 'dynamic',
+      tabId: primaryTabId ?? null
     })
 
     try {
@@ -111,20 +153,21 @@ export class ExecutionHandler {
 
       execution.updateOptions({
         mode: chatMode ? 'chat' : 'browse',
-        tabIds,
+        tabId: primaryTabId,
+        tabIds: normalizedTabIds,
         metadata,
         debug: false
       })
 
-      if (Array.isArray(tabIds)) {
-        tabIds.forEach((id) => {
-          if (typeof id === 'number') {
-            this.portManager?.updateExecutionForTab(id, executionId)
-          }
+      if (normalizedTabIds.length > 0) {
+        normalizedTabIds.forEach((id) => {
+          this.portManager?.updateExecutionForTab(id, executionId)
         })
-      } else if (port.sender?.tab?.id !== undefined) {
-        this.portManager?.updateExecutionForTab(port.sender.tab.id, executionId)
+      } else if (typeof senderTabId === 'number') {
+        this.portManager?.updateExecutionForTab(senderTabId, executionId)
       }
+
+      await this.syncSidePanelVisibility()
 
       await execution.run(query, metadata)
 
@@ -285,10 +328,11 @@ export class ExecutionHandler {
     sendResponse: (response: any) => void
   ): Promise<void> {
     const { tabId, query, metadata } = message
+    const numericTabId = typeof tabId === 'number' ? tabId : undefined
 
     const syntheticPayload: ExecutionAwarePayload = {
       executionId: metadata?.executionId,
-      tabIds: typeof tabId === 'number' ? [tabId] : undefined,
+      tabIds: numericTabId !== undefined ? [numericTabId] : undefined,
       metadata
     }
     const executionId = this.resolveExecutionId(syntheticPayload, undefined, tabId)
@@ -302,13 +346,17 @@ export class ExecutionHandler {
       source: metadata?.source || 'newtab',
       mode: 'browse',
       executionId,
-      executionMode: metadata?.executionMode || 'dynamic'
+      executionMode: metadata?.executionMode || 'dynamic',
+      tabId: numericTabId ?? null
     })
 
     try {
-      if (typeof tabId === 'number') {
-        this.portManager?.updateExecutionForTab(tabId, executionId)
+      if (typeof numericTabId === 'number') {
+        this.portManager?.updateExecutionForTab(numericTabId, executionId)
+        await this.updateSidePanelVisibility(numericTabId, true)
       }
+
+      await this.syncSidePanelVisibility()
 
       await chrome.sidePanel.open({ tabId })
       await new Promise(resolve => setTimeout(resolve, 200))
@@ -328,10 +376,13 @@ export class ExecutionHandler {
 
       execution.updateOptions({
         mode: 'browse',
-        tabIds: typeof tabId === 'number' ? [tabId] : undefined,
+        tabId: numericTabId,
+        tabIds: numericTabId !== undefined ? [numericTabId] : [],
         metadata,
         debug: false
       })
+
+      await this.syncSidePanelVisibility()
 
       await execution.run(query, metadata)
 
@@ -343,5 +394,46 @@ export class ExecutionHandler {
       sendResponse({ ok: false, error: errorMessage, executionId })
     }
   }
+
+  async handleTabClosed(tabId: number): Promise<void> {
+    const candidateIds = new Set<string>()
+    const mappedExecutionId = this.portManager?.getExecutionForTab(tabId)
+    if (mappedExecutionId) {
+      candidateIds.add(mappedExecutionId)
+    }
+    candidateIds.add(`tab-${tabId}`)
+
+    for (const executionId of candidateIds) {
+      if (!executionId) {
+        continue
+      }
+
+      if (this.registry.has(executionId)) {
+        try {
+          Logging.log('ExecutionHandler', `Disposing execution ${executionId} after tab ${tabId} closed`)
+          await this.registry.dispose(executionId)
+          Logging.logMetric('tab_execution_disposed', { tabId, executionId })
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : String(error)
+          Logging.log('ExecutionHandler', `Failed to dispose execution ${executionId}: ${errorMessage}`, 'warning')
+          this.registry.cancel(executionId)
+          PubSub.deleteChannel(executionId, true)
+        }
+      } else if (PubSub.hasChannel(executionId)) {
+        Logging.log('ExecutionHandler', `Deleting pubsub channel for orphaned execution ${executionId}`)
+        PubSub.deleteChannel(executionId, true)
+      }
+    }
+
+    this.portManager?.cleanupTabPorts(tabId)
+    await this.updateSidePanelVisibility(tabId, false)
+    await this.syncSidePanelVisibility()
+  }
+
 }
+
+
+
+
+
 

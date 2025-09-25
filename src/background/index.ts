@@ -358,10 +358,15 @@ function initialize(): void {
   })
   
   // Clean up on tab removal
-  chrome.tabs.onRemoved.addListener(async (tabId) => {
+  chrome.tabs.onRemoved.addListener((tabId) => {
     panelStates.delete(tabId)
     Logging.log('Background', `Tab ${tabId} removed`)
+    void executionHandler.handleTabClosed(tabId).catch((error) => {
+      const message = error instanceof Error ? error.message : String(error)
+      Logging.log('Background', `Failed to cleanup tab ${tabId}: ${message}`, 'warning')
+    })
   })
+
   
   // Handle messages from newtab
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {

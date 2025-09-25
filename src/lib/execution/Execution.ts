@@ -48,6 +48,7 @@ export class Execution {
     // Initialize with default options
     this.options = {
       mode: "browse",
+      tabIds: [],
       debug: false
     };
     Logging.log(
@@ -64,10 +65,25 @@ export class Execution {
    * @param options - Partial options to update
    */
   updateOptions(options: Partial<ExecutionOptions>): void {
-    this.options = { ...this.options, ...options };
+    const providedTabIds = Array.isArray(options.tabIds)
+      ? options.tabIds.filter((id): id is number => typeof id === "number" && Number.isFinite(id))
+      : undefined;
+
+    const nextTabIds = providedTabIds ?? this.options.tabIds ?? [];
+
+    const explicitTabId = typeof options.tabId === "number" ? options.tabId : undefined;
+    const derivedTabId = explicitTabId ?? nextTabIds[0] ?? this.options.tabId;
+
+    this.options = {
+      ...this.options,
+      ...options,
+      tabIds: nextTabIds,
+      tabId: derivedTabId,
+    };
+
     Logging.log(
       "Execution",
-      `Updated options: mode=${this.options.mode}, tabIds=${this.options.tabIds?.length || 0}`,
+      `Updated options: mode=${this.options.mode}, tabId=${this.options.tabId ?? "none"}, tabIds=${this.options.tabIds?.length || 0}`,
     );
   }
 
@@ -368,6 +384,14 @@ Upgrade to the latest BrowserOS version from [GitHub Releases](https://github.co
     this.pubsub = null;
 
     Logging.log("Execution", `Disposed execution`);
+  }
+
+  getPrimaryTabId(): number | undefined {
+    return typeof this.options.tabId === "number" ? this.options.tabId : undefined;
+  }
+
+  getTabIds(): number[] {
+    return Array.isArray(this.options.tabIds) ? [...this.options.tabIds] : [];
   }
 
   /**
