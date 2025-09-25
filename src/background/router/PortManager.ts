@@ -19,24 +19,33 @@ interface PortInfo {
  */
 export class PortManager {
   private readonly ports = new Map<chrome.runtime.Port, PortInfo>()
+  private readonly tabExecution = new Map<number, string>()
+
 
   /**
    * Register a new port connection.
    */
   registerPort(port: chrome.runtime.Port): PortInfo {
-    const tabId = port.sender?.tab?.id
-    const inferredExecutionId =
-      this.parseExecutionIdFromPortName(port.name) ??
-      (typeof tabId === 'number' ? this.buildExecutionIdFromTab(tabId) : DEFAULT_EXECUTION_ID)
+    const metadata = this.parsePortMetadata(port.name)
+    const nameTabId = metadata.tabId
+    const senderTabId = port.sender?.tab?.id
+    const resolvedTabId = typeof nameTabId === 'number' ? nameTabId : senderTabId
+
+    const inferredExecutionId = metadata.executionId ??
+      (typeof resolvedTabId === 'number' ? this.buildExecutionIdFromTab(resolvedTabId) : DEFAULT_EXECUTION_ID)
 
     const info: PortInfo = {
       port,
       executionId: inferredExecutionId,
-      tabId,
+      tabId: resolvedTabId,
       connectedAt: Date.now()
     }
 
     this.ports.set(port, info)
+
+    if (typeof resolvedTabId === 'number') {
+      this.tabExecution.set(resolvedTabId, inferredExecutionId)
+    }
 
     if (port.name.startsWith('sidepanel')) {
       this.subscribeToChannel(info, inferredExecutionId)
@@ -60,8 +69,15 @@ export class PortManager {
 
     if (typeof tabId === 'number') {
       info.tabId = tabId
-    } else if (info.tabId === undefined && port.sender?.tab?.id !== undefined) {
-      info.tabId = port.sender.tab.id
+    } else if (info.tabId === undefined) {
+      const derivedTabId = this.parsePortMetadata(port.name).tabId ?? port.sender?.tab?.id
+      if (typeof derivedTabId === 'number') {
+        info.tabId = derivedTabId
+      }
+    }
+
+    if (typeof info.tabId === 'number') {
+      this.tabExecution.set(info.tabId, executionId)
     }
 
     const needsResubscribe = info.executionId !== executionId || !info.subscription
@@ -91,6 +107,14 @@ export class PortManager {
     }
 
     this.ports.delete(port)
+
+    if (typeof info.tabId === 'number') {
+      const stillTracked = Array.from(this.ports.values()).some(candidate => candidate.tabId === info.tabId)
+      if (!stillTracked) {
+        this.tabExecution.delete(info.tabId)
+      }
+    }
+
     Logging.log('PortManager', `Unregistered port ${port.name} (exec: ${info.executionId})`)
   }
 
@@ -104,10 +128,43 @@ export class PortManager {
       }
     }
     this.ports.clear()
+    this.tabExecution.clear()
   }
 
   getPortInfo(port: chrome.runtime.Port): PortInfo | undefined {
     return this.ports.get(port)
+  }
+
+  getExecutionForTab(tabId: number): string | undefined {
+    return this.tabExecution.get(tabId)
+  }
+
+  getTrackedTabs(): number[] {
+    return Array.from(this.tabExecution.keys())
+  }
+
+  cleanupTabPorts(tabId: number): void {
+    Logging.log('PortManager', `Cleaning up ports for tab ${tabId}`)
+    this.tabExecution.delete(tabId)
+
+    for (const [port, info] of Array.from(this.ports.entries())) {
+      if (info.tabId !== tabId) {
+        continue
+      }
+
+      if (info.subscription) {
+        info.subscription.unsubscribe()
+        info.subscription = undefined
+      }
+
+      this.ports.delete(port)
+
+      try {
+        port.disconnect()
+      } catch (error) {
+        Logging.log('PortManager', `Failed to disconnect port ${port.name} during cleanup: ${error}`, 'warning')
+      }
+    }
   }
 
   updateExecutionForTab(tabId: number, executionId: string): void {
@@ -129,6 +186,8 @@ export class PortManager {
       if (isSidepanelPort) {
         info.tabId = tabId
       }
+
+      this.tabExecution.set(tabId, executionId)
 
       updatedPorts++
     }
@@ -157,6 +216,10 @@ export class PortManager {
 
     info.executionId = executionId
 
+    if (typeof info.tabId === 'number') {
+      this.tabExecution.set(info.tabId, executionId)
+    }
+
     const channel = PubSub.getChannel(executionId)
     info.subscription = channel.subscribe((event) => {
       try {
@@ -175,17 +238,36 @@ export class PortManager {
     this.notifyExecutionContext(info)
   }
 
-  private parseExecutionIdFromPortName(name: string): string | undefined {
-    if (!name) return undefined
-    const separators = [':', '|', '/']
-    for (const separator of separators) {
-      const prefix = `sidepanel${separator}`
-      if (name.startsWith(prefix)) {
-        const executionId = name.slice(prefix.length)
-        return executionId || undefined
+  private parsePortMetadata(name: string): { tabId?: number; executionId?: string } {
+    if (!name || !name.startsWith('sidepanel')) {
+      return {}
+    }
+
+    const segments = name.split('|').slice(1)
+    let tabId: number | undefined
+    let executionId: string | undefined
+
+    for (const segment of segments) {
+      if (!segment) {
+        continue
+      }
+      if (segment.startsWith('tab-')) {
+        const candidate = Number(segment.slice(4))
+        if (Number.isFinite(candidate)) {
+          tabId = candidate
+        }
+        continue
+      }
+      if (segment.startsWith('exec-')) {
+        executionId = segment.slice(5) || undefined
+        continue
+      }
+      if (!executionId) {
+        executionId = segment
       }
     }
-    return undefined
+
+    return { tabId, executionId }
   }
 
   private buildExecutionIdFromTab(tabId: number): string {

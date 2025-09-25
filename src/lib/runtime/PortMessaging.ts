@@ -26,7 +26,8 @@ export type PortMessage<T = unknown> = z.infer<typeof PortMessageSchema> & { pay
  * Port messaging service for communication between extension components
  */
 export class PortMessaging {
-  private static globalInstance: PortMessaging | null = null;
+  private static instances: Map<string, PortMessaging> = new Map();
+  private static activeInstanceKey: string | null = null;
   private port: chrome.runtime.Port | null = null;
   private listeners: Map<MessageType, Array<(payload: unknown, messageId?: string) => void>> = new Map();
   private connectionListeners: Array<(connected: boolean) => void> = [];
@@ -38,16 +39,48 @@ export class PortMessaging {
   private reconnectTimeoutMs = 1000;  // Wait 1 second before reconnecting
   private pendingMessages: Array<{ type: MessageType; payload: unknown; id?: string }> = []
 
+  private instanceKey: string = 'global';
+
   constructor() {}
 
   /**
-   * Get the global singleton instance
+   * Get (or create) a messaging instance scoped by port key.
    */
-  static getInstance(): PortMessaging {
-    if (!PortMessaging.globalInstance) {
-      PortMessaging.globalInstance = new PortMessaging();
+  static getInstance(portKey: string = 'global'): PortMessaging {
+    const key = portKey.trim() || 'global';
+    let instance = PortMessaging.instances.get(key);
+    if (!instance) {
+      instance = new PortMessaging();
+      instance.instanceKey = key;
+      PortMessaging.instances.set(key, instance);
     }
-    return PortMessaging.globalInstance;
+    return instance;
+  }
+
+  static setActiveInstance(portKey: string, instance: PortMessaging): void {
+    const key = portKey.trim() || 'global';
+    PortMessaging.instances.set(key, instance);
+    instance.instanceKey = key;
+    PortMessaging.activeInstanceKey = key;
+  }
+
+  static getActiveInstance(): PortMessaging | null {
+    if (!PortMessaging.activeInstanceKey) {
+      return null;
+    }
+    return PortMessaging.instances.get(PortMessaging.activeInstanceKey) ?? null;
+  }
+
+  static clearInstance(portKey: string): void {
+    const key = portKey.trim() || 'global';
+    const instance = PortMessaging.instances.get(key);
+    if (instance) {
+      instance.disconnect();
+      PortMessaging.instances.delete(key);
+      if (PortMessaging.activeInstanceKey === key) {
+        PortMessaging.activeInstanceKey = null;
+      }
+    }
   }
 
   /**
@@ -59,6 +92,7 @@ export class PortMessaging {
   public connect(portName: string, enableAutoReconnect: boolean = false): boolean {
     try {
       this.currentPortName = portName;
+      this.instanceKey = portName;
       this.autoReconnect = enableAutoReconnect;
       this.port = chrome.runtime.connect({ name: portName });
       
@@ -289,6 +323,14 @@ export class PortMessaging {
     this.connectionListeners.forEach(listener => listener(connected));
   }
 
+  public getCurrentPortName(): string | null {
+    return this.currentPortName;
+  }
+
+  public getInstanceKey(): string {
+    return this.instanceKey;
+  }
+
   // Flush queued messages after a connection is established
   private flushPendingMessages(): void {
     if (!this.connected || !this.port) return
@@ -304,3 +346,4 @@ export class PortMessaging {
     })
   }
 }
+
