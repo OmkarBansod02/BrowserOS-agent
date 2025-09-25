@@ -1,7 +1,29 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useChatStore } from '@/sidepanel/stores/chatStore'
-import { PortMessaging } from '@/lib/runtime/PortMessaging'
+import { PortMessaging, PortPrefix } from '@/lib/runtime/PortMessaging'
 import { MessageType } from '@/lib/types/messaging'
+
+const buildPortName = (tabId: number): string => `${PortPrefix.SIDEPANEL}|tab-${tabId}`
+
+const queryActiveTabId = (): Promise<number | null> => {
+  return new Promise((resolve) => {
+    if (!chrome?.tabs?.query) {
+      resolve(null)
+      return
+    }
+
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      if (chrome.runtime.lastError) {
+        console.warn('[SidePanelPortMessaging] Failed to detect active tab:', chrome.runtime.lastError.message)
+        resolve(null)
+        return
+      }
+
+      const activeTab = tabs[0]
+      resolve(activeTab?.id ?? null)
+    })
+  })
+}
 
 /**
  * Custom hook for managing port messaging for the side panel.
@@ -12,42 +34,59 @@ export function useSidePanelPortMessaging() {
   const [connected, setConnected] = useState<boolean>(false)
   const [executionId, setExecutionId] = useState<string | null>(null)
   const [tabId, setTabId] = useState<number | null>(null)
-  const { setCurrentExecution } = useChatStore()
-  const lastContextRef = useRef<{ executionId: string | null; tabId: number | null }>({
-    executionId: null,
-    tabId: null
-  })
+  const { setCurrentExecution, setCurrentTab, setTabExecution } = useChatStore()
+  const lastContextRef = useRef<{ executionId: string | null; tabId: number | null }>({ executionId: null, tabId: null })
 
-  // Get the global singleton instance
-  if (!messagingRef.current) {
-    messagingRef.current = PortMessaging.getInstance()
-  }
 
   const applyExecutionContext = useCallback(
-    (nextExecutionId: string | null | undefined, nextTabId?: number) => {
-      if (typeof nextTabId === 'number') {
-        setTabId((prev) => (prev === nextTabId ? prev : nextTabId))
-      }
+  (nextExecutionId: string | null | undefined, nextTabId?: number) => {
+    if (typeof nextTabId === 'number') {
+      setTabId((prev) => (prev === nextTabId ? prev : nextTabId))
+      setCurrentTab(nextTabId)
+    }
 
-      if (nextExecutionId) {
-        setExecutionId((prev) => {
-          if (prev === nextExecutionId) {
-            return prev
-          }
-          setCurrentExecution(nextExecutionId)
-          return nextExecutionId
-        })
-      }
-
-      if (nextExecutionId || typeof nextTabId === 'number') {
-        lastContextRef.current = {
-          executionId: nextExecutionId ?? lastContextRef.current.executionId,
-          tabId: typeof nextTabId === 'number' ? nextTabId : lastContextRef.current.tabId
+    const ensureExecution = (candidate: string) => {
+      setExecutionId((prev) => {
+        if (prev === candidate) {
+          return prev
         }
+        setCurrentExecution(candidate)
+        return candidate
+      })
+    }
+
+    let resolvedExecutionId: string | null = nextExecutionId ?? null
+
+    if (nextExecutionId) {
+      ensureExecution(nextExecutionId)
+      if (typeof nextTabId === 'number') {
+        setTabExecution(nextTabId, nextExecutionId)
       }
-    },
-    [setCurrentExecution]
-  )
+    } else if (typeof nextTabId === 'number') {
+      const mapped = useChatStore.getState().getExecutionForTab(nextTabId)
+      if (mapped) {
+        resolvedExecutionId = mapped
+        ensureExecution(mapped)
+        setTabExecution(nextTabId, mapped)
+      } else {
+        resolvedExecutionId = null
+        setExecutionId((prev) => (prev === null ? prev : null))
+        setCurrentExecution(null)
+      }
+    } else {
+      resolvedExecutionId = null
+      setExecutionId((prev) => (prev === null ? prev : null))
+      setCurrentExecution(null)
+    }
+
+    const nextTabContext = typeof nextTabId === 'number' ? nextTabId : lastContextRef.current.tabId
+    lastContextRef.current = {
+      executionId: resolvedExecutionId,
+      tabId: nextTabContext
+    }
+  },
+  [setCurrentExecution, setCurrentTab, setTabExecution]
+)
 
   const handleConnectionChange = useCallback((isConnected: boolean) => {
     setConnected(isConnected)
@@ -71,97 +110,99 @@ export function useSidePanelPortMessaging() {
   )
 
   useEffect(() => {
-    const messaging = messagingRef.current
-    if (!messaging) return
+    let cancelled = false
 
-    const portName = 'sidepanel'
+    queryActiveTabId()
+      .then((detectedTabId) => {
+        if (cancelled || detectedTabId === null) {
+          return
+        }
+        setTabId((prev) => (prev === detectedTabId ? prev : detectedTabId))
+        applyExecutionContext(null, detectedTabId)
+      })
+      .catch((error) => {
+        console.warn('[SidePanelPortMessaging] Failed to resolve active tab id:', error)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [applyExecutionContext])
+
+  useEffect(() => {
+    if (!chrome?.tabs?.onActivated) {
+      return
+    }
+
+    const handleActivated = ({ tabId: activeTabId }: { tabId: number }) => {
+      if (typeof activeTabId !== 'number') {
+        return
+      }
+      applyExecutionContext(null, activeTabId)
+    }
+
+    chrome.tabs.onActivated.addListener(handleActivated)
+
+    return () => {
+      chrome.tabs.onActivated.removeListener(handleActivated)
+    }
+  }, [applyExecutionContext])
+
+  useEffect(() => {
+    if (tabId === null) {
+      return
+    }
+
+    const portName = buildPortName(tabId)
+    const messaging = PortMessaging.getInstance(portName)
+    messagingRef.current = messaging
+    PortMessaging.setActiveInstance(portName, messaging)
 
     messaging.addConnectionListener(handleConnectionChange)
     messaging.addMessageListener(MessageType.EXECUTION_CONTEXT, handleExecutionContext)
 
-    const success = messaging.isConnected() ? true : messaging.connect(portName, true)
-
-    if (!success) {
-      console.error(`[SidePanelPortMessaging] Failed to connect with port ${portName}`)
+    const alreadyConnected = messaging.isConnected() && messaging.getCurrentPortName() === portName
+    if (!alreadyConnected) {
+      const success = messaging.connect(portName, true)
+      if (!success) {
+        console.error(`[SidePanelPortMessaging] Failed to connect with port ${portName}`)
+      } else {
+        console.log(`[SidePanelPortMessaging] Connected successfully with port ${portName}`)
+      }
     } else {
-      console.log(`[SidePanelPortMessaging] Connected successfully with port ${portName}`)
+      handleConnectionChange(true)
     }
 
     return () => {
       messaging.removeConnectionListener(handleConnectionChange)
       messaging.removeMessageListener(MessageType.EXECUTION_CONTEXT, handleExecutionContext)
-    }
-  }, [handleConnectionChange, handleExecutionContext])
-
-  useEffect(() => {
-    if (executionId) {
-      return
-    }
-
-    let cancelled = false
-
-    if (!chrome?.tabs?.query) {
-      console.warn('[SidePanelPortMessaging] chrome.tabs.query unavailable; skipping initial context detection')
-      return
-    }
-
-    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-      if (cancelled) {
-        return
+      PortMessaging.clearInstance(portName)
+      if (messagingRef.current === messaging) {
+        messagingRef.current = null
       }
-      if (chrome.runtime.lastError) {
-        console.warn(
-          '[SidePanelPortMessaging] Failed to detect active tab:',
-          chrome.runtime.lastError.message
-        )
-        return
-      }
-
-      const activeTab = tabs[0]
-      if (activeTab?.id !== undefined) {
-        applyExecutionContext(`tab-${activeTab.id}`, activeTab.id)
-      }
-    })
-
-    return () => {
-      cancelled = true
     }
-  }, [executionId, applyExecutionContext])
+  }, [tabId, handleConnectionChange, handleExecutionContext])
 
-  /**
-   * Send a message to the background script
-   * @param type - Message type
-   * @param payload - Message payload
-   * @param messageId - Optional message ID
-   * @returns true if message sent successfully
-   */
   const sendMessage = useCallback(
     <T,>(type: MessageType, payload: T, messageId?: string): boolean => {
-      return messagingRef.current?.sendMessage(type, payload, messageId) ?? false
+      const messaging = PortMessaging.getActiveInstance() ?? messagingRef.current
+      return messaging?.sendMessage(type, payload, messageId) ?? false
     },
     []
   )
 
-  /**
-   * Add a message listener for a specific message type
-   * @param type - Message type to listen for
-   * @param callback - Function to call when message is received
-   */
   const addMessageListener = useCallback(
     <T,>(type: MessageType, callback: (payload: T, messageId?: string) => void): void => {
-      messagingRef.current?.addMessageListener(type, callback)
+      const messaging = PortMessaging.getActiveInstance() ?? messagingRef.current
+      messaging?.addMessageListener(type, callback)
     },
     []
   )
 
-  /**
-   * Remove a message listener
-   * @param type - Message type
-   * @param callback - Callback to remove
-   */
   const removeMessageListener = useCallback(
     <T,>(type: MessageType, callback: (payload: T, messageId?: string) => void): void => {
-      messagingRef.current?.removeMessageListener(type, callback)
+      const messaging = PortMessaging.getActiveInstance() ?? messagingRef.current
+      messaging?.removeMessageListener(type, callback)
     },
     []
   )
@@ -175,3 +216,5 @@ export function useSidePanelPortMessaging() {
     removeMessageListener
   }
 }
+
+

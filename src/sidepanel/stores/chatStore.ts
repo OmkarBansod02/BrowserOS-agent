@@ -54,7 +54,7 @@ export interface PubSubMessage {
 // Store actions
 interface ChatActions {
   // Execution management
-  setCurrentExecution: (executionId: string) => void
+  setCurrentExecution: (executionId: string | null) => void
   getCurrentExecution: () => string | null
   setCurrentTab: (tabId: number | null) => void
   setTabExecution: (tabId: number, executionId: string) => void
@@ -125,8 +125,14 @@ export const useChatStore = create<ChatState & ChatActions>((set, get) => ({
   ...initialState,
   
   // Execution management
-  setCurrentExecution: (executionId: string) => {
+  setCurrentExecution: (executionId: string | null) => {
     console.log('[ChatStore] Setting current execution to:', executionId)
+
+    if (executionId === null) {
+      set(() => ({ currentExecutionId: null }))
+      return
+    }
+
     set((state) => {
       const executionState = getOrCreateExecution(state, executionId)
       const mergedExecutions = {
@@ -146,6 +152,7 @@ export const useChatStore = create<ChatState & ChatActions>((set, get) => ({
       }
 
       console.log('[ChatStore] Execution switched. Messages count:', mergedExecutions[executionId]?.messages?.length || 0)
+
       return updates
     })
   },
@@ -399,7 +406,12 @@ export const useChatStore = create<ChatState & ChatActions>((set, get) => ({
   
   // Send plan edit response to background script
   publishPlanEditResponse: (executionId: string, response: { planId: string; action: 'execute' | 'cancel'; steps?: any[] }) => {
-    const messaging = PortMessaging.getInstance()
+    const messaging = PortMessaging.getActiveInstance() ?? null
+    if (!messaging) {
+      console.error('Failed to send plan edit response - no active port connection')
+      return
+    }
+
     const success = messaging.sendMessage(MessageType.PLAN_EDIT_RESPONSE, { ...response, executionId })
     if (!success) {
       console.error('Failed to send plan edit response - port not connected')
@@ -623,3 +635,4 @@ export const chatSelectors = {
     return chatSelectors.hasMessages(state, state.currentExecutionId)
   }
 }
+
