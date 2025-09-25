@@ -132,7 +132,7 @@ export class Execution {
         targetTabId = currentPage?.tabId;
       }
       if (this.browserContext && targetTabId) {
-        this.browserContext.lockExecutionToTab(targetTabId);
+        this.browserContext.lockExecutionToTab(targetTabId, this.id);
       } else {
         if (!this.browserContext) {
           throw new Error("browser context is not initialized");

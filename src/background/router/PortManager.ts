@@ -210,30 +210,39 @@ export class PortManager {
    * Subscribe a port to the specified execution channel.
    */
   private subscribeToChannel(info: PortInfo, executionId: string): void {
-    if (info.subscription) {
+    // Unsubscribe from previous channel if different
+    if (info.subscription && info.executionId !== executionId) {
+      Logging.log('PortManager', `Unsubscribing port ${info.port.name} from execution ${info.executionId}`)
       info.subscription.unsubscribe()
+      info.subscription = undefined
     }
 
+    // Update execution ID
+    const previousExecutionId = info.executionId
     info.executionId = executionId
 
     if (typeof info.tabId === 'number') {
       this.tabExecution.set(info.tabId, executionId)
     }
 
-    const channel = PubSub.getChannel(executionId)
-    info.subscription = channel.subscribe((event) => {
-      try {
-        info.port.postMessage({
-          type: MessageType.AGENT_STREAM_UPDATE,
-          payload: {
-            executionId,
-            event
-          }
-        })
-      } catch (error) {
-        Logging.log('PortManager', `Failed to forward event to ${executionId}: ${error}`, 'warning')
-      }
-    })
+    // Subscribe to new channel if not already subscribed
+    if (!info.subscription || previousExecutionId !== executionId) {
+      const channel = PubSub.getChannel(executionId)
+      info.subscription = channel.subscribe((event) => {
+        try {
+          info.port.postMessage({
+            type: MessageType.AGENT_STREAM_UPDATE,
+            payload: {
+              executionId,
+              event
+            }
+          })
+        } catch (error) {
+          Logging.log('PortManager', `Failed to forward event to ${executionId}: ${error}`, 'warning')
+        }
+      })
+      Logging.log('PortManager', `Subscribed port ${info.port.name} to execution ${executionId}`)
+    }
 
     this.notifyExecutionContext(info)
   }

@@ -37,7 +37,9 @@ export enum MessageType {
   // Newtab to sidepanel communication
   EXECUTE_IN_SIDEPANEL = 'EXECUTE_IN_SIDEPANEL',
   EXECUTION_STARTING = 'EXECUTION_STARTING',
-  EXECUTION_CONTEXT = 'EXECUTION_CONTEXT'
+  EXECUTION_CONTEXT = 'EXECUTION_CONTEXT',
+  // Port sync
+  SYNC_REQUEST = 'SYNC_REQUEST'
 }
 
 // Create a zod enum for MessageType

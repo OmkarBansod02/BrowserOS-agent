@@ -37,8 +37,7 @@ export function useSidePanelPortMessaging() {
   const { setCurrentExecution, setCurrentTab, setTabExecution } = useChatStore()
   const lastContextRef = useRef<{ executionId: string | null; tabId: number | null }>({ executionId: null, tabId: null })
 
-
-  const applyExecutionContext = useCallback(
+const applyExecutionContext = useCallback(
   (nextExecutionId: string | null | undefined, nextTabId?: number) => {
     if (typeof nextTabId === 'number') {
       setTabId((prev) => (prev === nextTabId ? prev : nextTabId))
@@ -70,12 +69,12 @@ export function useSidePanelPortMessaging() {
         setTabExecution(nextTabId, mapped)
       } else {
         resolvedExecutionId = null
-        setExecutionId((prev) => (prev === null ? prev : null))
+        setExecutionId(null)
         setCurrentExecution(null)
       }
     } else {
       resolvedExecutionId = null
-      setExecutionId((prev) => (prev === null ? prev : null))
+      setExecutionId(null)
       setCurrentExecution(null)
     }
 
@@ -154,6 +153,19 @@ export function useSidePanelPortMessaging() {
     }
 
     const portName = buildPortName(tabId)
+
+    // Disconnect previous port if it exists and is different
+    if (messagingRef.current) {
+      const currentPortName = messagingRef.current.getCurrentPortName()
+      if (currentPortName && currentPortName !== portName) {
+        console.log(`[SidePanelPortMessaging] Disconnecting previous port: ${currentPortName}`)
+        messagingRef.current.removeConnectionListener(handleConnectionChange)
+        messagingRef.current.removeMessageListener(MessageType.EXECUTION_CONTEXT, handleExecutionContext)
+        messagingRef.current.disconnect()
+        PortMessaging.clearInstance(currentPortName)
+      }
+    }
+
     const messaging = PortMessaging.getInstance(portName)
     messagingRef.current = messaging
     PortMessaging.setActiveInstance(portName, messaging)
@@ -168,15 +180,21 @@ export function useSidePanelPortMessaging() {
         console.error(`[SidePanelPortMessaging] Failed to connect with port ${portName}`)
       } else {
         console.log(`[SidePanelPortMessaging] Connected successfully with port ${portName}`)
+        // Force re-sync execution context after connection
+        setTimeout(() => {
+          messaging.sendMessage(MessageType.SYNC_REQUEST, { tabId, portName })
+        }, 100)
       }
     } else {
       handleConnectionChange(true)
+      // Force re-sync execution context for already connected port
+      messaging.sendMessage(MessageType.SYNC_REQUEST, { tabId, portName })
     }
 
     return () => {
       messaging.removeConnectionListener(handleConnectionChange)
       messaging.removeMessageListener(MessageType.EXECUTION_CONTEXT, handleExecutionContext)
-      PortMessaging.clearInstance(portName)
+      // Don't disconnect here as it might be reused
       if (messagingRef.current === messaging) {
         messagingRef.current = null
       }
@@ -185,24 +203,21 @@ export function useSidePanelPortMessaging() {
 
   const sendMessage = useCallback(
     <T,>(type: MessageType, payload: T, messageId?: string): boolean => {
-      const messaging = PortMessaging.getActiveInstance() ?? messagingRef.current
-      return messaging?.sendMessage(type, payload, messageId) ?? false
+      return messagingRef.current?.sendMessage(type, payload, messageId) ?? false
     },
     []
   )
 
   const addMessageListener = useCallback(
     <T,>(type: MessageType, callback: (payload: T, messageId?: string) => void): void => {
-      const messaging = PortMessaging.getActiveInstance() ?? messagingRef.current
-      messaging?.addMessageListener(type, callback)
+      messagingRef.current?.addMessageListener(type, callback)
     },
     []
   )
 
   const removeMessageListener = useCallback(
     <T,>(type: MessageType, callback: (payload: T, messageId?: string) => void): void => {
-      const messaging = PortMessaging.getActiveInstance() ?? messagingRef.current
-      messaging?.removeMessageListener(type, callback)
+      messagingRef.current?.removeMessageListener(type, callback)
     },
     []
   )
@@ -216,5 +231,10 @@ export function useSidePanelPortMessaging() {
     removeMessageListener
   }
 }
+
+
+
+
+
 
 

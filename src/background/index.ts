@@ -166,6 +166,26 @@ function registerHandlers(): void {
       })
     }
   )
+
+  // Handle sync request from sidepanel
+  messageRouter.registerHandler(
+    MessageType.SYNC_REQUEST,
+    (msg, port) => {
+      const portInfo = portManager.getPortInfo(port)
+      if (portInfo) {
+        // Re-notify the execution context to the port
+        port.postMessage({
+          type: MessageType.EXECUTION_CONTEXT,
+          payload: {
+            executionId: portInfo.executionId,
+            tabId: portInfo.tabId
+          },
+          id: msg.id
+        })
+        Logging.log('Background', `Processed SYNC_REQUEST for port ${port.name}`)
+      }
+    }
+  )
   
   // Panel close handler
   messageRouter.registerHandler(

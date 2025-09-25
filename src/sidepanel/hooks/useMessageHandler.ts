@@ -27,6 +27,7 @@ export function useMessageHandler() {
   const executionIdRef = useRef(executionId)
   useEffect(() => {
     executionIdRef.current = executionId
+    console.log(`[MessageHandler] ExecutionId updated to: ${executionId}`)
   }, [executionId])
   
   const clearHumanInputRequest = useCallback(() => {
@@ -35,17 +36,25 @@ export function useMessageHandler() {
 
   const handleStreamUpdate = useCallback((payload: any) => {
     const currentExecutionId = executionIdRef.current
-    const targetExecutionId = resolveExecutionId(payload?.executionId, currentExecutionId)
+    let targetExecutionId = resolveExecutionId(payload?.executionId, currentExecutionId)
 
     if (!targetExecutionId) {
       console.log('[MessageHandler] No execution context available for stream update, skipping')
       return
     }
 
-    if (payload?.executionId && payload.executionId !== currentExecutionId) {
+    // Only process messages for the current execution
+    if (payload?.executionId && currentExecutionId && payload.executionId !== currentExecutionId) {
       console.log(
-        `[MessageHandler] Routing event for execution ${payload.executionId} while current context is ${currentExecutionId ?? 'none'}`
+        `[MessageHandler] Ignoring event for execution ${payload.executionId} (current: ${currentExecutionId})`
       )
+      return
+    }
+
+    // If we don't have a current execution but received one, use it
+    if (!currentExecutionId && payload?.executionId) {
+      console.log(`[MessageHandler] No current execution, using received: ${payload.executionId}`)
+      targetExecutionId = payload.executionId
     }
 
     if (payload?.event) {
@@ -59,7 +68,7 @@ export function useMessageHandler() {
         }
 
         console.log(`[MessageHandler] Upserting message for execution ${targetExecutionId}:`, message.msgId, message.role)
-        upsertMessage(targetExecutionId, message)
+        upsertMessage(targetExecutionId!, message)
       }
 
       if (event.type === 'human-input-request' && targetExecutionId === executionIdRef.current) {
@@ -78,7 +87,7 @@ export function useMessageHandler() {
         }
 
         console.log(`[MessageHandler] Upserting message for execution ${targetExecutionId}:`, message.msgId, message.role)
-        upsertMessage(targetExecutionId, message)
+        upsertMessage(targetExecutionId!, message)
       }
 
       if (
@@ -151,7 +160,7 @@ export function useMessageHandler() {
       removeMessageListener(MessageType.AGENT_STREAM_UPDATE, handleStreamUpdate)
       removeMessageListener(MessageType.WORKFLOW_STATUS, handleWorkflowStatus)
     }
-  }, [addMessageListener, removeMessageListener, handleStreamUpdate, handleWorkflowStatus])  // Removed executionId - handlers use ref instead
+  }, [executionId, addMessageListener, removeMessageListener, handleStreamUpdate, handleWorkflowStatus])  // Include executionId to re-register on change
   
   return {
     humanInputRequest,

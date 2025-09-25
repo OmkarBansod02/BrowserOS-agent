@@ -95,6 +95,7 @@ export class BrowserContext {
   private _config: BrowserContextConfig;
   private _userSelectedTabIds: number[] | null = null;
   private _executionLockedTabId: number | null = null;
+  private _executionTabMap: Map<string, number> = new Map();  // executionId -> tabId mapping
   
   // Simple page cache - no attachment state needed
   private _pageCache: Map<number, BrowserPage> = new Map();
@@ -241,6 +242,13 @@ export class BrowserContext {
     // Update execution locked tab id if needed
     if (this._executionLockedTabId === tabId) {
       this._executionLockedTabId = null;
+    }
+
+    // Remove from execution map
+    for (const [execId, mappedTabId] of this._executionTabMap.entries()) {
+      if (mappedTabId === tabId) {
+        this._executionTabMap.delete(execId);
+      }
     }
     
     // Remove from user selected tabs if present
@@ -448,9 +456,14 @@ ${elementsText}
   /**
    * Lock execution to a specific tab
    */
-  public lockExecutionToTab(tabId: number): void {
+  public lockExecutionToTab(tabId: number, executionId?: string): void {
     this._executionLockedTabId = tabId;
-    Logging.log('BrowserContextV2', `Execution locked to tab ${tabId}`);
+    if (executionId) {
+      this._executionTabMap.set(executionId, tabId);
+      Logging.log('BrowserContextV2', `Execution ${executionId} locked to tab ${tabId}`);
+    } else {
+      Logging.log('BrowserContextV2', `Execution locked to tab ${tabId}`);
+    }
   }
   
   /**

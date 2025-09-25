@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { z } from 'zod'
 import { MessageType } from '@/lib/types/messaging'
-import { PortMessaging } from '@/lib/runtime/PortMessaging'
+import { PortMessaging, PortPrefix } from '@/lib/runtime/PortMessaging'
 import { FeedbackSubmissionSchema, type FeedbackSubmission, type FeedbackType } from '@/lib/types/feedback'
 import { feedbackService } from '@/lib/services/feedbackService'
 
@@ -404,11 +404,19 @@ export const useChatStore = create<ChatState & ChatActions>((set, get) => ({
     })
   },
   
+
   // Send plan edit response to background script
   publishPlanEditResponse: (executionId: string, response: { planId: string; action: 'execute' | 'cancel'; steps?: any[] }) => {
-    const messaging = PortMessaging.getActiveInstance() ?? null
+    const currentTabId = get().currentTabId
+    if (typeof currentTabId !== 'number') {
+      console.error('Failed to send plan edit response - no active tab context')
+      return
+    }
+
+    const portKey = `${PortPrefix.SIDEPANEL}|tab-${currentTabId}`
+    const messaging = PortMessaging.peekInstance(portKey)
     if (!messaging) {
-      console.error('Failed to send plan edit response - no active port connection')
+      console.error('Failed to send plan edit response - no port instance for', portKey)
       return
     }
 
@@ -635,4 +643,8 @@ export const chatSelectors = {
     return chatSelectors.hasMessages(state, state.currentExecutionId)
   }
 }
+
+
+
+
 

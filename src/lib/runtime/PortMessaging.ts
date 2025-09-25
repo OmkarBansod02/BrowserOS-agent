@@ -63,6 +63,11 @@ export class PortMessaging {
     instance.instanceKey = key;
     PortMessaging.activeInstanceKey = key;
   }
+  static peekInstance(portKey: string = 'global'): PortMessaging | null {
+    const key = portKey.trim() || 'global';
+    return PortMessaging.instances.get(key) ?? null;
+  }
+
 
   static getActiveInstance(): PortMessaging | null {
     if (!PortMessaging.activeInstanceKey) {
