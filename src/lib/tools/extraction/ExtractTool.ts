@@ -97,7 +97,15 @@ export function createExtractTool(executionContext: ExecutionContext): DynamicSt
         )
 
         executionContext.getPubSub().publishMessage(PubSub.createMessage(`Extracted ${args.extract_type} from page ${title}, generated summary...`, 'thinking'))
-        
+
+        // Track extracted data in MessageManager for reporting
+        executionContext.messageManager.trackExtractedData(
+          title || 'Unknown Page',  // source
+          args.extract_type,  // dataType
+          extractedData.content,  // data
+          url  // url
+        )
+
         // Return success result
         return JSON.stringify({
           ok: true,

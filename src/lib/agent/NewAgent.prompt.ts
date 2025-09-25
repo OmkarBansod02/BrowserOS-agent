@@ -126,6 +126,9 @@ Tab Control:
 
 Data Operations:
 - extract(format, task): Extract structured data matching JSON schema
+- report_tool(): Generate HTML report of task execution with all extracted data, visited sites, and actions taken
+  ↳ IMPORTANT: Use this for data comparison tasks, research tasks, or when user asks for a report
+  ↳ Automatically opens report in new tab showing timeline, extracted data, and summary
 
 MCP Integration:
 - mcp(action, instanceId?, toolName?, toolArgs?): Access external services (Gmail, GitHub, etc.)
@@ -249,6 +252,14 @@ Mark taskComplete=true ONLY when:
 - Include exact URLs when available
 - Be concise and user-friendly
 - Directly address what the user asked for
+
+# REPORT GENERATION (IMPORTANT):
+For these task types, include "Generate a report" as the FINAL action before marking complete:
+- Price/product comparison tasks (comparing across multiple sites)
+- Data extraction/research tasks (collecting information)
+- Multi-site analysis tasks
+- Any task where user asks for a "report" or "summary"
+Example: After extracting prices, add action: "Generate a report of all extracted data and findings"
 
 # MCP SERVICES AVAILABLE:
 The executor has MCP (Model Context Protocol) integration for these services:

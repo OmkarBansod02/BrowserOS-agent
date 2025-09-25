@@ -114,6 +114,13 @@ export class MessageManager {
   private totalTokens: number = 0;
   private maxTokens: number;
   private messageQueue: BaseMessage[] = []; // Queue for tool-generated messages
+  private extractedData: Array<{  // Track extracted data for reports
+    source: string;
+    url?: string;
+    dataType: string;
+    data: any;
+    timestamp: Date;
+  }> = [];
 
   constructor(maxTokens = 8192) {
     this.maxTokens = maxTokens;
@@ -424,6 +431,32 @@ export class MessageManager {
       const removed = this._removeLowestPriority();
       if (!removed) break; // Nothing left to remove
     }
+  }
+
+  // Track extracted data for reports
+  trackExtractedData(source: string, dataType: string, data: any, url?: string): void {
+    this.extractedData.push({
+      source,
+      url,
+      dataType,
+      data,
+      timestamp: new Date(),
+    });
+  }
+
+  // Get all extracted data
+  getExtractedData(): Array<{ source: string; url?: string; dataType: string; data: any; timestamp: Date }> {
+    return [...this.extractedData];
+  }
+
+  // Clear extracted data
+  clearExtractedData(): void {
+    this.extractedData = [];
+  }
+
+  // Check if any data has been extracted
+  hasExtractedData(): boolean {
+    return this.extractedData.length > 0;
   }
 
   // Remove lowest priority message

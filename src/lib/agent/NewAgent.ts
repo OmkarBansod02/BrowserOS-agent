@@ -54,6 +54,7 @@ import { createGroupTabsTool } from "@/lib/tools/tab/GroupTabsTool";
 import { createGetSelectedTabsTool } from "@/lib/tools/tab/GetSelectedTabsTool";
 import { createDateTool } from "@/lib/tools/utility/DateTool";
 import { createMCPTool } from "@/lib/tools/mcp/MCPTool";
+import { createReportTool } from "@/lib/tools/report/ReportTool";
 import { GlowAnimationService } from '@/lib/services/GlowAnimationService';
 // Evals2: lightweight tool wrapper + flag
 import { wrapToolForMetrics } from '@/evals2/EvalToolWrapper';
@@ -261,6 +262,7 @@ export class NewAgent {
     this.toolManager.register(createHumanInputTool(this.executionContext));
     this.toolManager.register(createCelebrationTool(this.executionContext)); // Celebration/confetti tool
     this.toolManager.register(createDateTool(this.executionContext)); // Date/time utilities
+    this.toolManager.register(createReportTool(this.executionContext)); // Report generation tool
 
     // External integration tools
     this.toolManager.register(createMCPTool(this.executionContext)); // MCP server integration
@@ -368,9 +370,10 @@ export class NewAgent {
         ...this.executionContext.getExecutionMetrics(),
         endTime: Date.now(),
       });
+
       this._logMetrics();
       this._cleanup();
-      
+
       // Ensure glow animation is stopped at the end of execution
       try {
         // Get all active glow tabs from the service
@@ -1630,5 +1633,5 @@ ${processSection}
 ${guidelines}
   </execution-guidelines>
 </execution-instructions>`;
-  }
+}
 }
