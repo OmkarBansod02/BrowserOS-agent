@@ -46,7 +46,7 @@ export function createPlannerTool(executionContext: ExecutionContext): DynamicSt
         const message_history = read_only_message_manager.getFilteredAsString([MessageType.SYSTEM, MessageType.BROWSER_STATE]);
        
         // Get browser state using BrowserContext's method
-        const browserState = await executionContext.browserContext.getBrowserStateString();
+        const browserState = await executionContext.getBrowserStateString();
         
         // Check if browser state exceeds token limit
         const browserStateTokens = TokenCounter.countString(browserState);

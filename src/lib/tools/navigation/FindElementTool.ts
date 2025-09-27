@@ -32,7 +32,7 @@ export class FindElementTool {
     try {
       this.executionContext.getPubSub().publishMessage(PubSub.createMessage(`Finding element...`, 'thinking'))
       // Get browser state
-      const browserState = await this.executionContext.browserContext.getBrowserState()
+      const browserState = await this.executionContext.getBrowserState()
 
       if (!browserState.clickableElements.length && !browserState.typeableElements.length) {
         return toolError("No interactive elements found on the current page")

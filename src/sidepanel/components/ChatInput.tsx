@@ -119,12 +119,20 @@ export function ChatInput({ isConnected, isProcessing }: ChatInputProps) {
   const submitTask = async (query: string) => {
     if (!query.trim()) return
 
-    if (!executionId) {
-      console.warn('[ChatInput] Execution context not ready yet, skipping submit')
-      return
+    // Generate a new execution ID if we don't have one
+    let finalExecutionId = executionId
+    if (!finalExecutionId) {
+      // Create a new execution ID based on the current tab
+      if (tabId) {
+        // CRITICAL FIX: Use consistent format without timestamp to prevent mixing
+        finalExecutionId = `tab-${tabId}`
+        console.log('[ChatInput] Generated new executionId:', finalExecutionId)
+      } else {
+        // Fallback: generate a timestamp-based ID
+        finalExecutionId = `exec-${Date.now()}`
+        console.log('[ChatInput] Generated fallback executionId:', finalExecutionId)
+      }
     }
-
-    const finalExecutionId = executionId
 
     upsertMessage(finalExecutionId, {
       msgId: `user_${Date.now()}`,
@@ -175,10 +183,16 @@ export function ChatInput({ isConnected, isProcessing }: ChatInputProps) {
   }
   
   const handleCancel = () => {
-    sendMessage(MessageType.CANCEL_TASK, {
+    const payload: { reason: string; source: string; executionId?: string } = {
       reason: 'User requested cancellation',
       source: 'sidepanel'
-    })
+    }
+
+    if (executionId) {
+      payload.executionId = executionId
+    }
+
+    sendMessage(MessageType.CANCEL_TASK, payload)
     // Do not change local processing state here; wait for background WORKFLOW_STATUS
   }
   

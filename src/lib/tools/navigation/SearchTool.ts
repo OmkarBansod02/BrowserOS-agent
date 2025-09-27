@@ -22,7 +22,7 @@ export class SearchTool {
   async execute(input: SearchInput): Promise<ToolOutput> {
     try {
       const searchUrl = this._buildSearchUrl(input.searchProvider, input.query)
-      const page = await this.executionContext.browserContext.getCurrentPage()
+      const page = await this.executionContext.getCurrentPage()
       await page.navigateTo(searchUrl)
 
       if (SHOULD_WAIT) {

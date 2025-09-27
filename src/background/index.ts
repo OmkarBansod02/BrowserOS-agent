@@ -6,6 +6,7 @@ import { isDevelopmentMode } from '@/config'
 // Import router and managers
 import { MessageRouter } from './router/MessageRouter'
 import { PortManager } from './router/PortManager'
+import { sidePanelVisibilityService } from './services/SidePanelVisibilityService'
 
 // Import handlers
 import { ExecutionHandler } from './handlers/ExecutionHandler'
@@ -35,19 +36,32 @@ const providersHandler = new ProvidersHandler()
 const mcpHandler = new MCPHandler()
 const planHandler = new PlanHandler()
 
-// Simple panel state for singleton
+// Panel state tracking at window level (Chrome limitation)
 type PanelState = {
   isOpen: boolean
   isToggling: boolean
+  lastActiveTabId?: number  // Track last active tab in window
 }
 
-const panelStates = new Map<number, PanelState>()
+// Track panel state per window instead of per tab
+const windowPanelStates = new Map<number, PanelState>()
+// Also keep tab states for fallback
+const tabPanelStates = new Map<number, PanelState>()
 
-function ensurePanelState(tabId: number): PanelState {
-  let state = panelStates.get(tabId)
+function ensureWindowPanelState(windowId: number): PanelState {
+  let state = windowPanelStates.get(windowId)
   if (!state) {
     state = { isOpen: false, isToggling: false }
-    panelStates.set(tabId, state)
+    windowPanelStates.set(windowId, state)
+  }
+  return state
+}
+
+function ensureTabPanelState(tabId: number): PanelState {
+  let state = tabPanelStates.get(tabId)
+  if (!state) {
+    state = { isOpen: false, isToggling: false }
+    tabPanelStates.set(tabId, state)
   }
   return state
 }
@@ -170,14 +184,47 @@ function registerHandlers(): void {
   // Handle sync request from sidepanel
   messageRouter.registerHandler(
     MessageType.SYNC_REQUEST,
-    (msg, port) => {
+    async (msg, port) => {
       const portInfo = portManager.getPortInfo(port)
       if (portInfo) {
-        // Re-notify the execution context to the port
+        // For sidepanel ports, ensure we have the correct active tab context
+        if (port.name.startsWith('sidepanel') && portInfo.windowId) {
+          try {
+            const tabs = await chrome.tabs.query({ active: true, windowId: portInfo.windowId })
+            if (tabs.length > 0 && tabs[0].id) {
+              const activeTabId = tabs[0].id
+              const activeExecution = portManager.getExecutionForTab(activeTabId) ||
+                                     sidePanelVisibilityService.getExecutionForTab(activeTabId)
+
+              // Update port info with current active tab context
+              portInfo.tabId = activeTabId
+              if (activeExecution) {
+                portInfo.executionId = activeExecution
+              }
+
+              // Send the execution context (null is OK - UI will handle it)
+              port.postMessage({
+                type: MessageType.EXECUTION_CONTEXT,
+                payload: {
+                  executionId: activeExecution || null,
+                  tabId: activeTabId
+                },
+                id: msg.id
+              })
+
+              Logging.log('Background', `SYNC_REQUEST: Sent context for tab ${activeTabId}, execution: ${activeExecution || 'none'}`)
+              return
+            }
+          } catch (error) {
+            Logging.log('Background', `SYNC_REQUEST: Failed to get active tab: ${error}`, 'warning')
+          }
+        }
+
+        // Fallback: send the current port info
         port.postMessage({
           type: MessageType.EXECUTION_CONTEXT,
           payload: {
-            executionId: portInfo.executionId,
+            executionId: portInfo.executionId === 'main' ? null : portInfo.executionId,
             tabId: portInfo.tabId
           },
           id: msg.id
@@ -197,7 +244,19 @@ function registerHandlers(): void {
 
         if (typeof tabId === 'number') {
           await chrome.sidePanel.setOptions({ tabId, enabled: false })
-          panelStates.delete(tabId)
+          tabPanelStates.delete(tabId)
+
+          // Update window state
+          try {
+            const tab = await chrome.tabs.get(tabId)
+            if (tab.windowId) {
+              const windowState = windowPanelStates.get(tab.windowId)
+              if (windowState && windowState.lastActiveTabId === tabId) {
+                windowState.isOpen = false
+              }
+            }
+          } catch (e) {}
+
           Logging.log('Background', `Side panel closed for tab ${tabId}`)
           Logging.logMetric('side_panel_closed', { source: 'close_message', tabId })
         } else {
@@ -226,15 +285,25 @@ function registerHandlers(): void {
 /**
  * Handle port connections
  */
-function handlePortConnection(port: chrome.runtime.Port): void {
-  const portInfo = portManager.registerPort(port)
+async function handlePortConnection(port: chrome.runtime.Port): Promise<void> {
+  const portInfo = await portManager.registerPort(port)
   
   // Handle sidepanel connections
   if (port.name.startsWith('sidepanel')) {
     if (typeof portInfo.tabId === 'number') {
-      const state = ensurePanelState(portInfo.tabId)
-      state.isOpen = true
-      state.isToggling = false
+      const tabState = ensureTabPanelState(portInfo.tabId)
+      tabState.isOpen = true
+      tabState.isToggling = false
+
+      // Also update window state if possible
+      chrome.tabs.get(portInfo.tabId).then(tab => {
+        if (tab.windowId) {
+          const windowState = ensureWindowPanelState(tab.windowId)
+          windowState.isOpen = true
+          windowState.lastActiveTabId = portInfo.tabId
+        }
+      }).catch(() => {})
+
       Logging.log('Background', `Side panel connected for tab ${portInfo.tabId}`)
       Logging.logMetric('side_panel_opened', { source: 'port_connection', tabId: portInfo.tabId })
     } else {
@@ -258,7 +327,18 @@ function handlePortConnection(port: chrome.runtime.Port): void {
 
     if (port.name.startsWith('sidepanel')) {
       if (existingInfo?.tabId !== undefined) {
-        panelStates.delete(existingInfo.tabId)
+        tabPanelStates.delete(existingInfo.tabId)
+
+        // Update window state if this was the last active tab
+        chrome.tabs.get(existingInfo.tabId).then(tab => {
+          if (tab.windowId) {
+            const windowState = windowPanelStates.get(tab.windowId)
+            if (windowState && windowState.lastActiveTabId === existingInfo.tabId) {
+              windowState.isOpen = false
+            }
+          }
+        }).catch(() => {})
+
         Logging.log('Background', `Side panel disconnected for tab ${existingInfo.tabId}`)
         Logging.logMetric('side_panel_closed', { source: 'port_disconnection', tabId: existingInfo.tabId })
       } else {
@@ -277,61 +357,102 @@ function handlePortConnection(port: chrome.runtime.Port): void {
 /**
  * Notify sidepanel of the currently active tab
  */
-async function notifySidePanelOfActiveTab(tabId: number): Promise<void> {
+async function notifySidePanelOfActiveTab(tabId: number, windowId?: number): Promise<void> {
   try {
-    const executionId = `tab-${tabId}`
-    
-    Logging.log('Background', `🔄 Tab switch detected: tabId=${tabId}, executionId=${executionId}`)
-    
-    // Update execution context for this tab
-    portManager.updateExecutionForTab(tabId, executionId)
-    
-    Logging.log('Background', `✅ Updated sidepanel context for tab ${tabId} with executionId ${executionId}`)
+    // Get execution for the newly active tab
+    const executionId = sidePanelVisibilityService.getExecutionForTab(tabId)
+      ?? portManager.getExecutionForTab(tabId);
+
+    // If no windowId provided, get it from the tab
+    let targetWindowId = windowId;
+    if (!targetWindowId) {
+      try {
+        const tab = await chrome.tabs.get(tabId);
+        targetWindowId = tab.windowId;
+      } catch (error) {
+        Logging.log('Background', `Failed to get window ID for tab ${tabId}: ${error}`, 'error');
+        return;
+      }
+    }
+
+    if (!executionId) {
+      Logging.log('Background', `No running execution for active tab ${tabId}, clearing context`, 'info');
+      // Notify sidepanel ports for this window to clear their context
+      portManager.notifyWindowSidePanels(targetWindowId, tabId, null);
+      return;
+    }
+
+    Logging.log('Background', `Tab switch detected: tabId=${tabId}, windowId=${targetWindowId}, executionId=${executionId}`);
+
+    // Update only the sidepanel ports for this specific window
+    portManager.notifyWindowSidePanels(targetWindowId, tabId, executionId);
+
+    Logging.log('Background', `Updated sidepanel context for tab ${tabId} in window ${targetWindowId} with executionId ${executionId}`);
   } catch (error) {
-    Logging.log('Background', `❌ Error notifying sidepanel of active tab: ${error}`, 'error')
+    Logging.log('Background', `Error notifying sidepanel of active tab: ${error}`, 'error');
   }
 }
 
 async function toggleSidePanel(tabId: number): Promise<void> {
-  const state = ensurePanelState(tabId)
-  if (state.isToggling) return
-
-  state.isToggling = true
-
   try {
-    if (state.isOpen) {
-      await chrome.sidePanel.setOptions({ tabId, enabled: false })
-      state.isOpen = false
-      Logging.log('Background', `Panel toggled off for tab ${tabId}`)
-    } else {
-      await chrome.sidePanel.setOptions({ tabId, enabled: true })
-      await chrome.sidePanel.open({ tabId })
-      state.isOpen = true
-      Logging.log('Background', `Panel toggled on for tab ${tabId}`)
-      Logging.logMetric('side_panel_toggled', { tabId })
+    const tab = await chrome.tabs.get(tabId)
+    if (!tab.windowId) {
+      Logging.log('Background', `No window ID for tab ${tabId}`, 'error')
+      return
+    }
+
+    // Track both window and tab state
+    const windowState = ensureWindowPanelState(tab.windowId)
+    const tabState = ensureTabPanelState(tabId)
+
+    if (windowState.isToggling) return
+    windowState.isToggling = true
+
+    try {
+      // Note: Chrome's sidePanel behavior is window-centric
+      // Setting per-tab options has limitations
+      if (windowState.isOpen) {
+        // Try to close for specific tab first
+        try {
+          await chrome.sidePanel.setOptions({ tabId, enabled: false })
+          tabState.isOpen = false
+        } catch (e) {
+          // Fall back to window-level if tab-specific fails
+          Logging.log('Background', `Tab-specific close failed, using window approach: ${e}`, 'warning')
+        }
+        windowState.isOpen = false
+        Logging.log('Background', `Panel toggled off for window ${tab.windowId} (tab ${tabId})`)
+      } else {
+        // Enable and open for the tab
+        await chrome.sidePanel.setOptions({ tabId, enabled: true })
+        await chrome.sidePanel.open({ tabId })
+        windowState.isOpen = true
+        tabState.isOpen = true
+        windowState.lastActiveTabId = tabId
+        Logging.log('Background', `Panel toggled on for window ${tab.windowId} (tab ${tabId})`)
+        Logging.logMetric('side_panel_toggled', { tabId, windowId: tab.windowId })
+      }
+    } catch (error) {
+      Logging.log('Background', `Error toggling side panel: ${error}`, 'error')
+
+      // Fallback to window-level operation
+      if (!windowState.isOpen) {
+        try {
+          await chrome.sidePanel.open({ windowId: tab.windowId })
+          windowState.isOpen = true
+          windowState.lastActiveTabId = tabId
+          Logging.log('Background', `Fallback opened panel for window ${tab.windowId}`)
+        } catch (fallbackError) {
+          Logging.log('Background', `Fallback failed: ${fallbackError}`, 'error')
+        }
+      }
+    } finally {
+      setTimeout(() => {
+        windowState.isToggling = false
+      }, 300)
     }
   } catch (error) {
-    Logging.log('Background', `Error toggling side panel for tab ${tabId}: ${error}`, 'error')
-
-    if (!state.isOpen) {
-      try {
-        const tab = await chrome.tabs.get(tabId)
-        if (tab.windowId) {
-          await chrome.sidePanel.open({ windowId: tab.windowId })
-          state.isOpen = true
-          Logging.log('Background', `Fallback opened panel for window ${tab.windowId}`)
-        }
-      } catch (fallbackError) {
-        Logging.log('Background', `Fallback failed for tab ${tabId}: ${fallbackError}`, 'error')
-      }
-    }
-  } finally {
-    setTimeout(() => {
-      const current = panelStates.get(tabId)
-      if (current) {
-        current.isToggling = false
-      }
-    }, 300)
+    Logging.log('Background', `Failed to get tab info for ${tabId}: ${error}`, 'error')
   }
 }
 
@@ -360,8 +481,12 @@ function initialize(): void {
 
   // Listen for tab activation changes
   chrome.tabs.onActivated.addListener(async ({ tabId, windowId }) => {
-    Logging.log('Background', `Tab activated: ${tabId}`)
-    await notifySidePanelOfActiveTab(tabId)
+    Logging.log('Background', `Tab activated: ${tabId} in window ${windowId}`)
+    // Pass windowId to properly scope the sidepanel update
+    await notifySidePanelOfActiveTab(tabId, windowId)
+    if (typeof windowId === 'number') {
+      await sidePanelVisibilityService.syncWindow(windowId)
+    }
   })
   
   // Set up keyboard shortcut handler
@@ -379,12 +504,19 @@ function initialize(): void {
   
   // Clean up on tab removal
   chrome.tabs.onRemoved.addListener((tabId) => {
-    panelStates.delete(tabId)
+    tabPanelStates.delete(tabId)
+    sidePanelVisibilityService.removeTab(tabId)
     Logging.log('Background', `Tab ${tabId} removed`)
     void executionHandler.handleTabClosed(tabId).catch((error) => {
       const message = error instanceof Error ? error.message : String(error)
       Logging.log('Background', `Failed to cleanup tab ${tabId}: ${message}`, 'warning')
     })
+  })
+
+  // Clean up window states when windows are closed
+  chrome.windows.onRemoved.addListener((windowId) => {
+    windowPanelStates.delete(windowId)
+    Logging.log('Background', `Window ${windowId} removed`)
   })
 
   

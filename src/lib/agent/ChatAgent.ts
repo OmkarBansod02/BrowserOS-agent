@@ -195,7 +195,7 @@ export class ChatAgent {
     // No explicit multi-tab selection - get the ACTUAL current active tab
     // This ensures we detect tab changes even when user switches tabs between queries
     try {
-      const currentPage = await this.executionContext.browserContext.getCurrentPage()
+      const currentPage = await this.executionContext.getCurrentPage()
       return new Set([currentPage.tabId])
     } catch (error) {
       // Fallback to ExecutionContext if getCurrentPage fails
@@ -230,7 +230,7 @@ export class ChatAgent {
     const hasUserSelectedTabs = Boolean(selectedTabIds && selectedTabIds.length > 0)
     
     // Get browser pages
-    const pages = await this.executionContext.browserContext.getPages(
+    const pages = await this.executionContext.getPages(
       hasUserSelectedTabs && selectedTabIds ? selectedTabIds : undefined
     )
     

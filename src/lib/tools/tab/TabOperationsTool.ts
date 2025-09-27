@@ -36,7 +36,7 @@ export class TabOperationsTool {
   // Private helper methods
   private async _listTabs(): Promise<ToolOutput> {
     try {
-      const currentWindow = await this.executionContext.browserContext.getCurrentWindow()
+      const currentWindow = await this.executionContext.getCurrentWindow()
       
       // Safety check in case window is undefined
       if (!currentWindow || !currentWindow.id) {
@@ -87,11 +87,23 @@ export class TabOperationsTool {
 
   private async _createNewTab(): Promise<ToolOutput> {
     try {
+      // CRITICAL SAFETY CHECK: Log warning if creating new tab during active execution
+      const executionId = this.executionContext.executionId
+      if (executionId) {
+        console.warn(`WARNING: Creating new tab during active execution ${executionId}. This may cause tab context issues.`)
+        this.executionContext.getPubSub().publishMessage(
+          PubSub.createMessage(
+            `⚠️ Creating new tab during active execution. This may switch context away from current tab.`,
+            'thinking'
+          )
+        )
+      }
+
       const page = await this.executionContext.browserContext.openTab(DEFAULT_TAB_URL)
-      
+
       // Emit status message
       this.executionContext.getPubSub().publishMessage(PubSub.createMessage(`Created new tab with ID: ${page.tabId}`, 'thinking'))
-      
+
       return toolSuccess(`Created new tab with ID: ${page.tabId}`)
     } catch (error) {
       return toolError(`Failed to create new tab: ${error instanceof Error ? error.message : String(error)}`)
@@ -104,16 +116,28 @@ export class TabOperationsTool {
     }
 
     const tabId = tabIds[0]
-    
+
     try {
+      // CRITICAL SAFETY CHECK: Warn if switching tabs during execution
+      const executionId = this.executionContext.executionId
+      if (executionId) {
+        console.warn(`WARNING: Switching to tab ${tabId} during execution ${executionId}. This may cause context issues.`)
+        this.executionContext.getPubSub().publishMessage(
+          PubSub.createMessage(
+            `⚠️ Switching to tab ${tabId}. Note: Execution context is locked to original tab.`,
+            'thinking'
+          )
+        )
+      }
+
       await this.executionContext.browserContext.switchTab(tabId)
-      
+
       // Get tab info for confirmation
       const tab = await chrome.tabs.get(tabId)
-      
+
       // Emit status message
       this.executionContext.getPubSub().publishMessage(PubSub.createMessage(`Switched to tab: ${tab.title || 'Untitled'}`, 'thinking'))
-      
+
       return toolSuccess(`Switched to tab: ${tab.title || 'Untitled'} (ID: ${tabId})`)
     } catch (error) {
       return toolError(`Failed to switch to tab ${tabId}: ${error instanceof Error ? error.message : String(error)}`)

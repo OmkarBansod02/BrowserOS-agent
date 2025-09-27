@@ -19,7 +19,7 @@ export function createCelebrationTool(context: ExecutionContext): DynamicStructu
         Logging.log("CelebrationTool", "Showing confetti celebration");
 
         // Get current page
-        const page = await context.browserContext.getCurrentPage();
+        const page = await context.getCurrentPage();
         if (!page) {
           return JSON.stringify({
             ok: false,

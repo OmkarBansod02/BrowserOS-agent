@@ -761,9 +761,38 @@ export class BrowserPage {
     `);
   }
 
+  /**
+   * Properly dispose of this page instance and clean up resources
+   */
+  async dispose(): Promise<void> {
+    try {
+      Logging.log("BrowserPage", `Disposing page for tab ${this._tabId}`, "info");
+
+      // Clear all cached data
+      this._invalidateCache();
+
+      // Clear any remaining references
+      this._nodeIdToNodeMap.clear();
+      this._snapshotCache = null;
+
+      // Note: We don't close the tab here as it might still be in use
+      // The tab should be closed by BrowserContext when appropriate
+
+      Logging.log("BrowserPage", `Page disposed for tab ${this._tabId}`, "info");
+    } catch (error) {
+      Logging.log("BrowserPage", `Error during dispose: ${error}`, "error");
+    }
+  }
+
   async close(): Promise<void> {
     try {
+      // First dispose of resources
+      await this.dispose();
+
+      // Then close the tab
       await chrome.tabs.remove(this._tabId);
+
+      Logging.log("BrowserPage", `Tab ${this._tabId} closed`, "info");
     } catch (error) {
       Logging.log("BrowserPage", `Error closing tab: ${error}`, "error");
     }

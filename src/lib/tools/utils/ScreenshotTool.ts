@@ -71,7 +71,7 @@ Screenshots help you see what's on the page and make better decisions.`,
           PubSub.createMessage(`Capturing ${selectedSize} screenshot (${pixelSize}px)`, 'thinking')
         )
 
-        const page = await executionContext.browserContext.getCurrentPage()
+        const page = await executionContext.getCurrentPage()
         if (!page) {
           Logging.log('ScreenshotTool', 'No active page found to take screenshot', 'error')
           executionContext.messageManager.addAI('Screenshot unavailable - no active page. Continuing without visual verification.')

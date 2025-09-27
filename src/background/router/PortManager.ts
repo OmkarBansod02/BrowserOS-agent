@@ -9,6 +9,7 @@ interface PortInfo {
   port: chrome.runtime.Port
   executionId: string
   tabId?: number
+  windowId?: number
   connectedAt: number
   subscription?: Subscription
 }
@@ -25,11 +26,25 @@ export class PortManager {
   /**
    * Register a new port connection.
    */
-  registerPort(port: chrome.runtime.Port): PortInfo {
+  async registerPort(port: chrome.runtime.Port): Promise<PortInfo> {
     const metadata = this.parsePortMetadata(port.name)
     const nameTabId = metadata.tabId
     const senderTabId = port.sender?.tab?.id
     const resolvedTabId = typeof nameTabId === 'number' ? nameTabId : senderTabId
+    let windowId = port.sender?.tab?.windowId
+
+    // For sidepanel ports, we need to determine the window ID
+    if (port.name.startsWith('sidepanel') && !windowId) {
+      try {
+        // Get the current active tab to determine window context
+        const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true })
+        if (activeTab?.windowId) {
+          windowId = activeTab.windowId
+        }
+      } catch (error) {
+        Logging.log('PortManager', `Failed to get window ID for sidepanel: ${error}`, 'warning')
+      }
+    }
 
     const inferredExecutionId = metadata.executionId ??
       (typeof resolvedTabId === 'number' ? this.buildExecutionIdFromTab(resolvedTabId) : DEFAULT_EXECUTION_ID)
@@ -38,6 +53,7 @@ export class PortManager {
       port,
       executionId: inferredExecutionId,
       tabId: resolvedTabId,
+      windowId,
       connectedAt: Date.now()
     }
 
@@ -47,13 +63,42 @@ export class PortManager {
       this.tabExecution.set(resolvedTabId, inferredExecutionId)
     }
 
-    if (port.name.startsWith('sidepanel')) {
+    // For sidepanel, find the active tab in its window and subscribe to its execution
+    if (port.name.startsWith('sidepanel') && windowId) {
+      try {
+        const tabs = await chrome.tabs.query({ active: true, windowId })
+        if (tabs.length > 0 && tabs[0].id) {
+          const activeTabId = tabs[0].id
+          const activeExecution = this.tabExecution.get(activeTabId)
+          if (activeExecution) {
+            // Active tab has a running execution
+            info.tabId = activeTabId
+            info.executionId = activeExecution
+            this.subscribeToChannel(info, activeExecution)
+          } else {
+            // Active tab has no execution - don't subscribe to any channel
+            info.tabId = activeTabId
+            info.executionId = DEFAULT_EXECUTION_ID
+            // Don't subscribe to any channel - the sidepanel should remain empty
+            Logging.log('PortManager', `Sidepanel connected but active tab ${activeTabId} has no execution`)
+          }
+        } else {
+          // No active tab found - shouldn't happen but handle gracefully
+          info.executionId = DEFAULT_EXECUTION_ID
+          Logging.log('PortManager', `Sidepanel connected but no active tab found in window ${windowId}`)
+        }
+      } catch (error) {
+        Logging.log('PortManager', `Failed to get active tab for sidepanel: ${error}`, 'warning')
+        info.executionId = DEFAULT_EXECUTION_ID
+      }
+    } else if (!port.name.startsWith('sidepanel')) {
+      // Non-sidepanel ports get subscribed to their inferred execution
       this.subscribeToChannel(info, inferredExecutionId)
     }
 
     this.notifyExecutionContext(info)
 
-    Logging.log('PortManager', `Registered port ${port.name} (exec: ${inferredExecutionId})`)
+    Logging.log('PortManager', `Registered port ${port.name} (exec: ${info.executionId}, window: ${windowId})`)
     return info
   }
 
@@ -139,6 +184,14 @@ export class PortManager {
     return this.tabExecution.get(tabId)
   }
 
+  /**
+   * Set the execution for a specific tab (without requiring a port)
+   */
+  setTabExecution(tabId: number, executionId: string): void {
+    this.tabExecution.set(tabId, executionId)
+    Logging.log('PortManager', `Set tab ${tabId} -> execution ${executionId}`)
+  }
+
   getTrackedTabs(): number[] {
     return Array.from(this.tabExecution.keys())
   }
@@ -167,33 +220,22 @@ export class PortManager {
     }
   }
 
+  /**
+   * @deprecated Use notifyWindowSidePanels instead for proper window-scoped updates
+   */
   updateExecutionForTab(tabId: number, executionId: string): void {
-    let updatedPorts = 0
+    // This method is deprecated - use notifyWindowSidePanels for correct behavior
+    Logging.log('PortManager', `DEPRECATED: updateExecutionForTab called for tab ${tabId}`, 'warning')
 
+    // Store the tab execution mapping
+    this.tabExecution.set(tabId, executionId)
+
+    // Only update ports that are explicitly associated with this tab (not sidepanel ports)
     for (const info of this.ports.values()) {
-      const isSidepanelPort = info.port.name.startsWith('sidepanel')
-      const matchesTab = info.tabId === tabId
-      const needsAssignment = isSidepanelPort && info.tabId === undefined
-      const shouldUpdate = matchesTab || needsAssignment
-
-      if (!shouldUpdate) {
-        continue
+      if (info.tabId === tabId && !info.port.name.startsWith('sidepanel')) {
+        this.subscribeToChannel(info, executionId)
       }
-
-      Logging.log('PortManager', `Updating port ${info.port.name} to executionId ${executionId}`)
-      this.subscribeToChannel(info, executionId)
-
-      if (isSidepanelPort) {
-        info.tabId = tabId
-      }
-
-      this.tabExecution.set(tabId, executionId)
-
-      updatedPorts++
     }
-
-    Logging.log('PortManager', `Updated ${updatedPorts} port(s) for tab ${tabId} -> execution ${executionId}`)
-    this.debugPortState()
   }
 
   /**
@@ -283,15 +325,94 @@ export class PortManager {
     return `tab-${tabId}`
   }
 
-  private notifyExecutionContext(info: PortInfo): void {
+  notifyExecutionContextForTab(tabId: number, executionId: string | null): void {
+    for (const info of this.ports.values()) {
+      if (info.tabId !== tabId) {
+        continue
+      }
+
+      if (executionId === null) {
+        if (info.subscription) {
+          info.subscription.unsubscribe()
+          info.subscription = undefined
+        }
+        info.executionId = DEFAULT_EXECUTION_ID
+      } else {
+        info.executionId = executionId
+      }
+
+      this.notifyExecutionContext(info, executionId)
+    }
+
+    if (executionId === null) {
+      this.tabExecution.delete(tabId)
+    } else {
+      this.tabExecution.set(tabId, executionId)
+    }
+  }
+
+  /**
+   * Notify all sidepanel ports in a specific window about the active tab's execution.
+   * IMPORTANT: Chrome sidepanel is window-level, so we need to update ALL sidepanels
+   * in the window to show the active tab's content.
+   */
+  notifyWindowSidePanels(windowId: number, activeTabId: number, executionId: string | null): void {
+    let updatedCount = 0;
+
+    for (const info of this.ports.values()) {
+      // Only update sidepanel ports in the target window
+      const isSidepanelPort = info.port.name.startsWith('sidepanel');
+      const isInTargetWindow = info.windowId === windowId;
+
+      if (!isSidepanelPort || !isInTargetWindow) {
+        continue;
+      }
+
+      // CRITICAL: Update the sidepanel to track the active tab
+      // Since Chrome has only ONE sidepanel per window, we need to switch its context
+      info.tabId = activeTabId;
+
+      if (executionId === null) {
+        // No execution in the active tab - unsubscribe and clear
+        if (info.subscription) {
+          info.subscription.unsubscribe();
+          info.subscription = undefined;
+        }
+        info.executionId = DEFAULT_EXECUTION_ID;
+        this.notifyExecutionContext(info, null, activeTabId);
+      } else {
+        // Subscribe to the active tab's execution
+        // Always resubscribe to ensure proper channel binding
+        this.subscribeToChannel(info, executionId);
+      }
+
+      updatedCount++;
+    }
+
+    // Update tab execution mapping
+    if (executionId !== null) {
+      this.tabExecution.set(activeTabId, executionId);
+    } else {
+      this.tabExecution.delete(activeTabId);
+    }
+
+    Logging.log(
+      'PortManager',
+      `Updated ${updatedCount} sidepanel port(s) in window ${windowId} to track tab ${activeTabId} with execution ${executionId || 'none'}`
+    );
+  }
+
+  private notifyExecutionContext(info: PortInfo, executionIdOverride: string | null | undefined = undefined, tabIdOverride?: number): void {
     if (!info.port.name.startsWith('sidepanel')) {
       return
     }
 
+    const executionId = executionIdOverride !== undefined ? executionIdOverride : info.executionId
+
     try {
       const contextPayload = {
-        executionId: info.executionId,
-        tabId: info.tabId
+        executionId,
+        tabId: tabIdOverride ?? info.tabId ?? null
       }
       Logging.log('PortManager', `Sending EXECUTION_CONTEXT to ${info.port.name}: ${JSON.stringify(contextPayload)}`)
 
@@ -304,4 +425,3 @@ export class PortManager {
     }
   }
 }
-

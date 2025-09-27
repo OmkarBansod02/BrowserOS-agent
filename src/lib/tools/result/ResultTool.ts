@@ -48,7 +48,7 @@ export function createResultTool(executionContext: ExecutionContext): DynamicStr
           .join('\n');
        
         // Get browser state
-        const browserState = await executionContext.browserContext.getBrowserStateString();
+        const browserState = await executionContext.getBrowserStateString();
         
         // Generate prompts
         const systemPrompt = generateResultSystemPrompt();

@@ -80,7 +80,7 @@ export function createClickTool(
         context.incrementMetric("toolCalls");
 
         // Get current page from browserContext
-        const page = await context.browserContext.getCurrentPage();
+        const page = await context.getCurrentPage();
 
         // Ensure element is in viewport
         const { element, scrollMessage } = await page.ensureElementInViewport(
@@ -139,7 +139,7 @@ export function createTypeTool(
         );
 
         // Get current page from browserContext
-        const page = await context.browserContext.getCurrentPage();
+        const page = await context.getCurrentPage();
 
         // Ensure element is in viewport
         const { element, scrollMessage } = await page.ensureElementInViewport(
@@ -197,7 +197,7 @@ export function createClearTool(
         );
 
         // Get current page from browserContext
-        const page = await context.browserContext.getCurrentPage();
+        const page = await context.getCurrentPage();
 
         // Ensure element is in viewport
         const { element, scrollMessage } = await page.ensureElementInViewport(
@@ -267,7 +267,7 @@ export function createScrollTool(
         );
 
         // Get current page from browserContext
-        const page = await context.browserContext.getCurrentPage();
+        const page = await context.getCurrentPage();
 
         const amount = args.amount || 1;
 
@@ -330,7 +330,7 @@ export function createNavigateTool(
         );
 
         // Get current page from browserContext
-        const page = await context.browserContext.getCurrentPage();
+        const page = await context.getCurrentPage();
 
         await page.navigateTo(args.url);
         await page.waitForStability();
@@ -389,7 +389,7 @@ export function createKeyTool(
         );
 
         // Get current page from browserContext
-        const page = await context.browserContext.getCurrentPage();
+        const page = await context.getCurrentPage();
 
         await page.sendKeys(args.key);
 
@@ -436,7 +436,7 @@ export function createWaitTool(
         );
 
         // Get current page from browserContext
-        const page = await context.browserContext.getCurrentPage();
+        const page = await context.getCurrentPage();
 
         await page.waitForStability();
         const waitSeconds = args.seconds || 2;
@@ -755,7 +755,7 @@ export function createExtractTool(
         );
 
         // Get current page from browserContext
-        const page = await context.browserContext.getCurrentPage();
+        const page = await context.getCurrentPage();
 
         // Get all page content using simplified string methods
         const pageDetails = await page.getPageDetails();
@@ -965,7 +965,7 @@ export function createCelebrationTool(
         );
 
         // Get current page from browserContext
-        const page = await context.browserContext.getCurrentPage();
+        const page = await context.getCurrentPage();
         if (!page) {
           return JSON.stringify({
             ok: false,
@@ -1045,7 +1045,7 @@ export function createMoondreamVisualClickTool(
         }
 
         // Get current page
-        const page = await context.browserContext.getCurrentPage();
+        const page = await context.getCurrentPage();
 
         // Get viewport dimensions
         const viewport = await page.executeJavaScript(`
@@ -1166,7 +1166,7 @@ export function createMoondreamVisualTypeTool(
         }
 
         // Get current page
-        const page = await context.browserContext.getCurrentPage();
+        const page = await context.getCurrentPage();
 
         // Get viewport dimensions
         const viewport = await page.executeJavaScript(`
@@ -1273,7 +1273,7 @@ export function createClickAtCoordinatesTool(
         );
 
         // Get current page from browserContext
-        const page = await context.browserContext.getCurrentPage();
+        const page = await context.getCurrentPage();
 
         // Get viewport dimensions for validation
         const viewport = await page.executeJavaScript(`
@@ -1339,7 +1339,7 @@ export function createTypeAtCoordinatesTool(
         );
 
         // Get current page from browserContext
-        const page = await context.browserContext.getCurrentPage();
+        const page = await context.getCurrentPage();
 
         // Get viewport dimensions for validation
         const viewport = await page.executeJavaScript(`
@@ -1420,7 +1420,7 @@ export function createGrepTool(context: ExecutionContext): DynamicStructuredTool
         }
 
         // Get current page from browserContext
-        const browserState = await context.browserContext.getBrowserStateString();
+        const browserState = await context.getBrowserStateString();
 
         // Parse browser state to extract elements with NodeIds
         const elements: GrepElement[] = [];
@@ -1548,7 +1548,7 @@ export function createGrepTool(context: ExecutionContext): DynamicStructuredTool
 //         context.incrementMetric("toolCalls");
 //
 //         // Get current page from browserContext
-//         const page = await context.browserContext.getCurrentPage();
+//         const page = await context.getCurrentPage();
 //
 //         // Get viewport dimensions
 //         const viewport = await page.executeJavaScript(`

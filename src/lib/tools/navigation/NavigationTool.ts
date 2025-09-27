@@ -44,7 +44,7 @@ export class NavigationTool {
     try {
       this.executionContext.getPubSub().publishMessage(PubSub.createMessage(`Navigating to: ${url}`, 'thinking'))
       const normalizedUrl = this._normalizeUrl(url)
-      const browserPage = await this.executionContext.browserContext.getCurrentPage()
+      const browserPage = await this.executionContext.getCurrentPage()
       await browserPage.navigateTo(normalizedUrl)
       
       // Wait a bit for the page to settle after navigation
@@ -73,7 +73,7 @@ export class NavigationTool {
 
   private async _goBack(): Promise<ToolOutput> {
     try {
-      const browserPage = await this.executionContext.browserContext.getCurrentPage()
+      const browserPage = await this.executionContext.getCurrentPage()
       await browserPage.goBack()
       
       // Wait a bit for the page to settle after navigation
@@ -102,7 +102,7 @@ export class NavigationTool {
 
   private async _goForward(): Promise<ToolOutput> {
     try {
-      const browserPage = await this.executionContext.browserContext.getCurrentPage()
+      const browserPage = await this.executionContext.getCurrentPage()
       await browserPage.goForward()
       
       // Wait a bit for the page to settle after navigation
@@ -131,7 +131,7 @@ export class NavigationTool {
 
   private async _refresh(): Promise<ToolOutput> {
     try {
-      const browserPage = await this.executionContext.browserContext.getCurrentPage()
+      const browserPage = await this.executionContext.getCurrentPage()
       await browserPage.refreshPage()
       
       // Wait a bit for the page to settle after refresh

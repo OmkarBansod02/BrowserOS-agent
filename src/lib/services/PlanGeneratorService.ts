@@ -172,13 +172,19 @@ export class PlanGeneratorService {
   }
 
   private _makeLightExecutionContext(historyOrContext: string): ExecutionContext {
-    class MinimalBrowserContext extends BrowserContext {
-      public async getBrowserStateString(_simplified: boolean = false): Promise<string> {
+    // Create a minimal browser context mock for plan generation
+    // We don't need actual browser functionality for planning
+    const browserContext = {
+      getBrowserStateString: async (_simplified: boolean = false): Promise<string> => {
         return 'N/A'
-      }
-    }
+      },
+      // Add minimal required methods to satisfy ExecutionContext
+      getCurrentPage: async () => null,
+      cleanup: async () => {},
+      unlockExecution: async () => {},
+      lockExecutionToTab: (_tabId: number, _executionId: string) => {}
+    } as any  // Cast to any since we're creating a mock
 
-    const browserContext = new MinimalBrowserContext()
     const messageManager = new MessageManager()
 
     if (historyOrContext && historyOrContext.trim()) {

@@ -21,7 +21,7 @@ export function createRefreshStateTool(executionContext: ExecutionContext): Dyna
     func: async () => {
       try {
         // Get COMPLEX state (false = not simplified, include everything)
-        const complexBrowserState = await executionContext.browserContext.getBrowserStateString(false);
+        const complexBrowserState = await executionContext.getBrowserStateString(false);
         
         return JSON.stringify({
           ok: true,

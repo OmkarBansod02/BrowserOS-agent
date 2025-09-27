@@ -30,7 +30,7 @@ interface HeaderProps {
  * Memoized to prevent unnecessary re-renders
  */
 export const Header = memo(function Header({ onReset, showReset, isProcessing }: HeaderProps) {
-  const { sendMessage, connected, addMessageListener, removeMessageListener } = useSidePanelPortMessaging()
+  const { sendMessage, connected, addMessageListener, removeMessageListener, executionId } = useSidePanelPortMessaging()
   const { trackClick } = useAnalytics()
   const [showSettings, setShowSettings] = useState(false)
   const [showHelp, setShowHelp] = useState(false)
@@ -43,18 +43,24 @@ export const Header = memo(function Header({ onReset, showReset, isProcessing }:
   
   const handleCancel = () => {
     trackClick('pause_task')
-    sendMessage(MessageType.CANCEL_TASK, {
+    const payload: { reason: string; source: string; executionId?: string } = {
       reason: 'User clicked pause button',
       source: 'sidepanel'
-    })
+    }
+    if (executionId) {
+      payload.executionId = executionId
+    }
+    sendMessage(MessageType.CANCEL_TASK, payload)
   }
   
   const handleReset = () => {
     trackClick('reset_conversation')
     // Send reset message to background
-    sendMessage(MessageType.RESET_CONVERSATION, {
-      source: 'sidepanel'
-    })
+    const payload: { source: string; executionId?: string } = { source: 'sidepanel' }
+    if (executionId) {
+      payload.executionId = executionId
+    }
+    sendMessage(MessageType.RESET_CONVERSATION, payload)
     
     // Clear local state
     onReset()

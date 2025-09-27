@@ -135,8 +135,8 @@ export class LLMSettingsReader {
     return new Promise<BrowserOSProvider | null>((resolve) => {
       browserOS!.getPref(BROWSEROS_PREFERENCE_KEYS.PROVIDERS, (pref: BrowserOSPrefObject) => {
         if (chrome.runtime.lastError) {
-          Logging.log('LLMSettingsReader', 
-            `Failed to read preference: ${chrome.runtime.lastError.message}`, 'warning')
+          // This is expected when not running in BrowserOS environment
+          // Silently fall back to null without logging
           resolve(null)
           return
         }

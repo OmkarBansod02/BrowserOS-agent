@@ -118,7 +118,7 @@ export function createValidatorTool(executionContext: ExecutionContext): Dynamic
         const llm = await executionContext.getLLM()
         
         // Get browser state
-        const browserStateString = await executionContext.browserContext.getBrowserStateString()
+        const browserStateString = await executionContext.getBrowserStateString()
         
         // Check if browser state needs chunking
         const maxTokens = executionContext.messageManager.getMaxTokens()
@@ -129,7 +129,7 @@ export function createValidatorTool(executionContext: ExecutionContext): Dynamic
 
         if (executionContext.supportsVision() && maxTokens >= MIN_TOKENS_FOR_USING_VISION) {
           try {
-            const currentPage = await executionContext.browserContext.getCurrentPage()
+            const currentPage = await executionContext.getCurrentPage()
             if (currentPage) {
               const screenshotDataUrl = await currentPage.takeScreenshot()
               if (screenshotDataUrl) {

@@ -26,7 +26,7 @@ export class ScrollTool {
     }
 
     try {
-      const page = await this.executionContext.browserContext.getCurrentPage()
+      const page = await this.executionContext.getCurrentPage()
       
       switch (input.operationType) {
         case "scroll_down":

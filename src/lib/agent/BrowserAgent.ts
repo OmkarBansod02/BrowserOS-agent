@@ -967,7 +967,7 @@ export class BrowserAgent {
     }
 
     try {
-      const currentPage = await this.executionContext.browserContext.getCurrentPage();
+      const currentPage = await this.executionContext.getCurrentPage();
       const tabId = currentPage.tabId;
       
       if (tabId && !this.glowService.isGlowActive(tabId)) {

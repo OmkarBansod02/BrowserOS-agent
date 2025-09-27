@@ -27,6 +27,70 @@ export type Provider = z.infer<typeof ProviderSchema>
 const CHAT_PROVIDER_READY_TIMEOUT_MS = 8000
 const CHAT_PROVIDER_POST_LOAD_DELAY_MS = 400
 
+// Helper function to determine if query needs web navigation
+const isNavigationQuery = (query: string): boolean => {
+  const lowerQuery = query.toLowerCase().trim()
+
+  // Patterns that indicate informational/conversational queries
+  const infoPatterns = [
+    /^what (is|are|was|were)/,
+    /^who (is|are|was|were)/,
+    /^when (is|are|was|were|did|does)/,
+    /^where (is|are|was|were)/,
+    /^why (is|are|was|were|did|does)/,
+    /^how (is|are|was|were|do|does|did|to)/,
+    /^explain/,
+    /^tell me/,
+    /^define/,
+    /^describe/,
+    /^list/,
+    /^summarize/,
+    /^translate/,
+    /^calculate/,
+    /^convert/,
+    /^can you/,
+    /^could you/,
+    /^would you/,
+    /^please (explain|tell|describe|help)/,
+    /^help/,
+    /^thanks/,
+    /^thank you/,
+    /^hello/,
+    /^hi/,
+    /^hey/
+  ]
+
+  // Patterns that indicate web navigation/action queries
+  const navigationPatterns = [
+    /^(go to|navigate to|open|visit|browse|show me|take me to|load)/,
+    /^(buy|purchase|order|shop|book|reserve)/,
+    /^(search for|find|look for|google)/,
+    /^(sign up|sign in|log in|register|create account)/,
+    /^(download|upload|install)/,
+    /^(fill|complete|submit)/,
+    /\.(com|org|net|edu|gov|io|co|uk|de|jp|cn|au|ca|fr|ru|br|in|it|es|nl|pl|ch)(\s|\/|$)/,  // URLs
+    /^https?:\/\//,  // Explicit URLs
+    /(website|webpage|site|page|portal|online)/
+  ]
+
+  // Check if it's clearly informational
+  for (const pattern of infoPatterns) {
+    if (pattern.test(lowerQuery)) {
+      return false  // Doesn't need navigation
+    }
+  }
+
+  // Check if it explicitly needs navigation
+  for (const pattern of navigationPatterns) {
+    if (pattern.test(lowerQuery)) {
+      return true  // Needs navigation
+    }
+  }
+
+  // Default: if unclear, don't open new tab for simple queries under 100 chars
+  return lowerQuery.length > 100
+}
+
 const DEFAULT_PROVIDERS: Provider[] = [
   {
     id: 'browseros-agent',
@@ -634,18 +698,45 @@ export const useProviderStore = create<ProviderState & ProviderActions>()(
           }
         } else if (provider.actionType === 'sidepanel') {
           try {
-            const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true })
-            if (!activeTab?.id) {
-              console.error('No active tab found')
-              return
+            // Get the actual active tab (excluding chrome:// pages)
+            const tabs = await chrome.tabs.query({
+              active: true,
+              currentWindow: true
+            })
+
+            let targetTabId: number
+            const activeTab = tabs[0]
+
+            // Check if current tab is a chrome page AND query needs navigation
+            const isChromePage = !activeTab?.id || activeTab.url?.startsWith('chrome://')
+            const needsNavigation = isNavigationQuery(query)
+
+            if (isChromePage && needsNavigation) {
+              // Only create new tab if we're on chrome:// page AND query needs web navigation
+              const newTabIndex = activeTab?.index !== undefined ? activeTab.index + 1 : undefined
+              const newTab = await chrome.tabs.create({
+                url: 'https://www.google.com',
+                active: false,
+                openerTabId: activeTab?.id,
+                index: newTabIndex
+              })
+              targetTabId = newTab.id!
+
+              // Wait for the new tab to be ready
+              await new Promise(resolve => setTimeout(resolve, 500))
+            } else {
+              // Use the current tab for all other cases
+              targetTabId = activeTab.id!
             }
+            // Send message with explicit execution ID
             await chrome.runtime.sendMessage({
               type: 'NEWTAB_EXECUTE_QUERY',
-              tabId: activeTab.id,
+              tabId: targetTabId,
               query,
               metadata: {
                 source: 'newtab',
-                executionMode: 'dynamic'
+                executionMode: 'dynamic',
+                executionId: `tab-${targetTabId}`,  // Explicit execution ID
               }
             })
           } catch (error) {
@@ -662,23 +753,50 @@ export const useProviderStore = create<ProviderState & ProviderActions>()(
         })
 
         try {
-          const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true })
-          if (!activeTab?.id) {
-            console.error('No active tab found')
-            return
-          }
+          // Get the actual active tab (excluding chrome:// pages)
+          const tabs = await chrome.tabs.query({
+            active: true,
+            currentWindow: true
+          })
 
+          let targetTabId: number
+          const activeTab = tabs[0]
+
+          // Check if current tab is a chrome page AND query needs navigation
+          const isChromePage = !activeTab?.id || activeTab.url?.startsWith('chrome://')
+          const needsNavigation = isNavigationQuery(query) || isBuilder  // Builders always need navigation
+
+          if (isChromePage && needsNavigation) {
+            // Only create new tab if we're on chrome:// page AND query needs web navigation
+            const newTabIndex = activeTab?.index !== undefined ? activeTab.index + 1 : undefined
+            const newTab = await chrome.tabs.create({
+              url: 'https://www.google.com',
+              active: false,
+              openerTabId: activeTab?.id,
+              index: newTabIndex
+            })
+            targetTabId = newTab.id!
+
+            // Wait for the new tab to be ready
+            await new Promise(resolve => setTimeout(resolve, 500))
+          } else {
+            // Use the current tab for all other cases
+            targetTabId = activeTab.id!
+          }
           const finalSteps = isBuilder
             ? ['Create new tab', ...agent.steps]
             : agent.steps
 
+          // Send message with explicit execution ID
           await chrome.runtime.sendMessage({
             type: 'NEWTAB_EXECUTE_QUERY',
-            tabId: activeTab.id,
+            tabId: targetTabId,
             query,
             metadata: {
               source: 'newtab',
               executionMode: 'predefined',
+              executionId: `tab-${targetTabId}`,  // Explicit execution ID
+              focusTab: isBuilder,
               predefinedPlan: {
                 agentId: agent.id,
                 steps: finalSteps,

@@ -32,12 +32,17 @@ const ExecutionChatStateSchema = z.object({
   executedPlans: z.record(z.string(), z.boolean())  // planId -> executed status
 })
 
+// Constants for execution management
+const MAX_EXECUTIONS = 20  // Maximum number of executions to keep
+const EXECUTION_AGE_LIMIT_MS = 30 * 60 * 1000  // 30 minutes
+
 // Global store state schema
 const ChatStateSchema = z.object({
   executions: z.record(z.string(), ExecutionChatStateSchema),  // executionId -> execution state
   currentExecutionId: z.string().nullable(),  // Active execution ID
   currentTabId: z.number().nullable(),  // Active browser tab id
-  tabExecutionMap: z.record(z.string(), z.string())  // tabId -> executionId mapping
+  tabExecutionMap: z.record(z.string(), z.string()),  // tabId -> executionId mapping
+  executionTimestamps: z.record(z.string(), z.number()).optional()  // executionId -> last activity timestamp
 })
 
 type ExecutionChatState = z.infer<typeof ExecutionChatStateSchema>
@@ -60,6 +65,8 @@ interface ChatActions {
   setTabExecution: (tabId: number, executionId: string) => void
   getExecutionForTab: (tabId: number) => string | null
   migrateExecutionState: (fromExecutionId: string, toExecutionId: string) => void
+  cleanupOldExecutions: () => void
+  removeExecution: (executionId: string) => void
   
   // Message operations - now with executionId parameter
   upsertMessage: (executionId: string, pubsubMessage: PubSubMessage) => void
@@ -108,7 +115,8 @@ const initialState: ChatState = {
   executions: {},
   currentExecutionId: null,
   currentTabId: null,
-  tabExecutionMap: {}
+  tabExecutionMap: {},
+  executionTimestamps: {}
 }
 
 // Helper function to get or create execution state
@@ -261,6 +269,10 @@ export const useChatStore = create<ChatState & ChatActions>((set, get) => ({
       }
       delete updatedExecutions[fromExecutionId]
 
+      const updatedTimestamps = { ...state.executionTimestamps }
+      delete updatedTimestamps[fromExecutionId]
+      updatedTimestamps[toExecutionId] = Date.now()
+
       const updatedMap: Record<string, string> = {}
       for (const [key, value] of Object.entries(state.tabExecutionMap)) {
         updatedMap[key] = value === fromExecutionId ? toExecutionId : value
@@ -268,7 +280,8 @@ export const useChatStore = create<ChatState & ChatActions>((set, get) => ({
 
       const result: Partial<ChatState> = {
         executions: updatedExecutions,
-        tabExecutionMap: updatedMap
+        tabExecutionMap: updatedMap,
+        executionTimestamps: updatedTimestamps
       }
 
       if (state.currentExecutionId === fromExecutionId) {
@@ -279,13 +292,113 @@ export const useChatStore = create<ChatState & ChatActions>((set, get) => ({
     })
   },
 
+  cleanupOldExecutions: () => {
+    set((state) => {
+      const now = Date.now()
+      const timestamps = state.executionTimestamps || {}
+
+      // Find executions to remove (old or exceeds limit)
+      const executionIds = Object.keys(state.executions)
+      const toRemove: string[] = []
+
+      // Remove old executions
+      for (const id of executionIds) {
+        const timestamp = timestamps[id]
+        if (timestamp && (now - timestamp > EXECUTION_AGE_LIMIT_MS)) {
+          toRemove.push(id)
+        }
+      }
+
+      // If still over limit, remove oldest
+      if (executionIds.length - toRemove.length > MAX_EXECUTIONS) {
+        const sortedByTime = executionIds
+          .filter(id => !toRemove.includes(id))
+          .sort((a, b) => (timestamps[a] || 0) - (timestamps[b] || 0))
+
+        const excess = executionIds.length - toRemove.length - MAX_EXECUTIONS
+        toRemove.push(...sortedByTime.slice(0, excess))
+      }
+
+      if (toRemove.length === 0) return {}
+
+      // Remove executions
+      const updatedExecutions = { ...state.executions }
+      const updatedTimestamps = { ...timestamps }
+      const updatedTabMap = { ...state.tabExecutionMap }
+
+      for (const id of toRemove) {
+        delete updatedExecutions[id]
+        delete updatedTimestamps[id]
+
+        // Remove from tab map
+        for (const [tabId, execId] of Object.entries(updatedTabMap)) {
+          if (execId === id) {
+            delete updatedTabMap[tabId]
+          }
+        }
+      }
+
+      console.log(`[ChatStore] Cleaned up ${toRemove.length} old executions`)
+
+      const updates: Partial<ChatState> = {
+        executions: updatedExecutions,
+        executionTimestamps: updatedTimestamps,
+        tabExecutionMap: updatedTabMap
+      }
+
+      // Update current execution if it was removed
+      if (state.currentExecutionId && toRemove.includes(state.currentExecutionId)) {
+        updates.currentExecutionId = null
+      }
+
+      return updates
+    })
+  },
+
+  removeExecution: (executionId: string) => {
+    set((state) => {
+      const updatedExecutions = { ...state.executions }
+      const updatedTimestamps = { ...state.executionTimestamps }
+      const updatedTabMap = { ...state.tabExecutionMap }
+
+      delete updatedExecutions[executionId]
+      delete updatedTimestamps[executionId]
+
+      // Remove from tab map
+      for (const [tabId, execId] of Object.entries(updatedTabMap)) {
+        if (execId === executionId) {
+          delete updatedTabMap[tabId]
+        }
+      }
+
+      const updates: Partial<ChatState> = {
+        executions: updatedExecutions,
+        executionTimestamps: updatedTimestamps,
+        tabExecutionMap: updatedTabMap
+      }
+
+      // Update current execution if it was removed
+      if (state.currentExecutionId === executionId) {
+        updates.currentExecutionId = null
+      }
+
+      return updates
+    })
+  },
+
   // Message operations
   upsertMessage: (executionId: string, pubsubMessage: PubSubMessage) => {
     set((state) => {
       console.log(`[ChatStore] Upserting message for execution ${executionId}:`, pubsubMessage.msgId, pubsubMessage.role)
       const execution = getOrCreateExecution(state, executionId)
       const existingIndex = execution.messages.findIndex(m => m.msgId === pubsubMessage.msgId)
-      
+
+      // Update timestamp for this execution
+      const updatedTimestamps = {
+        ...(state.executionTimestamps || {}),
+        [executionId]: Date.now()
+      }
+
       if (existingIndex >= 0) {
         // Update existing message content
         const updated = [...execution.messages]
@@ -294,7 +407,7 @@ export const useChatStore = create<ChatState & ChatActions>((set, get) => ({
           content: pubsubMessage.content,
           timestamp: new Date(pubsubMessage.ts)
         }
-        return { 
+        return {
           executions: {
             ...state.executions,
             [executionId]: {
@@ -302,7 +415,8 @@ export const useChatStore = create<ChatState & ChatActions>((set, get) => ({
               messages: updated,
               error: null
             }
-          }
+          },
+          executionTimestamps: updatedTimestamps
         }
       } else {
         const newMessage: Message = {
@@ -312,7 +426,13 @@ export const useChatStore = create<ChatState & ChatActions>((set, get) => ({
           timestamp: new Date(pubsubMessage.ts),
           metadata: {}
         }
-        return { 
+
+        // Periodically cleanup old executions (every 10 messages)
+        if (Math.random() < 0.1) {
+          setTimeout(() => useChatStore.getState().cleanupOldExecutions(), 0)
+        }
+
+        return {
           executions: {
             ...state.executions,
             [executionId]: {
@@ -321,7 +441,8 @@ export const useChatStore = create<ChatState & ChatActions>((set, get) => ({
               error: null,
               isProcessing: true  // Only set processing when adding new messages
             }
-          }
+          },
+          executionTimestamps: updatedTimestamps
         }
       }
     })

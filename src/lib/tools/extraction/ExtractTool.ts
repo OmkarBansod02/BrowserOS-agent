@@ -35,7 +35,7 @@ export function createExtractTool(executionContext: ExecutionContext): DynamicSt
       try {
         executionContext.getPubSub().publishMessage(PubSub.createMessage(`Extracting information from page ${args.tab_id}`, 'thinking'))
         // Get the page for the specified tab
-        const pages = await executionContext.browserContext.getPages([args.tab_id])
+        const pages = await executionContext.getPages([args.tab_id])
         if (!pages || pages.length === 0) {
           return JSON.stringify(toolError(`Tab ${args.tab_id} not found`))
         }

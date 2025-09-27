@@ -83,13 +83,13 @@ export class InteractionTool {
     }
     
     // Get browser state
-    const browserState = await this.executionContext.browserContext.getBrowserState()
+    const browserState = await this.executionContext.getBrowserState()
     if (!browserState.clickableElements.length && !browserState.typeableElements.length) {
       throw new Error("No interactive elements found on the current page")
     }
     
     // Get full browser state string and chunk it
-    const browserStateString = await this.executionContext.browserContext.getBrowserStateString(true); // simplified=true
+    const browserStateString = await this.executionContext.getBrowserStateString(true); // simplified=true
     const chunker = new BrowserStateChunker(browserStateString, _MAX_TOKENS_PER_CHUNK);
     const totalChunks = chunker.getTotalChunks();
     
@@ -168,7 +168,7 @@ export class InteractionTool {
     }
     
     // Verify element exists and is appropriate type
-    const browserState = await this.executionContext.browserContext.getBrowserState()
+    const browserState = await this.executionContext.getBrowserState()
     const isClickable = interactionType === 'click'
     const elements = isClickable ? browserState.clickableElements : browserState.typeableElements
     
@@ -191,7 +191,7 @@ export class InteractionTool {
         const nodeId = await this._findElement(description, 'click')
         
         // Get element and click
-        const page = await this.executionContext.browserContext.getCurrentPage()
+        const page = await this.executionContext.getCurrentPage()
         const element = await page.getElementByIndex(nodeId)
         
         if (!element) {
@@ -231,7 +231,7 @@ export class InteractionTool {
         const nodeId = await this._findElement(description, 'type')
         
         // Get element and input text
-        const page = await this.executionContext.browserContext.getCurrentPage()
+        const page = await this.executionContext.getCurrentPage()
         const element = await page.getElementByIndex(nodeId)
         
         if (!element) {
@@ -267,7 +267,7 @@ export class InteractionTool {
         const nodeId = await this._findElement(description, 'type')
         
         // Get element and clear
-        const page = await this.executionContext.browserContext.getCurrentPage()
+        const page = await this.executionContext.getCurrentPage()
         const element = await page.getElementByIndex(nodeId)
         
         if (!element) {
@@ -295,7 +295,7 @@ export class InteractionTool {
 
   private async _sendKeys(keys: string): Promise<ToolOutput> {
     this.executionContext.getPubSub().publishMessage(PubSub.createMessage(`Sending keys: ${keys}`, 'thinking'))
-    const page = await this.executionContext.browserContext.getCurrentPage()
+    const page = await this.executionContext.getCurrentPage()
     await page.sendKeys(keys)
     
     // Emit status message

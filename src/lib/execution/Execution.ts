@@ -12,6 +12,7 @@ import { PubSubChannel } from "@/lib/pubsub/PubSubChannel";
 import { PubSub } from "@/lib/pubsub";
 import { ExecutionMetadata } from "@/lib/types/messaging";
 import { getFeatureFlags } from "@/lib/utils/featureFlags";
+import { ResourceMonitor } from "@/lib/utils/ResourceMonitor";
 // Evals2: session, scoring, and logging
 import { ENABLE_EVALS2 } from "@/config";
 import { BraintrustEventManager } from "@/evals2/BraintrustEventManager";
@@ -89,11 +90,12 @@ export class Execution {
 
   /**
    * Ensure persistent resources are initialized
-   * Creates browser context and message manager if needed
+   * Gets singleton browser context and creates message manager if needed
    */
   private async _ensureInitialized(): Promise<void> {
     if (!this.browserContext) {
-      this.browserContext = new BrowserContext();
+      // Use singleton BrowserContext instead of creating new instance
+      this.browserContext = BrowserContext.getInstance();
     }
 
     if (!this.messageManager) {
@@ -117,6 +119,11 @@ export class Execution {
       this.currentAbortController = null;
     }
 
+    // Check resource availability
+    if (!ResourceMonitor.registerExecution(this.id)) {
+      throw new Error('Too many concurrent executions. Please wait for other tasks to complete.');
+    }
+
     // Ensure persistent resources exist
     await this._ensureInitialized();
 
@@ -125,20 +132,29 @@ export class Execution {
     const startTime = Date.now();
 
     try {
-      // Get a tab for execution
+      // Get a tab for execution - LOCK FIRST before any operations
       let targetTabId = this.options.tabId;
+
       if (!targetTabId) {
-        const currentPage = await this.browserContext?.getCurrentPage();
-        targetTabId = currentPage?.tabId;
+        // DON'T use getCurrentPage without a locked tab!
+        // Instead, get the active tab directly and lock it
+        const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+        const activeTab = tabs[0];
+
+        if (!activeTab?.id) {
+          throw new Error("No active tab found for execution");
+        }
+
+        targetTabId = activeTab.id;
+        Logging.log("Execution", `No tab specified, using active tab ${targetTabId} for execution ${this.id}`);
       }
+
+      // Lock the tab FIRST, before any other operations
       if (this.browserContext && targetTabId) {
         this.browserContext.lockExecutionToTab(targetTabId, this.id);
+        Logging.log("Execution", `Execution ${this.id} locked to tab ${targetTabId}`);
       } else {
-        if (!this.browserContext) {
-          throw new Error("browser context is not initialized");
-        } else if (!targetTabId) {
-          throw new Error("unable to get to a tab for execution");
-        }
+        throw new Error("Browser context is not initialized or no target tab available");
       }
 
       // Get model capabilities for vision support and context size
@@ -299,9 +315,12 @@ Upgrade to the latest BrowserOS version from [GitHub Releases](https://github.co
       // Clear abort controller after run completes
       this.currentAbortController = null;
 
-      // Unlock browser context after each run
+      // Unregister execution from resource monitor
+      ResourceMonitor.unregisterExecution(this.id);
+
+      // Unlock browser context after each run - pass execution ID
       if (this.browserContext) {
-        await this.browserContext.unlockExecution();
+        await this.browserContext.unlockExecution(this.id);
       }
     }
   }
@@ -364,7 +383,7 @@ Upgrade to the latest BrowserOS version from [GitHub Releases](https://github.co
 
   /**
    * Dispose of the execution completely
-   * Note: In singleton pattern, this is rarely used except for cleanup
+   * Note: BrowserContext is singleton, so we don't dispose it, just unlock
    */
   async dispose(): Promise<void> {
     // Cancel if still running
@@ -373,17 +392,22 @@ Upgrade to the latest BrowserOS version from [GitHub Releases](https://github.co
       this.currentAbortController = null;
     }
 
-    // Cleanup browser context
+    // Unregister from resource monitor
+    ResourceMonitor.unregisterExecution(this.id);
+
+    // Unlock browser context but don't dispose (it's a shared singleton)
     if (this.browserContext) {
-      await this.browserContext.cleanup();
+      // Pass execution ID for proper cleanup
+      await this.browserContext.unlockExecution(this.id);
+      // Just remove our reference, don't cleanup the shared instance
       this.browserContext = null;
     }
 
-    // Clear all references
+    // Clear other references
     this.messageManager = null;
     this.pubsub = null;
 
-    Logging.log("Execution", `Disposed execution`);
+    Logging.log("Execution", `Disposed execution ${this.id}`);
   }
 
   getPrimaryTabId(): number | undefined {

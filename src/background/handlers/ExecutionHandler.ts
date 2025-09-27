@@ -4,6 +4,7 @@ import { Logging } from '@/lib/utils/Logging'
 import { PubSub } from '@/lib/pubsub'
 import { PortManager } from '../router/PortManager'
 import { ExecutionRegistry } from './ExecutionRegistry'
+import { sidePanelVisibilityService } from '../services/SidePanelVisibilityService'
 
 const DEFAULT_EXECUTION_ID = 'main'
 
@@ -31,39 +32,6 @@ export class ExecutionHandler {
   constructor(portManager?: PortManager) {
     this.registry = new ExecutionRegistry()
     this.portManager = portManager
-  }
-
-  private async updateSidePanelVisibility(tabId: number | undefined, enabled: boolean): Promise<void> {
-    if (typeof tabId !== 'number') {
-      return
-    }
-    if (!chrome?.sidePanel?.setOptions) {
-      return
-    }
-
-    try {
-      await chrome.sidePanel.setOptions({ tabId, enabled })
-      Logging.log('ExecutionHandler', `${enabled ? 'Enabled' : 'Disabled'} sidepanel for tab ${tabId}`)
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error)
-      Logging.log('ExecutionHandler', `Failed to ${enabled ? 'enable' : 'disable'} sidepanel for tab ${tabId}: ${message}`, 'warning')
-    }
-  }
-
-  private async syncSidePanelVisibility(): Promise<void> {
-    if (!this.portManager) {
-      return
-    }
-    const trackedTabs = this.portManager.getTrackedTabs()
-    if (trackedTabs.length === 0) {
-      return
-    }
-
-    await Promise.all(trackedTabs.map(async (tabId) => {
-      const executionId = this.portManager?.getExecutionForTab(tabId)
-      const shouldEnable = !!executionId && this.registry.has(executionId)
-      await this.updateSidePanelVisibility(tabId, shouldEnable)
-    }))
   }
 
   /**
@@ -126,9 +94,6 @@ export class ExecutionHandler {
 
     this.portManager?.setPortExecution(port, executionId, primaryTabId)
 
-    await this.updateSidePanelVisibility(primaryTabId, true)
-    await this.syncSidePanelVisibility()
-
     Logging.log(
       'ExecutionHandler',
       `Starting execution ${executionId}: "${query}" (mode: ${chatMode ? 'chat' : 'browse'}) [tab=${primaryTabId ?? 'unknown'}]`
@@ -143,12 +108,14 @@ export class ExecutionHandler {
       tabId: primaryTabId ?? null
     })
 
+    let lockedTabId = primaryTabId
+
     try {
       if (execution.isRunning()) {
         Logging.log('ExecutionHandler', `Cancelling previous task for ${executionId}`)
         execution.cancel()
-        // Wait a moment to ensure cancellation is processed
-        await new Promise(resolve => setTimeout(resolve, 100))
+        // Wait longer to ensure cancellation is fully processed and resources are freed
+        await new Promise(resolve => setTimeout(resolve, 500))
       }
 
       execution.updateOptions({
@@ -159,15 +126,34 @@ export class ExecutionHandler {
         debug: false
       })
 
-      if (normalizedTabIds.length > 0) {
-        normalizedTabIds.forEach((id) => {
-          this.portManager?.updateExecutionForTab(id, executionId)
-        })
-      } else if (typeof senderTabId === 'number') {
-        this.portManager?.updateExecutionForTab(senderTabId, executionId)
+      lockedTabId = execution.getPrimaryTabId() ?? primaryTabId
+      await sidePanelVisibilityService.markRunning(lockedTabId, executionId)
+
+      // CRITICAL: Register the execution with the port manager for the specific tab
+      // This ensures the tab-execution mapping is established before notifying sidepanels
+      if (typeof lockedTabId === 'number') {
+        this.portManager?.setTabExecution(lockedTabId, executionId)
+
+        // Now notify the sidepanel in the correct window about the new execution
+        try {
+          const tab = await chrome.tabs.get(lockedTabId)
+          if (tab.windowId) {
+            this.portManager?.notifyWindowSidePanels(tab.windowId, lockedTabId, executionId)
+          }
+        } catch (error) {
+          Logging.log('ExecutionHandler', `Failed to get window for tab ${lockedTabId}: ${error}`, 'warning')
+        }
       }
 
-      await this.syncSidePanelVisibility()
+      const shouldFocusTab = Boolean(metadata && (metadata as any).focusTab)
+      if (shouldFocusTab && typeof lockedTabId === 'number') {
+        try {
+          await chrome.tabs.update(lockedTabId, { active: true })
+        } catch (error) {
+          const focusErrorMessage = error instanceof Error ? error.message : String(error)
+          Logging.log('ExecutionHandler', `Failed to focus tab ${lockedTabId}: ${focusErrorMessage}`, 'warning')
+        }
+      }
 
       await execution.run(query, metadata)
 
@@ -192,33 +178,57 @@ export class ExecutionHandler {
         },
         id: message.id
       })
+    } finally {
+      const finalTabId = execution.getPrimaryTabId() ?? lockedTabId
+      await sidePanelVisibilityService.markStopped(finalTabId, executionId)
+
+      // Notify sidepanel that execution has stopped
+      if (typeof finalTabId === 'number') {
+        try {
+          const tab = await chrome.tabs.get(finalTabId)
+          if (tab.windowId) {
+            this.portManager?.notifyWindowSidePanels(tab.windowId, finalTabId, null)
+          }
+        } catch (error) {
+          // Tab might have been closed, ignore
+        }
+      }
     }
   }
 
   /**
    * Handle CANCEL_TASK message
    */
-  handleCancelTask(
+  async handleCancelTask(
     message: PortMessage,
     port: chrome.runtime.Port
-  ): void {
+  ): Promise<void> {
     const payload = message.payload as CancelPayload
     const executionId = this.resolveExecutionId(payload, port)
-    const hadExplicitId = typeof payload.executionId === 'string'
 
     Logging.log('ExecutionHandler', `Cancelling execution ${executionId}`)
 
     try {
-      let cancelled = this.registry.cancel(executionId)
-
-      if (!cancelled && !hadExplicitId) {
-        this.registry.cancelAll()
-        cancelled = true
-        Logging.log('ExecutionHandler', 'No scoped execution found, cancelled all active executions', 'warning')
-      }
+      const cancelled = this.registry.cancel(executionId)
 
       if (cancelled) {
         Logging.logMetric('task_cancelled', { executionId })
+        const tabForExecution = sidePanelVisibilityService.findTabForExecution(executionId)
+        if (typeof tabForExecution === 'number') {
+          void sidePanelVisibilityService.markStopped(tabForExecution, executionId)
+
+          // Notify sidepanel that execution has stopped
+          try {
+            const tab = await chrome.tabs.get(tabForExecution)
+            if (tab.windowId) {
+              this.portManager?.notifyWindowSidePanels(tab.windowId, tabForExecution, null)
+            }
+          } catch (error) {
+            // Tab might have been closed, ignore
+          }
+        }
+      } else {
+        Logging.log('ExecutionHandler', `No active execution to cancel for ${executionId}`)
       }
 
       port.postMessage({
@@ -249,27 +259,22 @@ export class ExecutionHandler {
   /**
    * Handle RESET_CONVERSATION message
    */
-  handleResetConversation(
+  async handleResetConversation(
     message: PortMessage,
     port: chrome.runtime.Port
-  ): void {
+  ): Promise<void> {
     const payload = message.payload as ResetPayload
     const executionId = this.resolveExecutionId(payload, port)
-    const hadExplicitId = typeof payload.executionId === 'string'
 
     Logging.log('ExecutionHandler', `Resetting execution ${executionId}`)
 
     try {
-      let reset = this.registry.reset(executionId)
-
-      if (!reset && !hadExplicitId) {
-        this.registry.resetAll()
-        reset = true
-        Logging.log('ExecutionHandler', 'No scoped execution found, reset all active executions', 'warning')
-      }
+      const reset = this.registry.reset(executionId)
 
       if (reset) {
         Logging.logMetric('conversation_reset', { executionId })
+      } else {
+        Logging.log('ExecutionHandler', `No active conversation to reset for ${executionId}`)
       }
 
       port.postMessage({
@@ -350,16 +355,20 @@ export class ExecutionHandler {
       tabId: numericTabId ?? null
     })
 
+    let lockedTabId = numericTabId
+
     try {
+      // Notify the sidepanel in the correct window about the new execution
       if (typeof numericTabId === 'number') {
-        this.portManager?.updateExecutionForTab(numericTabId, executionId)
-        await this.updateSidePanelVisibility(numericTabId, true)
+        try {
+          const tab = await chrome.tabs.get(numericTabId)
+          if (tab.windowId) {
+            this.portManager?.notifyWindowSidePanels(tab.windowId, numericTabId, executionId)
+          }
+        } catch (error) {
+          Logging.log('ExecutionHandler', `Failed to get window for tab ${numericTabId}: ${error}`, 'warning')
+        }
       }
-
-      await this.syncSidePanelVisibility()
-
-      await chrome.sidePanel.open({ tabId })
-      await new Promise(resolve => setTimeout(resolve, 200))
 
       chrome.runtime.sendMessage({
         type: MessageType.EXECUTION_STARTING,
@@ -382,7 +391,24 @@ export class ExecutionHandler {
         debug: false
       })
 
-      await this.syncSidePanelVisibility()
+      lockedTabId = execution.getPrimaryTabId() ?? numericTabId
+      await sidePanelVisibilityService.markRunning(lockedTabId, executionId)
+
+      // CRITICAL: Register the execution with the port manager for the specific tab
+      // This ensures the tab-execution mapping is established before notifying sidepanels
+      if (typeof lockedTabId === 'number') {
+        this.portManager?.setTabExecution(lockedTabId, executionId)
+      }
+
+      const shouldFocusTab = Boolean(metadata && (metadata as any).focusTab)
+      if (shouldFocusTab && typeof lockedTabId === 'number') {
+        try {
+          await chrome.tabs.update(lockedTabId, { active: true })
+        } catch (focusError) {
+          const focusErrorMessage = focusError instanceof Error ? focusError.message : String(focusError)
+          Logging.log('ExecutionHandler', `Failed to focus tab ${lockedTabId}: ${focusErrorMessage}`, 'warning')
+        }
+      }
 
       await execution.run(query, metadata)
 
@@ -392,6 +418,21 @@ export class ExecutionHandler {
       Logging.log('ExecutionHandler',
         `Failed to handle newtab query for ${executionId}: ${errorMessage}`, 'error')
       sendResponse({ ok: false, error: errorMessage, executionId })
+    } finally {
+      const finalTabId = execution.getPrimaryTabId() ?? lockedTabId
+      await sidePanelVisibilityService.markStopped(finalTabId, executionId)
+
+      // Notify sidepanel that execution has stopped
+      if (typeof finalTabId === 'number') {
+        try {
+          const tab = await chrome.tabs.get(finalTabId)
+          if (tab.windowId) {
+            this.portManager?.notifyWindowSidePanels(tab.windowId, finalTabId, null)
+          }
+        } catch (error) {
+          // Tab might have been closed, ignore
+        }
+      }
     }
   }
 
@@ -426,8 +467,8 @@ export class ExecutionHandler {
     }
 
     this.portManager?.cleanupTabPorts(tabId)
-    await this.updateSidePanelVisibility(tabId, false)
-    await this.syncSidePanelVisibility()
+    await sidePanelVisibilityService.markStopped(tabId)
+    sidePanelVisibilityService.removeTab(tabId)
   }
 
 }

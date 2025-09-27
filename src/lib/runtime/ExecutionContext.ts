@@ -1,5 +1,6 @@
 import { z } from 'zod'
-import BrowserContext from '@/lib/browser/BrowserContext'
+import BrowserContext, { BrowserState } from '@/lib/browser/BrowserContext'
+import type { BrowserPage } from '@/lib/browser/BrowserPage'
 import { MessageManager } from '@/lib/runtime/MessageManager'
 import { getLLM as getLLMFromProvider } from '@/lib/llm/LangChainProvider'
 import { BaseChatModel } from '@langchain/core/language_models/chat_models'
@@ -36,7 +37,7 @@ interface ToolResult {
  */
 export const ExecutionContextOptionsSchema = z.object({
   executionId: z.string().optional(), // Unique execution identifier (NEW)
-  browserContext: z.instanceof(BrowserContext), // Browser context for page operations
+  browserContext: z.any(), // Browser context for page operations (using any to avoid constructor issues)
   messageManager: z.instanceof(MessageManager), // Message manager for communication
   abortSignal: z.instanceof(AbortSignal).optional(), // Abort signal for cancellation
   debugMode: z.boolean().default(false), // Whether to enable debug logging
@@ -522,5 +523,29 @@ export class ExecutionContext {
       })
       .filter(Boolean);
     return history;
+  }
+
+  /**
+   * Get the current browser page with proper execution context
+   * This method ensures the correct execution ID is passed to BrowserContext
+   */
+  async getCurrentPage(): Promise<BrowserPage> {
+    return await this.browserContext.getCurrentPage(this.executionId);
+  }
+
+  async getBrowserState(simplified: boolean = false): Promise<BrowserState> {
+    return await this.browserContext.getBrowserState(simplified, this.executionId);
+  }
+
+  async getBrowserStateString(simplified: boolean = false): Promise<string> {
+    return await this.browserContext.getBrowserStateString(simplified, this.executionId);
+  }
+
+  async getPages(tabIds?: number[]): Promise<BrowserPage[]> {
+    return await this.browserContext.getPages(tabIds, this.executionId);
+  }
+
+  async getCurrentWindow(): Promise<chrome.windows.Window> {
+    return await this.browserContext.getCurrentWindow(this.executionId);
   }
 }

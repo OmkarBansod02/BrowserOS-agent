@@ -30,7 +30,7 @@ export class GetSelectedTabsTool {
       const hasUserSelectedTabs = Boolean(selectedTabIds && selectedTabIds.length > 0)
       
       // Get browser pages
-      const pages = await this.executionContext.browserContext.getPages(
+      const pages = await this.executionContext.getPages(
         hasUserSelectedTabs && selectedTabIds ? selectedTabIds : undefined
       )
       

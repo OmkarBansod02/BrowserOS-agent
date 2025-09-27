@@ -61,7 +61,7 @@ import { ENABLE_EVALS2 } from '@/config';
 
 // Constants
 const MAX_PLANNER_ITERATIONS = 50;
-const MAX_EXECUTOR_ITERATIONS = 3;
+const MAX_EXECUTOR_ITERATIONS = 5;  // Increased from 3 to reduce re-planning loops
 const MAX_PREDEFINED_PLAN_ITERATIONS = 30;
 
 // Human input constants
@@ -199,7 +199,7 @@ export class NewAgent {
 
   private async _initialize(): Promise<void> {
     // Get current browser page
-    this.page = await this.executionContext.browserContext.getCurrentPage();
+    this.page = await this.executionContext.getCurrentPage();
 
     // Register tools FIRST (before binding)
     await this._registerTools();
@@ -659,13 +659,13 @@ export class NewAgent {
   ): Promise<HumanMessage> {
     // Get browser state string
     const browserStateString =
-      await this.executionContext.browserContext.getBrowserStateString(
+      await this.executionContext.getBrowserStateString(
         simplified,
       );
 
     if (includeScreenshot && this.executionContext.supportsVision()) {
       // Get current page and take screenshot
-      const page = await this.executionContext.browserContext.getCurrentPage();
+      const page = await this.executionContext.getCurrentPage();
       const screenshot = await page.takeScreenshot(screenshotSize, true);
 
       if (screenshot) {
@@ -1264,7 +1264,7 @@ export class NewAgent {
     }
 
     try {
-      const currentPage = await this.executionContext.browserContext.getCurrentPage();
+      const currentPage = await this.executionContext.getCurrentPage();
       const tabId = currentPage.tabId;
       
       if (tabId && !this.glowService.isGlowActive(tabId)) {
