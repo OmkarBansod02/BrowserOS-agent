@@ -11,14 +11,17 @@
    yarn
    ```
 
-2. **Create a `.env` file in the root directory**
+2. **Copy a `.env.example` into `.env` file in the root directory and set LITELLM_API_KEY**
+   ```
+   cp .env.example .env
+   ```
    ```
    // fyi, this key has very limited usage limits
    LITELLM_API_KEY=sk-xYnTqbxdLtQTrqVhtZgmrw
    ```
    > **Note:** You'll need a LiteLLM API key to use the LLM features.
 
-3. **Build the extension**
+4. **Build the extension**
    ```bash
    yarn build:dev
    ```

@@ -17,6 +17,37 @@ import { ElementFormatter } from "./ElementFormatter";
 const FULL_FORMATTER = new ElementFormatter(false); // Full format
 const SIMPLIFIED_FORMATTER = new ElementFormatter(true); // Simplified format
 
+
+// Roles that contain meaningful content for extraction
+const EXTRACTABLE_ROLES = new Set([
+  // Text content
+  'staticText',
+  'heading',
+  'paragraph',
+
+  // Interactive elements
+  'link',
+  'button',
+  'textField',
+  'checkBox',
+  'comboBoxSelect',
+
+  // Labels and descriptions
+  'labelText',
+  'menuListOption',
+  'toggleButton',
+
+  // Informational
+  'status',
+  'alert',
+  'image',  // May have alt text in name
+
+  // High-level structure (for context)
+  'rootWebArea',
+  'navigation',
+  'main'
+]);
+
 // Schema for interactive elements
 export const InteractiveElementSchema = z.object({
   nodeId: z.number(), // Chrome BrowserOS node ID (sequential index)
@@ -156,6 +187,7 @@ export class BrowserPage {
    */
   async getClickableElementsString(
     simplified: boolean = false,
+    hideHiddenElements: boolean = false,
   ): Promise<string> {
     const snapshot = await this._getSnapshot();
     if (!snapshot) {
@@ -166,7 +198,7 @@ export class BrowserPage {
     const clickables = snapshot.elements.filter(
       (node) => node.type === "clickable" || node.type === "selectable",
     );
-    return formatter.formatElements(clickables);
+    return formatter.formatElements(clickables, hideHiddenElements);
   }
 
   /**
@@ -174,6 +206,7 @@ export class BrowserPage {
    */
   async getTypeableElementsString(
     simplified: boolean = false,
+    hideHiddenElements: boolean = false,
   ): Promise<string> {
     const snapshot = await this._getSnapshot();
     if (!snapshot) {
@@ -184,7 +217,7 @@ export class BrowserPage {
     const typeables = snapshot.elements.filter(
       (node) => node.type === "typeable",
     );
-    return formatter.formatElements(typeables);
+    return formatter.formatElements(typeables, hideHiddenElements);
   }
 
   /**
@@ -261,6 +294,72 @@ export class BrowserPage {
     return snapshot?.hierarchicalStructure || null;
   }
 
+  /**
+   * Get hierarchical text representation of the page
+   * Returns text content with tab indentation showing structure
+   */
+  async getHierarchicalText(): Promise<string> {
+    // Get accessibility tree from BrowserOS adapter
+    const tree = await this._browserOS.getAccessibilityTree(this._tabId);
+
+    // Extract text with hierarchy
+    return this._extractHierarchicalText(tree);
+  }
+
+  /**
+   * Private method to extract text from accessibility tree with tab indentation
+   * Uses iterative DFS to build a hierarchical text representation
+   */
+  private _extractHierarchicalText(tree: chrome.browserOS.AccessibilityTree): string {
+    // Validate tree structure
+    if (!tree || !tree.nodes || !tree.rootId) {
+      Logging.log("BrowserPage", "Invalid accessibility tree structure", "warning");
+      return "";
+    }
+
+    const lines: string[] = [];
+
+    // Stack for iterative DFS
+    const stack: Array<{ nodeId: number; depth: number }> = [];
+    stack.push({ nodeId: tree.rootId, depth: 0 });
+
+    // Process nodes using DFS
+    while (stack.length > 0) {
+      const { nodeId, depth } = stack.pop()!;
+
+      // Get node (keys are strings)
+      const node = tree.nodes[String(nodeId)];
+      if (!node) continue;
+
+      // Add text line if node has extractable role and name
+      if (EXTRACTABLE_ROLES.has(node.role) && node.name) {
+        const indentation = '\t'.repeat(depth);
+        lines.push(`${indentation}${node.name}`);
+      }
+
+      // Always traverse children to maintain hierarchy
+      // Add in reverse order for correct DFS traversal
+      if (node.childIds && Array.isArray(node.childIds)) {
+        for (let i = node.childIds.length - 1; i >= 0; i--) {
+          stack.push({
+            nodeId: node.childIds[i],
+            depth: depth + 1
+          });
+        }
+      }
+    }
+
+    const result = lines.join('\n');
+
+    Logging.log(
+      "BrowserPage",
+      `Extracted hierarchical text: ${lines.length} lines`,
+      "info"
+    );
+
+    return result;
+  }
+
   // ============= Actions =============
 
   /**
@@ -329,8 +428,8 @@ export class BrowserPage {
       // Show pointer before clicking
       await this._showPointerForElement(nodeId, "Click");
       await this._browserOS.click(this._tabId, nodeId);
-      this._invalidateCache(); // Invalidate cache after click
       await this.waitForStability();
+      this._invalidateCache(); // Invalidate cache after stability
     });
   }
 
@@ -344,8 +443,8 @@ export class BrowserPage {
       await this._showPointerForElement(nodeId, `Type: ${displayText}`);
       await this._browserOS.clear(this._tabId, nodeId);
       await this._browserOS.inputText(this._tabId, nodeId, text);
-      this._invalidateCache(); // Invalidate cache after text input
       await this.waitForStability();
+      this._invalidateCache(); // Invalidate cache after stability
     });
   }
 
@@ -356,8 +455,8 @@ export class BrowserPage {
     // Show pointer before clearing
     await this._showPointerForElement(nodeId, "Clear");
     await this._browserOS.clear(this._tabId, nodeId);
-    this._invalidateCache(); // Invalidate cache after clearing
     await this.waitForStability();
+    this._invalidateCache(); // Invalidate cache after stability
   }
 
   /**
@@ -444,13 +543,13 @@ export class BrowserPage {
 
     await this._browserOS.sendKeys(this._tabId, keys as chrome.browserOS.Key);
 
+    await this.waitForStability();
+
     // Only invalidate cache for keys that might change the DOM structure
     const domChangingKeys = ["Enter", "Delete", "Backspace", "Tab"];
     if (domChangingKeys.includes(keys)) {
       this._invalidateCache();
     }
-
-    await this.waitForStability();
   }
 
   /**
@@ -491,28 +590,28 @@ export class BrowserPage {
   async navigateTo(url: string): Promise<void> {
     await profileAsync("BrowserPage.navigateTo", async () => {
       await chrome.tabs.update(this._tabId, { url });
-      this._invalidateCache(); // Invalidate cache on navigation
       await this.waitForStability();
+      this._invalidateCache(); // Invalidate cache after stability
       this._url = url;
     });
   }
 
   async refreshPage(): Promise<void> {
     await chrome.tabs.reload(this._tabId);
-    this._invalidateCache(); // Invalidate cache on refresh
     await this.waitForStability();
+    this._invalidateCache(); // Invalidate cache after stability
   }
 
   async goBack(): Promise<void> {
     await chrome.tabs.goBack(this._tabId);
-    this._invalidateCache(); // Invalidate cache on back navigation
     await this.waitForStability();
+    this._invalidateCache(); // Invalidate cache after stability
   }
 
   async goForward(): Promise<void> {
     await chrome.tabs.goForward(this._tabId);
-    this._invalidateCache(); // Invalidate cache on forward navigation
     await this.waitForStability();
+    this._invalidateCache(); // Invalidate cache after stability
   }
 
   // ============= Utility =============
@@ -526,6 +625,10 @@ export class BrowserPage {
   }
 
   async waitForStability(): Promise<void> {
+    // CRITICAL: Add delay for Chrome browserOS to update internal state after actions
+    // Chrome's accessibility tree and element indexing may need time to reflect DOM changes
+    await new Promise(resolve => setTimeout(resolve, 500));
+    
     await profileAsync("BrowserPage.waitForStability", async () => {
       // Wait for DOM content to be loaded AND resources to finish loading
       const maxWaitTime = 30000; // 30 seconds max wait
@@ -658,8 +761,8 @@ export class BrowserPage {
         // Show pointer before clicking
         await this.showPointer(x, y, "Click");
         await this._browserOS.clickCoordinates(this._tabId, x, y);
-        this._invalidateCache(); // Invalidate cache after click
         await this.waitForStability();
+        this._invalidateCache(); // Invalidate cache after stability
       },
     );
   }
@@ -681,8 +784,8 @@ export class BrowserPage {
       // await new Promise(resolve => setTimeout(resolve, 100));
       // Then type the text
       await this._browserOS.typeAtCoordinates(this._tabId, x, y, text);
-      this._invalidateCache(); // Invalidate cache after typing
       await this.waitForStability();
+      this._invalidateCache(); // Invalidate cache after stability
     });
   }
 

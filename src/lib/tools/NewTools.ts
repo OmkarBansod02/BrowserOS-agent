@@ -744,8 +744,13 @@ export function createExtractTool(
       task: z
         .string()
         .describe("Description of what data to extract from the page"),
+      extractionMode: z
+        .enum(['text', 'text-with-links'])
+        .optional()
+        .default('text')
+        .describe("Extraction mode: 'text' for content only, 'text-with-links' to include links section"),
     }),
-    func: async ({ format, task }: { format: any; task: string }) => {
+    func: async ({ format, task, extractionMode = 'text' }: { format: any; task: string; extractionMode?: 'text' | 'text-with-links' }) => {
       try {
         context.incrementMetric("toolCalls");
         
@@ -757,18 +762,31 @@ export function createExtractTool(
         // Get current page from browserContext
         const page = await context.browserContext.getCurrentPage();
 
-        // Get all page content using simplified string methods
+        // Get page details
         const pageDetails = await page.getPageDetails();
-        const textContent = await page.getTextSnapshotString();
-        const linksContent = await page.getLinksSnapshotString();
 
-        // Merge all content into comprehensive context
-        const pageContext = {
-          url: pageDetails.url,
-          title: pageDetails.title,
-          text: textContent || "No text content",
-          links: linksContent || "No links found",
-        };
+        // Get hierarchical text content
+        const hierarchicalContent = await page.getHierarchicalText();
+
+        // Get links only if extraction mode includes links
+        const linksContent = extractionMode === 'text-with-links'
+          ? await page.getLinksSnapshotString()
+          : null;
+
+        // Determine content limit based on message manager's max tokens
+        const maxTokens = context.messageManager.getMaxTokens();
+        let contentCharLimit: number;
+
+        if (maxTokens >= 1000000) {
+          // 1M+ tokens: no limit
+          contentCharLimit = Number.MAX_SAFE_INTEGER;
+        } else if (maxTokens >= 200000) {
+          // 200K+ tokens: 100K char limit
+          contentCharLimit = 100000;
+        } else {
+          // Less than 200K tokens: 16K char limit (≈4K tokens)
+          contentCharLimit = 16000;
+        }
 
         // Get LLM instance
         const llm = await context.getLLM({
@@ -780,26 +798,36 @@ export function createExtractTool(
         const systemPrompt =
           "You are a data extraction specialist. Extract the requested information from the page content and return it in the exact JSON structure provided.";
 
-        const userPrompt = `Task: ${task}
+        // Prepare content with truncation if needed
+        const preparedContent = contentCharLimit === Number.MAX_SAFE_INTEGER ||
+                                hierarchicalContent.length <= contentCharLimit
+          ? hierarchicalContent
+          : hierarchicalContent.substring(0, contentCharLimit) + "\n...[truncated]";
+
+        // Build prompt with hierarchical content
+        let userPrompt = `Task: ${task}
 
 Desired output format:
 ${JSON.stringify(format, null, 2)}
 
 Page content:
-URL: ${pageContext.url}
-Title: ${pageContext.title}
+URL: ${pageDetails.url}
+Title: ${pageDetails.title}
 
-Text content:
-${pageContext.text.substring(0, 8000)}${pageContext.text.length > 8000 ? "...[truncated]" : ""}
+Content (hierarchical structure with tab indentation):
+${preparedContent}`;
 
-Links found:
-${pageContext.links.substring(0, 2000)}${pageContext.links.length > 2000 ? "\n...[more links]" : ""}
+        // Add links section if requested
+        if (extractionMode === 'text-with-links' && linksContent) {
+          userPrompt += `\n\nLinks found:
+${linksContent.substring(0, 2000)}${linksContent.length > 2000 ? "\n...[more links]" : ""}`;
+        }
 
-Extract the requested data and return it matching the exact structure of the format provided.`;
+        userPrompt += `\n\nExtract the requested data and return it matching the exact structure of the format provided.`;
 
         Logging.log(
           "NewAgent",
-          `Extracting data with format: ${JSON.stringify(format)}`,
+          `Extracting data with format: ${JSON.stringify(format)}, mode: ${extractionMode}`,
           "info",
         );
 
@@ -1379,136 +1407,95 @@ export function createTypeAtCoordinatesTool(
   });
 }
 
-
-// Enhanced Grep tool - returns structured NodeId information
-const EnhancedGrepInputSchema = z.object({
-  query: z.string().describe("What to search for (e.g., 'login button', 'email input', 'submit elements', 'navigation links')"),
-  elementType: z.enum(["button", "input", "link", "form", "all"]).optional().default("all")
-    .describe("Type of elements to focus on (optional, defaults to 'all')"),
+// GrepElements tool input schema with pagination
+const GrepElementsInputSchema = z.object({
+  pattern: z.string().describe("Regex pattern to search for (e.g., 'button.*login', 'input.*(email|user)')"),
+  start: z.number().int().nonnegative().optional().default(0)
+    .describe("Starting index for pagination (default: 0)"),
+  limit: z.number().int().positive().optional().default(15)
+    .describe("Maximum number of results to return (default: 15)"),
 });
-type EnhancedGrepInput = z.infer<typeof EnhancedGrepInputSchema>;
+type GrepElementsInput = z.infer<typeof GrepElementsInputSchema>;
 
-interface GrepElement {
-  nodeId: number;  // The nodeId that can be used for clicking/typing
-  elementType: string;  // button, input, link, etc.
-  text?: string;  // Visible text content
-  placeholder?: string;  // Placeholder text for inputs
-  context: string;  // Surrounding context to help understand the element
-  attributes?: Record<string, string>;  // Relevant attributes like type, role, etc.
-}
-
-export function createGrepTool(context: ExecutionContext): DynamicStructuredTool {
+// GrepElements tool with regex and pagination
+export function createGrepElementsTool(context: ExecutionContext): DynamicStructuredTool {
   return new DynamicStructuredTool({
-    name: "grep",
-    description: "Search for elements on the current page and get their NodeIds with context. Returns structured information about matching elements that can be used for clicking/typing.",
-    schema: EnhancedGrepInputSchema,
-    func: async (args: EnhancedGrepInput) => {
+    name: "grep_elements",
+    description: `Search page elements using regex patterns. Browser state format: [nodeId] <C/T> <tag> "text" attributes
+
+COMMON PATTERNS:
+- Text search: "login|sign.?in" (flexible login text)
+- Buttons: "button.*submit|input.*submit" (submit buttons)
+- Inputs: "input.*(email|user|name)" (form fields)
+- Links: "a.*href.*shop" (links containing 'shop')
+- IDs: "\\\\[\\\\d+\\\\].*login" (any element with 'login')
+- Attributes: 'type="email"|placeholder.*email' (email fields)
+
+EXAMPLE: [42] <C> <button> "Submit" class="btn-primary"
+Returns max 15 matches, shows total count if more exist.`,
+    schema: GrepElementsInputSchema,
+    func: async (args: GrepElementsInput) => {
       try {
         context.incrementMetric("toolCalls");
 
         // Emit thinking message
         context.getPubSub().publishMessage(
-          PubSubChannel.createMessage(`Searching for "${args.query}"...`, "thinking")
+          PubSubChannel.createMessage(`Searching with pattern "${args.pattern}"...`, "thinking")
         );
 
-        // Validate query is not empty
-        if (!args.query || args.query.trim() === "") {
+        // Validate pattern
+        let regex: RegExp;
+        try {
+          regex = new RegExp(args.pattern, 'i'); // Case-insensitive by default
+        } catch (regexError) {
           return JSON.stringify({
             ok: false,
-            error: "Query is empty",
+            error: `Invalid regex pattern: ${regexError instanceof Error ? regexError.message : String(regexError)}`
           });
         }
 
-        // Get current page from browserContext
+        // Get browser state string to parse
         const browserState = await context.browserContext.getBrowserStateString();
-
-        // Parse browser state to extract elements with NodeIds
-        const elements: GrepElement[] = [];
         const lines = browserState.split('\n');
 
+        // Find all matching lines by applying regex at line level
+        const matchingLines: string[] = [];
         for (const line of lines) {
-          // Look for lines with NodeId pattern: [nodeId] <C/T> <tag> "text" attributes
-          const nodeIdMatch = line.match(/\[(\d+)\]\s*<([CT])>\s*<(\w+)>(?:\s*"([^"]*)")?(?:\s*(.*))?/);
-          if (nodeIdMatch) {
-            const [, nodeIdStr, interactionType, tagName, text, attributes] = nodeIdMatch;
-            const nodeId = parseInt(nodeIdStr);
+          // Skip empty lines
+          if (line.trim() === '') continue;
 
-            // Filter by element type if specified
-            if (args.elementType !== "all") {
-              const elementTypeMap: Record<string, string[]> = {
-                button: ["button", "input"],
-                input: ["input", "textarea"],
-                link: ["a"],
-                form: ["form", "fieldset"]
-              };
-
-              const allowedTags = elementTypeMap[args.elementType] || [];
-              if (!allowedTags.includes(tagName.toLowerCase())) {
-                continue;
-              }
-            }
-
-            // Check if this element matches the query
-            const searchText = [
-              text || "",
-              attributes || "",
-              tagName
-            ].join(" ").toLowerCase();
-
-            const queryLower = args.query.toLowerCase();
-            const queryParts = queryLower.split(/\s+/);
-
-            // Check if all query parts match somewhere in the element
-            const matches = queryParts.every(part =>
-              searchText.includes(part) ||
-              tagName.toLowerCase().includes(part) ||
-              (text && text.toLowerCase().includes(part))
-            );
-
-            if (matches) {
-              // Parse attributes
-              const parsedAttributes: Record<string, string> = {};
-              if (attributes) {
-                const attrMatches = attributes.matchAll(/(\w+)="([^"]*)"/g);
-                for (const match of attrMatches) {
-                  parsedAttributes[match[1]] = match[2];
-                }
-              }
-
-              elements.push({
-                nodeId,
-                elementType: tagName.toLowerCase(),
-                text: text || undefined,
-                placeholder: parsedAttributes.placeholder,
-                context: line.trim(),
-                attributes: Object.keys(parsedAttributes).length > 0 ? parsedAttributes : undefined
-              });
-            }
+          // Apply regex to the full line
+          if (regex.test(line)) {
+            matchingLines.push(line.trim());
           }
         }
 
-        if (elements.length === 0) {
+        // Limit to 15 matches
+        const totalMatches = matchingLines.length;
+        const limitedMatches = matchingLines.slice(0, 15);
+
+        if (limitedMatches.length === 0) {
           return JSON.stringify({
             ok: false,
-            error: `No elements found matching "${args.query}"`,
+            error: `No elements found matching pattern "${args.pattern}". Try broader patterns like 'button', 'input', or check browser state format.`
           });
         }
 
-        // Emit result message
-        context.getPubSub().publishMessage(
-          PubSubChannel.createMessage(`Found ${elements.length} matching elements`, "assistant")
-        );
+        // Format results - just return the matching lines joined
+        const truncationMessage = totalMatches > 15
+          ? `\n\nShowing first 15 of ${totalMatches} matches.`
+          : '';
 
         return JSON.stringify({
           ok: true,
-          output: `Found ${elements.length} matching elements: ${elements.map(element => element.context).join("\n")}`,
-          elements: elements
+          output: `${limitedMatches.join('\n')}${truncationMessage}`
         });
+
       } catch (error) {
         context.incrementMetric("errors");
         return JSON.stringify({
           ok: false,
-          error: `Failed to search for "${args.query}": ${error instanceof Error ? error.message : String(error)}`,
+          error: `Grep elements failed: ${error instanceof Error ? error.message : String(error)}`,
         });
       }
     },
