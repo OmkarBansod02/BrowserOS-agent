@@ -113,6 +113,50 @@ function createMockPage() {
 
 describe('ExtractTool Integration Test', () => {
   it.skipIf(!process.env.LITELLM_API_KEY || process.env.LITELLM_API_KEY === 'nokey')(
+    'should extract semantic markdown content',
+    async () => {
+      const messageManager = new MessageManager()
+      const browserContext = new BrowserContext()
+      const abortController = new AbortController()
+      const executionContext = new ExecutionContext({
+        browserContext,
+        messageManager,
+        abortController,
+        debugMode: false
+      })
+
+      const mockPage = createMockPage()
+      browserContext.getPages = vi.fn().mockResolvedValue([mockPage as any])
+
+      const extractTool = createExtractTool(executionContext)
+
+      const result = await extractTool.func({
+        task: 'Extract the page content as semantic markdown with proper structure',
+        tab_id: 1,
+        extract_type: 'markdown'
+      })
+
+      const parsed = JSON.parse(result)
+      expect(parsed.ok).toBe(true)
+      expect(parsed.output).toBeDefined()
+      expect(typeof parsed.output.content).toBe('string')
+      expect(typeof parsed.output.reasoning).toBe('string')
+      
+      // Should use enhanced format with actual page title
+      expect(parsed.output.content).toContain('# Example Shop - Products')
+      expect(parsed.output.content).toContain('Navigation')
+      expect(parsed.output.content).toContain('Main Content')
+      
+      // Should call all the existing methods
+      expect(mockPage.getAccessibilityTree).toHaveBeenCalled()
+      expect(mockPage.getLinksSnapshot).toHaveBeenCalled()
+      expect(mockPage.getTextSnapshot).toHaveBeenCalled()
+
+      console.log('[extract-tool] enhanced markdown extraction test passed')
+    },
+    30000
+  )
+  it.skipIf(!process.env.LITELLM_API_KEY || process.env.LITELLM_API_KEY === 'nokey')(
     'should extract product links from a page',
     async () => {
       const messageManager = new MessageManager()

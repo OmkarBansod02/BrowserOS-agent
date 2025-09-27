@@ -43,13 +43,13 @@ import {
   createTabOpenTool,
   createTabFocusTool,
   createTabCloseTool,
-  createExtractTool,
   createHumanInputTool,
   createDoneTool,
   createCelebrationTool,
   createMoondreamVisualClickTool,
   createMoondreamVisualTypeTool,
 } from "@/lib/tools/NewTools";
+import { createExtractTool } from "@/lib/tools/extraction/ExtractTool";
 import { createGroupTabsTool } from "@/lib/tools/tab/GroupTabsTool";
 import { createGetSelectedTabsTool } from "@/lib/tools/tab/GetSelectedTabsTool";
 import { createDateTool } from "@/lib/tools/utility/DateTool";
