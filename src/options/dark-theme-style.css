@@ -519,50 +519,78 @@ p {
 }
 
 .chrome-settings-action-button {
-  padding: 8px 16px;
-  font-size: 13px;
+  padding: 6px 14px;
+  font-size: 12px;
   font-weight: 500;
-  border: 1px solid transparent;
-  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+  color: #9aa0a6;
   cursor: pointer;
-  border-radius: 16px;
-  transition: all 200ms cubic-bezier(0.4, 0, 0.2, 1);
+  border-radius: 6px;
+  transition: all 150ms ease;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  justify-content: center;
+  gap: 4px;
   white-space: nowrap;
+  min-width: 60px;
+  height: 28px;
+  text-transform: none;
+  letter-spacing: 0.2px;
+}
+
+.chrome-settings-action-button:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.18);
+  color: #e8eaed;
+}
+
+.chrome-settings-action-button:active:not(:disabled) {
+  background: rgba(255, 255, 255, 0.06);
+  transform: scale(0.98);
 }
 
 .chrome-settings-action-edit {
-  color: var(--cr-link-color);
+  color: #9aa0a6;
 }
 
 .chrome-settings-action-edit:hover {
-  background-color: rgba(138, 180, 248, 0.1);
+  background: rgba(138, 180, 248, 0.08);
+  border-color: rgba(138, 180, 248, 0.2);
+  color: #8ab4f8;
 }
 
 .chrome-settings-action-delete {
-  color: #f28b82;
+  color: #9aa0a6;
 }
 
 .chrome-settings-action-delete:hover {
-  background-color: rgba(242, 139, 130, 0.1);
+  background: rgba(248, 113, 113, 0.08);
+  border-color: rgba(248, 113, 113, 0.2);
+  color: #f87171;
 }
 
 .chrome-settings-action-test {
-  color: var(--cr-primary-text-color);
-  border: 1px solid rgba(232, 234, 237, 0.3);
-  background-color: rgba(138, 180, 248, 0.1);
+  color: #9aa0a6;
+  min-width: 80px;
 }
 
 .chrome-settings-action-test:hover:not(:disabled) {
-  background-color: rgba(138, 180, 248, 0.15);
-  border-color: rgba(138, 180, 248, 0.4);
+  background: rgba(129, 201, 149, 0.08);
+  border-color: rgba(129, 201, 149, 0.2);
+  color: #81c995;
 }
 
 .chrome-settings-action-test:disabled {
-  opacity: 0.6;
+  opacity: 0.5;
   cursor: not-allowed;
+  color: #5f6368;
+}
+
+.chrome-settings-action-test.success {
+  background: rgba(129, 201, 149, 0.08);
+  border-color: rgba(129, 201, 149, 0.2);
+  color: #81c995;
 }
 
 /* Performance Scores Panel */

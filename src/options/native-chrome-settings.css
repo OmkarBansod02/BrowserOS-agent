@@ -563,30 +563,6 @@ h1, h2, h3, h4, h5, h6 {
   font-family: 'Roboto Mono', 'Consolas', monospace;
 }
 
-.test-recommendation {
-  margin-top: 12px;
-  padding: 12px;
-  background-color: rgba(138, 180, 248, 0.08);
-  border: 1px solid rgba(138, 180, 248, 0.24);
-  border-radius: 6px;
-}
-
-.test-recommendation-title {
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--google-blue-300);
-  margin-bottom: 4px;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.test-recommendation-text {
-  font-size: 13px;
-  line-height: 18px;
-  color: var(--cr-primary-text-color);
-}
-
 /* Collapsible Section */
 .collapsible-section {
   border-top: 1px solid var(--cr-separator-color);
