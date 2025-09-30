@@ -22,7 +22,7 @@ const MODEL_OPTIONS: Record<ProviderType, string[]> = {
   openai: ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo', 'gpt-3.5-turbo', 'gpt-4'],
   anthropic: ['claude-3-5-sonnet-latest', 'claude-3-opus', 'claude-3-sonnet', 'claude-3-haiku', 'claude-2.1'],
   google_gemini: ['gemini-2.0-flash', 'gemini-1.5-pro', 'gemini-1.5-flash', 'gemini-pro', 'gemini-pro-vision'],
-  ollama: ['llama2', 'mistral', 'codellama', 'phi', 'neural-chat', 'qwen3:4b'],
+  ollama: ['llama2', 'mistral', 'codellama', 'phi', 'neural-chat', 'qwen3:4b', 'custom'],
   openrouter: ['auto', 'anthropic/claude-3.5-sonnet', 'openai/gpt-4o'],
   openai_compatible: ['custom'],
   browseros: ['auto'],
@@ -45,6 +45,7 @@ export function AddProviderModal({ isOpen, onClose, onSave, editProvider }: AddP
   const [providerName, setProviderName] = useState('')
   const [baseUrl, setBaseUrl] = useState('')
   const [modelId, setModelId] = useState('')
+  const [customModelId, setCustomModelId] = useState('')
   const [apiKey, setApiKey] = useState('')
   const [supportsImages, setSupportsImages] = useState(false)
   const [contextWindow, setContextWindow] = useState('128000')
@@ -57,7 +58,20 @@ export function AddProviderModal({ isOpen, onClose, onSave, editProvider }: AddP
         setProviderType(editProvider.type)
         setProviderName(editProvider.name)
         setBaseUrl(editProvider.baseUrl || DEFAULT_BASE_URLS[editProvider.type])
-        setModelId(editProvider.modelId || MODEL_OPTIONS[editProvider.type][0])
+
+        // Check if the model is a custom Ollama model
+        const isOllamaCustom = editProvider.type === 'ollama' &&
+          !MODEL_OPTIONS.ollama.includes(editProvider.modelId || '') &&
+          editProvider.modelId !== 'custom'
+
+        if (isOllamaCustom) {
+          setModelId('custom')
+          setCustomModelId(editProvider.modelId || '')
+        } else {
+          setModelId(editProvider.modelId || MODEL_OPTIONS[editProvider.type][0])
+          setCustomModelId('')
+        }
+
         setApiKey(editProvider.apiKey || '')
         setSupportsImages(editProvider.capabilities?.supportsImages || false)
         setContextWindow(String(editProvider.modelConfig?.contextWindow || 128000))
@@ -67,6 +81,7 @@ export function AddProviderModal({ isOpen, onClose, onSave, editProvider }: AddP
         setProviderName('')
         setBaseUrl(DEFAULT_BASE_URLS.openai)
         setModelId(MODEL_OPTIONS.openai[0])
+        setCustomModelId('')
         setApiKey('')
         setSupportsImages(false)
         setContextWindow('128000')
@@ -79,12 +94,19 @@ export function AddProviderModal({ isOpen, onClose, onSave, editProvider }: AddP
     if (!editProvider) {
       setBaseUrl(DEFAULT_BASE_URLS[providerType])
       setModelId(MODEL_OPTIONS[providerType][0])
+      setCustomModelId('')
     }
   }, [providerType, editProvider])
 
   const handleSave = async () => {
     if (!providerName.trim()) {
       alert('Please enter a provider name')
+      return
+    }
+
+    // Validate custom model for Ollama
+    if (providerType === 'ollama' && modelId === 'custom' && !customModelId.trim()) {
+      alert('Please enter a custom model ID for Ollama')
       return
     }
 
@@ -95,7 +117,9 @@ export function AddProviderModal({ isOpen, onClose, onSave, editProvider }: AddP
         name: providerName,
         type: providerType,
         baseUrl: baseUrl || DEFAULT_BASE_URLS[providerType],
-        modelId: modelId || MODEL_OPTIONS[providerType][0],
+        modelId: (providerType === 'ollama' && modelId === 'custom')
+          ? customModelId
+          : (modelId || MODEL_OPTIONS[providerType][0]),
         apiKey: apiKey || undefined,
         capabilities: {
           supportsImages
@@ -196,18 +220,34 @@ export function AddProviderModal({ isOpen, onClose, onSave, editProvider }: AddP
               <label htmlFor="model-id">
                 Model ID <span className="required">*</span>
               </label>
-              <select
-                id="model-id"
-                value={modelId}
-                onChange={(e) => setModelId(e.target.value)}
-                className="chrome-settings-select"
-              >
-                {MODEL_OPTIONS[providerType].map((model) => (
-                  <option key={model} value={model}>
-                    {model}
-                  </option>
-                ))}
-              </select>
+              {providerType === 'ollama' && modelId === 'custom' ? (
+                <input
+                  id="custom-model-id"
+                  type="text"
+                  value={customModelId}
+                  onChange={(e) => setCustomModelId(e.target.value)}
+                  placeholder="Enter custom Ollama model (e.g., llama3.2:latest)"
+                  className="chrome-settings-input"
+                />
+              ) : (
+                <select
+                  id="model-id"
+                  value={modelId}
+                  onChange={(e) => {
+                    setModelId(e.target.value)
+                    if (e.target.value === 'custom') {
+                      setCustomModelId('')
+                    }
+                  }}
+                  className="chrome-settings-select"
+                >
+                  {MODEL_OPTIONS[providerType].map((model) => (
+                    <option key={model} value={model}>
+                      {model}
+                    </option>
+                  ))}
+                </select>
+              )}
             </div>
           </div>
 
