@@ -62,7 +62,8 @@ module.exports = {
     sidepanel: './src/sidepanel/index.tsx',
     background: './src/background/index.ts',
     'glow-animation': './src/content/glow-animation.ts',
-    newtab: './src/newtab/index.tsx'
+    newtab: './src/newtab/index.tsx',
+    options: './src/options/index.tsx'
   },
   output: {
     path: path.resolve(__dirname, 'dist'),
@@ -142,7 +143,7 @@ module.exports = {
     // Limit chunks to entry points only - prevents dynamic chunk creation
     // This forces all imports (including dynamic) to be bundled into their parent entry
     new webpack.optimize.LimitChunkCountPlugin({
-      maxChunks: 4  // One chunk per entry point (sidepanel, background, glow-animation, newtab)
+      maxChunks: 5  // One chunk per entry point (sidepanel, background, glow-animation, newtab, options)
     }),
     new HtmlWebpackPlugin({
       template: './src/sidepanel/index.html',
@@ -153,6 +154,11 @@ module.exports = {
       template: './src/newtab/index.html',
       filename: 'newtab.html',
       chunks: ['newtab']
+    }),
+    new HtmlWebpackPlugin({
+      template: './options.html',
+      filename: 'options.html',
+      chunks: ['options']
     }),
     new CopyPlugin({
       patterns: [

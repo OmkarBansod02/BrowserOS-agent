@@ -402,6 +402,19 @@ export const Header = memo(function Header({ onReset, showReset, isProcessing }:
             )}
           </Button> */}
 
+          {/* AI Settings button - Before Settings */}
+          <Button
+            onClick={() => chrome.runtime.openOptionsPage()}
+            variant="ghost"
+            size="sm"
+            className="h-9 px-2 rounded-xl hover:bg-purple-100 dark:hover:bg-purple-900/20 hover:text-purple-600 dark:hover:text-purple-400 transition-all duration-300 flex items-center gap-1"
+            aria-label="AI Settings"
+            title="AI Settings"
+          >
+            <span className="text-lg">🤖</span>
+            <span className="hidden sm:inline text-xs">AI</span>
+          </Button>
+
           {/* Settings button - Last position (rightmost) */}
           <Button
             onClick={handleSettingsClick}
