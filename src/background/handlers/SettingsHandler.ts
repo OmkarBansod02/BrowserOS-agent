@@ -356,6 +356,28 @@ export class SettingsHandler {
       try {
         const llm = this.createLLMInstance(provider)
 
+        // Test the LLM connection first with a simple test
+        try {
+          const testMessage = new HumanMessage('Say "test"')
+          const testResponse = await llm.invoke([testMessage])
+          if (!testResponse) {
+            throw new Error('Provider did not respond to test message')
+          }
+        } catch (testError) {
+          const errorMessage = testError instanceof Error ? testError.message : 'Unknown error'
+
+          // Check for specific error types
+          if (errorMessage.includes('401') || errorMessage.toLowerCase().includes('unauthorized') || errorMessage.toLowerCase().includes('api')) {
+            throw new Error('Invalid API key or unauthorized access')
+          } else if (errorMessage.includes('404')) {
+            throw new Error('Model not found')
+          } else if (errorMessage.includes('429')) {
+            throw new Error('Rate limit exceeded')
+          } else {
+            throw new Error(`Provider test failed: ${errorMessage}`)
+          }
+        }
+
         // Run benchmark tasks
         for (const task of benchmarkTasks) {
           const taskStartTime = performance.now()
@@ -393,6 +415,28 @@ export class SettingsHandler {
         }
 
         const totalLatency = performance.now() - startTime
+
+        // Check if any tasks actually succeeded
+        const successfulTasks = taskResults.filter(task => task.success).length
+        const totalTasks = taskResults.length
+
+        // If less than 20% of tasks succeeded, consider it a failure
+        if (successfulTasks < totalTasks * 0.2) {
+          // Extract the first error message from failed tasks
+          const firstError = taskResults.find(task => task.error)?.error || 'Benchmark failed - API key may be invalid or provider is not responding correctly'
+
+          Logging.log('SettingsHandler', `Benchmark failed - Only ${successfulTasks}/${totalTasks} tasks succeeded`, 'error')
+
+          port.postMessage({
+            type: MessageType.ERROR,
+            payload: {
+              error: firstError
+            },
+            id: message.id
+          })
+          return
+        }
+
         const scores = this.calculateCategoryScores(taskResults, provider)
         const recommendation = this.getModelRecommendation(provider, scores)
 
@@ -412,16 +456,11 @@ export class SettingsHandler {
         })
       } catch (benchmarkError) {
         const latency = performance.now() - startTime
+        // Don't send any scores when benchmark fails - only send error
         port.postMessage({
-          type: MessageType.SETTINGS_BENCHMARK_PROVIDER_RESPONSE,
+          type: MessageType.ERROR,
           payload: {
-            success: false,
-            latency,
-            error: benchmarkError instanceof Error ? benchmarkError.message : 'Benchmark failed',
-            scores: this.getDefaultScores(),
-            recommendation: { useCase: 'unknown', description: 'Benchmark failed', suitability: [] },
-            taskResults,
-            timestamp: new Date().toISOString()
+            error: benchmarkError instanceof Error ? benchmarkError.message : 'Benchmark failed'
           },
           id: message.id
         })
@@ -702,15 +741,4 @@ export class SettingsHandler {
     return 1
   }
 
-  private getDefaultScores(): any {
-    return {
-      instructionFollowing: 1,
-      contextUnderstanding: 1,
-      toolUsage: 1,
-      planning: 1,
-      errorRecovery: 1,
-      performance: 1,
-      overall: 1
-    }
-  }
 }
