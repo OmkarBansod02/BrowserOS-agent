@@ -19,8 +19,12 @@ export function LLMProvidersSection({
     <section className="chrome-settings-card">
       <div className="chrome-settings-card-content">
         <div className="chrome-settings-section-header">
-          <div className="chrome-settings-icon">
-            L
+          <div className="chrome-settings-icon" style={{ padding: 0, overflow: 'hidden' }}>
+            <img
+              src="/assets/browseros.svg"
+              alt="BrowserOS"
+              style={{ width: '40px', height: '40px', objectFit: 'cover', borderRadius: '50%' }}
+            />
           </div>
           <div className="chrome-settings-section-info">
             <h2 className="chrome-settings-section-title">
@@ -38,12 +42,15 @@ export function LLMProvidersSection({
               Default Provider:
             </label>
             <select
-              value="browseros"
-              disabled
+              value={defaultProvider}
+              onChange={(e) => onDefaultChange(e.target.value)}
               className="chrome-settings-select"
-              style={{ opacity: 0.6, cursor: 'not-allowed' }}
             >
-              <option value="browseros">BrowserOS (Always Default)</option>
+              {providers.filter(p => p && p.id && p.name).map((provider) => (
+                <option key={provider.id} value={provider.id}>
+                  {provider.name}
+                </option>
+              ))}
             </select>
           </div>
 
