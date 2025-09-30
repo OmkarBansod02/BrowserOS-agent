@@ -8,6 +8,7 @@ interface ConfiguredModelsListProps {
   defaultProvider: string
   onEditProvider: (provider: LLMProvider) => void
   onDeleteProvider: (providerId: string) => void
+  onSelectProvider?: (providerId: string) => void
 }
 
 
@@ -15,9 +16,10 @@ export function ConfiguredModelsList({
   providers,
   defaultProvider,
   onEditProvider,
-  onDeleteProvider
+  onDeleteProvider,
+  onSelectProvider
 }: ConfiguredModelsListProps) {
-  const [selectedProviderId, setSelectedProviderId] = useState('1')
+  const [selectedProviderId, setSelectedProviderId] = useState(defaultProvider || '1')
   const [testingProviders, setTestingProviders] = useState<Set<string>>(new Set())
   const [benchmarkingProviders, setBenchmarkingProviders] = useState<Set<string>>(new Set())
   const [testResults, setTestResults] = useState<Map<string, TestResult>>(new Map())
@@ -26,6 +28,13 @@ export function ConfiguredModelsList({
   const [showScores, setShowScores] = useState<Set<string>>(new Set())
 
   const testService = LLMTestService.getInstance()
+
+  // Update selected provider when default changes
+  useEffect(() => {
+    if (defaultProvider) {
+      setSelectedProviderId(defaultProvider)
+    }
+  }, [defaultProvider])
 
   useEffect(() => {
     providers.forEach(async (provider) => {
@@ -171,8 +180,14 @@ export function ConfiguredModelsList({
           {providers.map((provider) => (
             <div key={provider.id}>
               <div
-                className={`chrome-settings-model-item ${selectedProviderId === provider.id ? 'selected' : ''}`}
-                onClick={() => setSelectedProviderId(provider.id)}
+                className={`chrome-settings-model-item ${selectedProviderId === provider.id ? 'selected' : ''} ${provider.id === defaultProvider ? 'is-default' : ''}`}
+                onClick={() => {
+                  setSelectedProviderId(provider.id)
+                  // Sync with agent provider when selected
+                  if (onSelectProvider) {
+                    onSelectProvider(provider.id)
+                  }
+                }}
               >
                 <div className="chrome-settings-model-content">
                   <div className="chrome-settings-model-radio" />

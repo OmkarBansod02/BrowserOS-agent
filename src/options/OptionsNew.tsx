@@ -84,6 +84,7 @@ export function OptionsNew() {
             setIsAddingProvider(true)
           }}
           onDeleteProvider={deleteProvider}
+          onSelectProvider={setDefaultProvider}
         />
       </main>
 
