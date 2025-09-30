@@ -156,8 +156,8 @@ module.exports = {
       chunks: ['newtab']
     }),
     new HtmlWebpackPlugin({
-      template: './options.html',
-      filename: 'options.html',
+      template: './browseros-settings.html',
+      filename: 'browseros-settings.html',
       chunks: ['options']
     }),
     new CopyPlugin({

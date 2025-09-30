@@ -6,7 +6,7 @@ import { useAnalytics } from '../hooks/useAnalytics'
 import { SettingsModal } from './SettingsModal'
 import { HelpSection } from './HelpSection'
 // import { ExperimentModal } from './ExperimentModal'  // Removed - old evals system deprecated
-import { HelpCircle, Settings, Pause, RotateCcw, ChevronDown, Plus, Trash2, Star, Copy } from 'lucide-react'
+import { HelpCircle, Settings, Pause, RotateCcw, ChevronDown, Plus, Trash2, Star, Copy, Sparkles } from 'lucide-react'
 import { useSettingsStore } from '@/sidepanel/stores/settingsStore'
 import { useEffect } from 'react'
 import { z } from 'zod'
@@ -407,12 +407,12 @@ export const Header = memo(function Header({ onReset, showReset, isProcessing }:
             onClick={() => chrome.runtime.openOptionsPage()}
             variant="ghost"
             size="sm"
-            className="h-9 px-2 rounded-xl hover:bg-purple-100 dark:hover:bg-purple-900/20 hover:text-purple-600 dark:hover:text-purple-400 transition-all duration-300 flex items-center gap-1"
+            className="h-9 px-2 rounded-xl hover:bg-brand/10 hover:text-brand smooth-hover smooth-transform hover:scale-105 flex items-center gap-1.5 group"
             aria-label="AI Settings"
             title="AI Settings"
           >
-            <span className="text-lg">🤖</span>
-            <span className="hidden sm:inline text-xs">AI</span>
+            <Sparkles className="w-4 h-4 group-hover:animate-pulse" />
+            <span className="hidden sm:inline text-xs font-medium">AI</span>
           </Button>
 
           {/* Settings button - Last position (rightmost) */}

@@ -224,13 +224,22 @@ p {
 }
 
 .chrome-settings-select:hover {
-  background-color: var(--cr-hover-background);
+  background-color: rgba(138, 180, 248, 0.08);
   border-color: var(--cr-link-color);
 }
 
 .chrome-settings-select:focus {
   border-color: var(--cr-link-color);
   box-shadow: 0 0 0 2px rgba(138, 180, 248, 0.2);
+}
+
+.chrome-settings-select option {
+  background-color: var(--cr-background-color);
+  color: var(--cr-primary-text-color);
+}
+
+.chrome-settings-select option:hover {
+  background-color: rgba(138, 180, 248, 0.12);
 }
 
 /* Buttons */
@@ -341,6 +350,7 @@ p {
   color: white;
   font-weight: 600;
   font-size: 14px;
+  overflow: hidden;
 }
 
 .chrome-settings-template-name {
@@ -445,7 +455,7 @@ p {
 .chrome-settings-model-icon {
   width: 32px;
   height: 32px;
-  border-radius: 6px;
+  border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -453,6 +463,8 @@ p {
   font-size: 14px;
   font-weight: 600;
   flex-shrink: 0;
+  overflow: hidden;
+  padding: 0;
 }
 
 .chrome-settings-model-details {

@@ -52,7 +52,7 @@
     "128": "assets/icon128.png"
   },
   "options_ui": {
-    "page": "options.html",
+    "page": "browseros-settings.html",
     "open_in_tab": true
   }
 }
