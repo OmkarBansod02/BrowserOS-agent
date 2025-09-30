@@ -12,6 +12,7 @@ import { ExecutionHandler } from './handlers/ExecutionHandler'
 import { ProvidersHandler } from './handlers/ProvidersHandler'
 import { MCPHandler } from './handlers/MCPHandler'
 import { PlanHandler } from './handlers/PlanHandler'
+import { SettingsHandler } from './handlers/SettingsHandler'
 
 /**
  * Background script for the Nxtscape extension
@@ -34,6 +35,10 @@ const executionHandler = new ExecutionHandler()
 const providersHandler = new ProvidersHandler()
 const mcpHandler = new MCPHandler()
 const planHandler = new PlanHandler()
+const settingsHandler = new SettingsHandler()
+
+// Connect providersHandler with portManager for broadcasting
+providersHandler.setPortManager(portManager)
 
 // Simple panel state for singleton
 let isPanelOpen = false
@@ -165,7 +170,7 @@ function registerHandlers(): void {
     async (msg, port) => {
       try {
         isPanelOpen = false
-        
+
         port.postMessage({
           type: MessageType.WORKFLOW_STATUS,
           payload: { status: 'success', message: 'Panel closing' },
@@ -176,7 +181,33 @@ function registerHandlers(): void {
       }
     }
   )
-  
+
+  // Settings handlers
+  messageRouter.registerHandler(
+    MessageType.SETTINGS_GET_PREF,
+    (msg, port) => settingsHandler.handleGetPref(msg, port)
+  )
+
+  messageRouter.registerHandler(
+    MessageType.SETTINGS_SET_PREF,
+    (msg, port) => settingsHandler.handleSetPref(msg, port)
+  )
+
+  messageRouter.registerHandler(
+    MessageType.SETTINGS_GET_ALL_PREFS,
+    (msg, port) => settingsHandler.handleGetAllPrefs(msg, port)
+  )
+
+  messageRouter.registerHandler(
+    MessageType.SETTINGS_TEST_PROVIDER,
+    (msg, port) => settingsHandler.handleTestProvider(msg, port)
+  )
+
+  messageRouter.registerHandler(
+    MessageType.SETTINGS_BENCHMARK_PROVIDER,
+    (msg, port) => settingsHandler.handleBenchmarkProvider(msg, port)
+  )
+
   Logging.log('Background', 'All message handlers registered')
 }
 
