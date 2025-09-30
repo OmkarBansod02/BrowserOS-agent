@@ -340,18 +340,7 @@ p {
   gap: 10px;
 }
 
-.chrome-settings-template-icon {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: white;
-  font-weight: 600;
-  font-size: 14px;
-  overflow: hidden;
-}
+/* Template icon now uses chrome-settings-model-icon class for consistency */
 
 .chrome-settings-template-name {
   font-size: 13px;
@@ -360,17 +349,22 @@ p {
 }
 
 .chrome-settings-template-use {
-  padding: 4px 12px;
-  font-size: 11px;
+  padding: 6px 14px;
+  font-size: 12px;
+  height: 28px;
+  min-width: 60px;
   font-weight: 500;
   color: var(--cr-secondary-text-color);
   text-transform: uppercase;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.3px;
   background-color: transparent;
   border: 1px solid var(--cr-border-color);
-  border-radius: 4px;
+  border-radius: 6px;
   transition: all 150ms cubic-bezier(0.4, 0, 0.2, 1);
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .chrome-settings-template-card:hover .chrome-settings-template-use {
