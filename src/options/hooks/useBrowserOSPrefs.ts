@@ -37,7 +37,7 @@ export function useBrowserOSPrefs() {
             isDefault: p.isDefault !== undefined ? p.isDefault : (p.id === 'browseros')
           }))
           setProviders(migratedProviders)
-          setDefaultProviderState('browseros')  // Always use browseros as default
+          setDefaultProviderState(config.defaultProviderId || 'browseros')
           setIsLoading(false)
         }
       }
@@ -87,7 +87,7 @@ export function useBrowserOSPrefs() {
     }
 
     const config: BrowserOSProvidersConfig = {
-      defaultProviderId: 'browseros',  // Always use browseros as default
+      defaultProviderId: newDefaultId || defaultProvider,
       providers: updatedProviders
     }
 
