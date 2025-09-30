@@ -484,6 +484,7 @@ p {
   display: flex;
   gap: 6px;
   margin-left: 10px;
+  margin-right: 12px;
 }
 
 .chrome-settings-model-badge {
@@ -510,11 +511,13 @@ p {
   gap: 8px;
   align-items: center;
   opacity: 1;
+  margin-left: auto;
+  padding-left: 10px;
 }
 
 .chrome-settings-action-button {
-  padding: 6px 14px;
-  font-size: 12px;
+  padding: 4px 10px;
+  font-size: 11px;
   font-weight: 500;
   border: 1px solid rgba(255, 255, 255, 0.12);
   background: rgba(255, 255, 255, 0.04);
@@ -527,16 +530,16 @@ p {
   justify-content: center;
   gap: 4px;
   white-space: nowrap;
-  min-width: 60px;
-  height: 28px;
+  min-width: 48px;
+  height: 26px;
   text-transform: none;
   letter-spacing: 0.2px;
 }
 
 .chrome-settings-action-button:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.08);
-  border-color: rgba(255, 255, 255, 0.18);
-  color: #e8eaed;
+  background: rgba(255, 165, 0, 0.1);
+  border-color: rgba(255, 165, 0, 0.3);
+  color: #ffa500;
 }
 
 .chrome-settings-action-button:active:not(:disabled) {
@@ -549,9 +552,9 @@ p {
 }
 
 .chrome-settings-action-edit:hover {
-  background: rgba(138, 180, 248, 0.08);
-  border-color: rgba(138, 180, 248, 0.2);
-  color: #8ab4f8;
+  background: rgba(255, 165, 0, 0.1);
+  border-color: rgba(255, 165, 0, 0.3);
+  color: #ffa500;
 }
 
 .chrome-settings-action-delete {
@@ -559,20 +562,20 @@ p {
 }
 
 .chrome-settings-action-delete:hover {
-  background: rgba(248, 113, 113, 0.08);
-  border-color: rgba(248, 113, 113, 0.2);
-  color: #f87171;
+  background: rgba(255, 165, 0, 0.1);
+  border-color: rgba(255, 165, 0, 0.3);
+  color: #ffa500;
 }
 
 .chrome-settings-action-test {
   color: #9aa0a6;
-  min-width: 80px;
+  min-width: 55px;
 }
 
 .chrome-settings-action-test:hover:not(:disabled) {
-  background: rgba(129, 201, 149, 0.08);
-  border-color: rgba(129, 201, 149, 0.2);
-  color: #81c995;
+  background: rgba(255, 165, 0, 0.1);
+  border-color: rgba(255, 165, 0, 0.3);
+  color: #ffa500;
 }
 
 .chrome-settings-action-test:disabled {
