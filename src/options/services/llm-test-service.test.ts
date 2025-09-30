@@ -154,28 +154,6 @@ describe('LLMTestService-unit-test', () => {
     expect(scores.accuracy).toBe(1)
     expect(scores.reliability).toBe(1)
   })
-
-  it('tests that recommendations are generated based on provider type and scores', () => {
-    const openaiProvider: LLMProvider = {
-      id: 'openai-test',
-      name: 'OpenAI Test',
-      type: 'openai',
-      modelId: 'gpt-4',
-      isBuiltIn: false,
-      isDefault: false,
-      createdAt: '2023-01-01T00:00:00Z',
-      updatedAt: '2023-01-01T00:00:00Z'
-    }
-
-    const highScore = { latency: 9, accuracy: 9, reliability: 9, overall: 9 }
-    const lowScore = { latency: 3, accuracy: 4, reliability: 3, overall: 3.3 }
-
-    const goodRec = service.getRecommendation(openaiProvider, highScore)
-    const poorRec = service.getRecommendation(openaiProvider, lowScore)
-
-    expect(goodRec).toBe('Excellent for both chat and agent tasks')
-    expect(poorRec).toBe('May have performance limitations')
-  })
 })
 
 describe('LLMTestService-integration-test', () => {

@@ -43,7 +43,6 @@ export function ConfiguredModelsList({
     })
   }, [providers])
 
-  const [recommendations, setRecommendations] = useState<Map<string, any>>(new Map())
 
   const handleTestAndBenchmark = async (provider: LLMProvider) => {
     const providerId = provider.id
@@ -55,15 +54,16 @@ export function ConfiguredModelsList({
 
       if (benchmarkResult.success) {
         setPerformanceScores(prev => new Map(prev).set(providerId, benchmarkResult.scores))
-        setRecommendations(prev => new Map(prev).set(providerId, benchmarkResult.recommendation))
         setShowScores(prev => new Set(prev).add(providerId))
         await testService.storeTestResults(providerId, benchmarkResult as any, benchmarkResult.scores)
       } else {
+        // Remove any existing scores for failed tests
         setPerformanceScores(prev => {
           const next = new Map(prev)
           next.delete(providerId)
           return next
         })
+        // Show error panel
         setShowScores(prev => new Set(prev).add(providerId))
         console.error('Benchmark failed:', benchmarkResult.error)
       }
@@ -74,25 +74,25 @@ export function ConfiguredModelsList({
         success: false,
         latency: 0,
         scores: {
-          instructionFollowing: 1,
-          contextUnderstanding: 1,
-          toolUsage: 1,
-          planning: 1,
-          errorRecovery: 1,
-          performance: 1,
-          overall: 1
-        },
-        recommendation: {
-          useCase: 'unknown',
-          description: 'Test failed',
-          suitability: [],
-          agentScore: 0,
-          chatScore: 0
+          instructionFollowing: 0,
+          contextUnderstanding: 0,
+          toolUsage: 0,
+          planning: 0,
+          errorRecovery: 0,
+          performance: 0,
+          overall: 0
         },
         error: error instanceof Error ? error.message : 'Test failed',
         timestamp: new Date().toISOString()
       }
       setBenchmarkResults(prev => new Map(prev).set(providerId, errorResult))
+      // Remove any existing scores
+      setPerformanceScores(prev => {
+        const next = new Map(prev)
+        next.delete(providerId)
+        return next
+      })
+      // Show error panel
       setShowScores(prev => new Set(prev).add(providerId))
     } finally {
       setTestingProviders(prev => {
@@ -207,82 +207,97 @@ export function ConfiguredModelsList({
                 </div>
 
                 <div className="chrome-settings-model-actions">
-                  {!provider.isBuiltIn && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation()
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      if (!provider.isBuiltIn) {
                         handleTestAndBenchmark(provider)
-                      }}
-                      className="chrome-settings-action-button chrome-settings-action-test"
-                      disabled={testingProviders.has(provider.id)}
-                    >
-                      {testingProviders.has(provider.id) ? (
+                      }
+                    }}
+                    className={`chrome-settings-action-button chrome-settings-action-test ${
+                      benchmarkResults.get(provider.id)?.success ? 'success' : ''
+                    }`}
+                    disabled={testingProviders.has(provider.id) || provider.isBuiltIn}
+                    style={{ visibility: provider.isBuiltIn ? 'hidden' : 'visible' }}
+                  >
+                    {testingProviders.has(provider.id) ? (
+                      <>
+                        <Loader2 style={{ width: '12px', height: '12px' }} className="animate-spin" />
+                        <span>Testing</span>
+                      </>
+                    ) : benchmarkResults.get(provider.id) ? (
+                      benchmarkResults.get(provider.id)?.success ? (
                         <>
-                          <Loader2 style={{ width: '14px', height: '14px' }} className="animate-spin" />
-                          <span>Testing</span>
+                          <span style={{ fontSize: '14px' }}>✓</span>
+                          <span>{benchmarkResults.get(provider.id)?.scores.overall}/10</span>
                         </>
-                      ) : benchmarkResults.get(provider.id) ? (
-                        benchmarkResults.get(provider.id)?.success ? (
-                          <span>✓ Score: {benchmarkResults.get(provider.id)?.scores.overall}/10</span>
-                        ) : (
-                          <span>Retry</span>
-                        )
                       ) : (
-                        <span>Test</span>
-                      )}
-                    </button>
-                  )}
-                  {!provider.isBuiltIn && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation()
+                        <span>Retry</span>
+                      )
+                    ) : (
+                      <span>Test</span>
+                    )}
+                  </button>
+
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      if (!provider.isBuiltIn) {
                         onEditProvider(provider)
-                      }}
-                      className="chrome-settings-action-button chrome-settings-action-edit"
-                    >
-                      Edit
-                    </button>
-                  )}
-                  {!provider.isBuiltIn && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation()
+                      }
+                    }}
+                    className="chrome-settings-action-button chrome-settings-action-edit"
+                    disabled={provider.isBuiltIn}
+                    style={{ visibility: provider.isBuiltIn ? 'hidden' : 'visible' }}
+                  >
+                    Edit
+                  </button>
+
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      if (!provider.isBuiltIn) {
                         onDeleteProvider(provider.id)
-                      }}
-                      className="chrome-settings-action-button chrome-settings-action-delete"
-                    >
-                      Delete
-                    </button>
-                  )}
+                      }
+                    }}
+                    className="chrome-settings-action-button chrome-settings-action-delete"
+                    disabled={provider.isBuiltIn}
+                    style={{ visibility: provider.isBuiltIn ? 'hidden' : 'visible' }}
+                  >
+                    Delete
+                  </button>
                 </div>
               </div>
 
               {showScores.has(provider.id) && (
-                <div className="chrome-settings-scores-panel">
+                <div className="chrome-settings-scores-panel" style={{ position: 'relative' }}>
                   <button
                     onClick={() => closeTestResults(provider.id)}
                     style={{
                       position: 'absolute',
-                      top: '8px',
-                      right: '8px',
-                      background: 'transparent',
-                      border: 'none',
+                      top: '12px',
+                      right: '12px',
+                      background: 'rgba(255, 255, 255, 0.05)',
+                      border: '1px solid rgba(255, 255, 255, 0.1)',
                       color: '#9aa0a6',
                       cursor: 'pointer',
-                      padding: '4px',
-                      borderRadius: '4px',
+                      padding: '6px',
+                      borderRadius: '6px',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      transition: 'all 0.2s'
+                      transition: 'all 0.2s',
+                      zIndex: 10
                     }}
                     onMouseEnter={(e) => {
                       e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.1)'
                       e.currentTarget.style.color = '#e8eaed'
+                      e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.2)'
                     }}
                     onMouseLeave={(e) => {
-                      e.currentTarget.style.backgroundColor = 'transparent'
+                      e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)'
                       e.currentTarget.style.color = '#9aa0a6'
+                      e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.1)'
                     }}
                   >
                     <X className="w-4 h-4" />
@@ -291,42 +306,69 @@ export function ConfiguredModelsList({
                   {(testResults.get(provider.id) && !testResults.get(provider.id)?.success) ||
                    (benchmarkResults.get(provider.id) && !benchmarkResults.get(provider.id)?.success) ? (
                     <div style={{
-                      padding: '12px',
-                      backgroundColor: '#fef2f2',
-                      border: '1px solid #fecaca',
-                      borderRadius: '6px'
+                      padding: '20px',
+                      paddingTop: '16px',
+                      backgroundColor: 'rgba(248, 113, 113, 0.08)',
+                      border: '1px solid rgba(248, 113, 113, 0.2)',
+                      borderRadius: '8px',
+                      background: 'linear-gradient(135deg, rgba(248, 113, 113, 0.05) 0%, rgba(252, 165, 165, 0.03) 100%)'
                     }}>
                       <div style={{
-                        color: '#dc2626',
-                        fontWeight: 500,
-                        marginBottom: '4px',
-                        fontSize: '14px'
+                        color: '#f87171',
+                        fontWeight: 600,
+                        marginBottom: '12px',
+                        paddingBottom: '12px',
+                        borderBottom: '1px solid rgba(248, 113, 113, 0.15)',
+                        fontSize: '14px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px'
                       }}>
+                        <AlertCircle className="w-4 h-4" style={{ flexShrink: 0 }} />
                         {benchmarkResults.get(provider.id) && !benchmarkResults.get(provider.id)?.success
-                          ? 'Benchmark Failed'
+                          ? 'Test Failed'
                           : 'Connection Error'}
                       </div>
                       <div style={{
-                        color: '#7f1d1d',
+                        color: '#bdc1c6',
                         fontSize: '13px',
-                        lineHeight: '1.5'
+                        lineHeight: '1.6',
+                        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+                        opacity: 0.95
                       }}>
                         {(() => {
                           const testError = testResults.get(provider.id)?.error
                           const benchmarkError = benchmarkResults.get(provider.id)?.error
                           const error = benchmarkError || testError || ''
-                          if (error.includes('401')) {
-                            return 'Invalid API key. Please check your API key and try again.'
-                          } else if (error.includes('429')) {
-                            return 'Rate limit exceeded. Please wait a moment and try again.'
-                          } else if (error.includes('Network') || error.includes('fetch')) {
-                            return 'Network error. Please check your internet connection.'
-                          } else if (error.includes('404')) {
-                            return 'Model not found. Please check the model name.'
-                          } else if (error.includes('timeout')) {
-                            return 'Request timed out. Please try again.'
+
+                          // More specific error matching
+                          if (error.includes('401') || error.toLowerCase().includes('unauthorized') || error.toLowerCase().includes('api key')) {
+                            return 'Invalid API key - Please check your API key in the provider settings and ensure it has not expired.'
+                          } else if (error.includes('429') || error.toLowerCase().includes('rate limit')) {
+                            return 'Rate limit exceeded - Your API has hit its rate limit. Please wait a moment before trying again.'
+                          } else if (error.includes('403') || error.toLowerCase().includes('forbidden')) {
+                            return 'Access forbidden - Check your API permissions or subscription status. Your key may not have access to this model.'
+                          } else if (error.includes('404') || error.toLowerCase().includes('not found')) {
+                            return 'Model not found - The specified model does not exist. Please verify the model name is correct.'
+                          } else if (error.includes('500') || error.toLowerCase().includes('internal server')) {
+                            return 'Provider server error - The service is experiencing issues. Please try again later.'
+                          } else if (error.includes('502') || error.includes('503') || error.toLowerCase().includes('bad gateway')) {
+                            return 'Service temporarily unavailable - The provider service is down. Please try again later.'
+                          } else if (error.toLowerCase().includes('timeout')) {
+                            return 'Request timed out - The provider took too long to respond. It may be overloaded or experiencing issues.'
+                          } else if (error.toLowerCase().includes('network') || error.toLowerCase().includes('fetch') || error.toLowerCase().includes('connection')) {
+                            return 'Network error - Unable to connect to the provider. Please check your internet connection and firewall settings.'
+                          } else if (error.toLowerCase().includes('cors')) {
+                            return 'CORS error - The provider does not support browser-based requests. Try using a different provider or base URL.'
+                          } else if (error.toLowerCase().includes('invalid') || error.toLowerCase().includes('malformed')) {
+                            return 'Invalid configuration - Please verify your provider settings including API key, base URL, and model name.'
+                          } else if (error.toLowerCase().includes('quota') || error.toLowerCase().includes('limit exceeded')) {
+                            return 'Quota exceeded - You have reached your API usage limit. Check your provider dashboard for details.'
+                          } else if (error.toLowerCase().includes('billing') || error.toLowerCase().includes('payment')) {
+                            return 'Billing issue - There is a problem with your account billing. Please check your payment method or subscription.'
                           } else {
-                            return error || 'Failed to connect to the API. Please check your settings.'
+                            // Show the raw error if we can't categorize it
+                            return error || 'Failed to connect to the API. Please check your provider settings and try again.'
                           }
                         })()}
                       </div>
@@ -407,60 +449,6 @@ export function ConfiguredModelsList({
                               color: '#e8eaed'
                             }}>
                               <strong>LLM Response:</strong> {testResults.get(provider.id)?.response}
-                            </div>
-                          )}
-                        </div>
-                      )}
-                      {recommendations.get(provider.id) && (
-                        <div style={{
-                          marginTop: '12px',
-                          padding: '16px',
-                          backgroundColor: 'rgba(129, 201, 149, 0.12)',
-                          border: '1px solid rgba(129, 201, 149, 0.3)',
-                          borderRadius: '8px'
-                        }}>
-                          <div style={{
-                            fontWeight: 600,
-                            marginBottom: '8px',
-                            fontSize: '14px',
-                            color: '#81c995',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '6px'
-                          }}>
-                            <Brain className="w-4 h-4" />
-                            Recommendation
-                          </div>
-                          <div style={{
-                            fontSize: '13px',
-                            color: '#e8eaed',
-                            lineHeight: '1.6'
-                          }}>
-                            {typeof recommendations.get(provider.id) === 'object'
-                              ? recommendations.get(provider.id).description
-                              : recommendations.get(provider.id)}
-                          </div>
-                          {typeof recommendations.get(provider.id) === 'object' &&
-                            recommendations.get(provider.id).suitability?.length > 0 && (
-                            <div style={{
-                              marginTop: '8px',
-                              display: 'flex',
-                              gap: '6px',
-                              flexWrap: 'wrap'
-                            }}>
-                              {recommendations.get(provider.id).suitability.map((suit: string) => (
-                                <span key={suit} style={{
-                                  padding: '4px 10px',
-                                  backgroundColor: 'rgba(138, 180, 248, 0.2)',
-                                  borderRadius: '12px',
-                                  fontSize: '11px',
-                                  color: '#8ab4f8',
-                                  fontWeight: 500,
-                                  textTransform: 'capitalize'
-                                }}>
-                                  {suit.replace('_', ' ')}
-                                </span>
-                              ))}
                             </div>
                           )}
                         </div>

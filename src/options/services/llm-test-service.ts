@@ -20,19 +20,11 @@ export interface PerformanceScore {
   overall: number
 }
 
-export interface ModelRecommendation {
-  useCase: string
-  description: string
-  suitability: string[]
-  agentScore: number
-  chatScore: number
-}
 
 export interface BenchmarkResult {
   success: boolean
   latency: number
   scores: PerformanceScore
-  recommendation: ModelRecommendation
   taskResults?: any[]
   error?: string
   timestamp: string
@@ -95,37 +87,52 @@ export class LLMTestService {
 
   async benchmarkProvider(provider: LLMProvider): Promise<BenchmarkResult> {
     return new Promise((resolve) => {
-      const port = chrome.runtime.connect({ name: 'options' })
+      let port: chrome.runtime.Port | null = null
+      let keepAliveInterval: NodeJS.Timeout | null = null
+      let timeoutTimer: NodeJS.Timeout | null = null
       const messageId = `benchmark-${Date.now()}`
+
+      // Function to cleanup resources
+      const cleanup = () => {
+        if (keepAliveInterval) {
+          clearInterval(keepAliveInterval)
+          keepAliveInterval = null
+        }
+        if (timeoutTimer) {
+          clearTimeout(timeoutTimer)
+          timeoutTimer = null
+        }
+        if (port) {
+          try {
+            port.onMessage.removeListener(listener)
+            port.onDisconnect.removeListener(disconnectListener)
+            port.disconnect()
+          } catch (e) {
+            // Port might already be disconnected
+          }
+          port = null
+        }
+      }
 
       const listener = (msg: PortMessage) => {
         if (msg.id === messageId && msg.type === MessageType.SETTINGS_BENCHMARK_PROVIDER_RESPONSE) {
-          port.onMessage.removeListener(listener)
-          port.disconnect()
+          cleanup()
           const payload = msg.payload as any
           resolve(payload as BenchmarkResult)
         } else if (msg.id === messageId && msg.type === MessageType.ERROR) {
-          port.onMessage.removeListener(listener)
-          port.disconnect()
+          cleanup()
           const payload = msg.payload as any
           resolve({
             success: false,
             latency: 0,
             scores: {
-              instructionFollowing: 1,
-              contextUnderstanding: 1,
-              toolUsage: 1,
-              planning: 1,
-              errorRecovery: 1,
-              performance: 1,
-              overall: 1
-            },
-            recommendation: {
-              useCase: 'unknown',
-              description: 'Test failed',
-              suitability: [],
-              agentScore: 0,
-              chatScore: 0
+              instructionFollowing: 0,
+              contextUnderstanding: 0,
+              toolUsage: 0,
+              planning: 0,
+              errorRecovery: 0,
+              performance: 0,
+              overall: 0
             },
             error: payload.error || 'Unknown error',
             timestamp: new Date().toISOString()
@@ -133,243 +140,94 @@ export class LLMTestService {
         }
       }
 
-      port.onMessage.addListener(listener)
-
-      port.postMessage({
-        type: MessageType.SETTINGS_BENCHMARK_PROVIDER,
-        payload: { provider },
-        id: messageId
-      })
-
-      setTimeout(() => {
-        port.onMessage.removeListener(listener)
-        port.disconnect()
+      const disconnectListener = () => {
+        // Port was disconnected unexpectedly
+        cleanup()
         resolve({
           success: false,
-          latency: 120000,
+          latency: 0,
           scores: {
-            instructionFollowing: 1,
-            contextUnderstanding: 1,
-            toolUsage: 1,
-            planning: 1,
-            errorRecovery: 1,
-            performance: 1,
-            overall: 1
+            instructionFollowing: 0,
+            contextUnderstanding: 0,
+            toolUsage: 0,
+            planning: 0,
+            errorRecovery: 0,
+            performance: 0,
+            overall: 0
           },
-          recommendation: {
-            useCase: 'unknown',
-            description: 'Test timed out',
-            suitability: [],
-            agentScore: 0,
-            chatScore: 0
-          },
-          error: 'Benchmark timeout after 120 seconds',
+          error: 'Connection lost to background service. Please try again.',
           timestamp: new Date().toISOString()
         })
-      }, 120000)  // 120 seconds for comprehensive benchmark (12 tasks)
+      }
+
+      try {
+        port = chrome.runtime.connect({ name: 'options' })
+
+        port.onMessage.addListener(listener)
+        port.onDisconnect.addListener(disconnectListener)
+
+        // Send keep-alive ping every 20 seconds to prevent disconnection
+        keepAliveInterval = setInterval(() => {
+          if (port) {
+            try {
+              port.postMessage({
+                type: 'KEEP_ALIVE',
+                id: `keepalive-${messageId}`
+              })
+            } catch (e) {
+              // Port might be disconnected
+              cleanup()
+            }
+          }
+        }, 20000) // Every 20 seconds
+
+        port.postMessage({
+          type: MessageType.SETTINGS_BENCHMARK_PROVIDER,
+          payload: { provider },
+          id: messageId
+        })
+
+        // Set timeout for 180 seconds (3 minutes) instead of 120
+        timeoutTimer = setTimeout(() => {
+          cleanup()
+          resolve({
+            success: false,
+            latency: 180000,
+            scores: {
+              instructionFollowing: 0,
+              contextUnderstanding: 0,
+              toolUsage: 0,
+              planning: 0,
+              errorRecovery: 0,
+              performance: 0,
+              overall: 0
+            },
+            error: 'Benchmark timeout after 3 minutes. The provider may be unresponsive.',
+            timestamp: new Date().toISOString()
+          })
+        }, 180000)  // 180 seconds (3 minutes) for comprehensive benchmark
+
+      } catch (error) {
+        cleanup()
+        resolve({
+          success: false,
+          latency: 0,
+          scores: {
+            instructionFollowing: 0,
+            contextUnderstanding: 0,
+            toolUsage: 0,
+            planning: 0,
+            errorRecovery: 0,
+            performance: 0,
+            overall: 0
+          },
+          error: error instanceof Error ? error.message : 'Failed to connect to extension service',
+          timestamp: new Date().toISOString()
+        })
+      }
     })
   }
 
-  async runPerformanceTests(provider: LLMProvider, useBenchmark: boolean = false): Promise<PerformanceScore> {
-    if (useBenchmark) {
-      // Run comprehensive benchmark tests
-      const benchmarkResult = await this.benchmarkProvider(provider)
-
-      if (!benchmarkResult.success) {
-        return benchmarkResult.scores || {
-          instructionFollowing: 1,
-          contextUnderstanding: 1,
-          toolUsage: 1,
-          planning: 1,
-          errorRecovery: 1,
-          performance: 1,
-          overall: 1
-        }
-      }
-
-      return benchmarkResult.scores
-    }
-
-    // Use simple test for quick validation - not recommended, use benchmark instead
-    const testResult = await this.testProvider(provider)
-
-    if (!testResult.success) {
-      return {
-        instructionFollowing: 1,
-        contextUnderstanding: 1,
-        toolUsage: 1,
-        planning: 1,
-        errorRecovery: 1,
-        performance: 1,
-        overall: 1
-      }
-    }
-
-    // For simple test, estimate scores
-    const latencyScore = this.calculateLatencyScore(testResult.latency)
-    const accuracy = this.calculateAccuracyScore(provider)
-
-    return {
-      instructionFollowing: Math.round(accuracy * 10) / 10,
-      contextUnderstanding: Math.round(accuracy * 10) / 10,
-      toolUsage: Math.round(accuracy * 10) / 10,
-      planning: Math.round(accuracy * 10) / 10,
-      errorRecovery: Math.round(accuracy * 10) / 10,
-      performance: Math.round(latencyScore * 10) / 10,
-      overall: Math.round(accuracy * 10) / 10
-    }
-  }
-
-  private calculateAccuracyScore(provider: LLMProvider): number {
-    const providerType = provider.type.toLowerCase()
-    const modelId = provider.modelId?.toLowerCase() || ''
-
-    // High accuracy models
-    if (providerType === 'anthropic') {
-      if (modelId.includes('opus') || modelId.includes('sonnet')) return 10
-      if (modelId.includes('haiku')) return 8
-      return 9
-    }
-
-    if (providerType === 'openai') {
-      if (modelId.includes('gpt-4o') || modelId.includes('gpt-4-turbo')) return 9
-      if (modelId.includes('gpt-4')) return 9
-      if (modelId.includes('gpt-3.5')) return 7
-      return 8
-    }
-
-    if (providerType === 'google_gemini') {
-      if (modelId.includes('2.0')) return 9
-      if (modelId.includes('1.5-pro')) return 8
-      if (modelId.includes('1.5-flash')) return 7
-      return 7
-    }
-
-    // Local models - varies by model
-    if (providerType === 'ollama') {
-      if (modelId.includes('qwen')) return 7
-      if (modelId.includes('llama') && modelId.includes('70b')) return 8
-      if (modelId.includes('llama')) return 6
-      if (modelId.includes('mistral')) return 6
-      if (modelId.includes('codellama')) return 6
-      return 5
-    }
-
-    // Default scores
-    if (providerType === 'openrouter') return 8
-    if (providerType === 'openai_compatible') return 7
-    if (providerType === 'browseros') return 9
-
-    return 7
-  }
-
-  private calculateLatencyScore(latency: number): number {
-    if (latency < 500) return 10
-    if (latency < 1000) return 9
-    if (latency < 1500) return 8
-    if (latency < 2000) return 7
-    if (latency < 3000) return 6
-    if (latency < 4000) return 5
-    if (latency < 5000) return 4
-    if (latency < 7000) return 3
-    if (latency < 10000) return 2
-    return 1
-  }
-
-  getRecommendation(provider: LLMProvider, score: PerformanceScore): string {
-    const providerType = provider.type.toLowerCase()
-    const modelId = provider.modelId?.toLowerCase() || ''
-
-    // Anthropic models
-    if (providerType === 'anthropic') {
-      if (modelId.includes('opus')) {
-        return '🌟 Best for complex agent tasks - Highest reasoning ability'
-      }
-      if (modelId.includes('sonnet')) {
-        return '⚡ Excellent for agent tasks - Best balance of speed and intelligence'
-      }
-      if (modelId.includes('haiku')) {
-        return '💬 Good for chat - Fast responses, lighter reasoning'
-      }
-      return '✅ Excellent for both chat and agent tasks'
-    }
-
-    // OpenAI models
-    if (providerType === 'openai') {
-      if (modelId.includes('gpt-4o')) {
-        return '🌟 Excellent for agent tasks - Fast and highly capable'
-      }
-      if (modelId.includes('gpt-4-turbo')) {
-        return '⚡ Great for agent tasks - Good reasoning speed'
-      }
-      if (modelId.includes('gpt-4')) {
-        return '✅ Good for complex agent tasks - Slower but accurate'
-      }
-      if (modelId.includes('gpt-3.5')) {
-        return '💬 Best for chat - Fast but limited reasoning'
-      }
-      return '✅ Good for general chat and agent tasks'
-    }
-
-    // Gemini models
-    if (providerType === 'google_gemini') {
-      if (modelId.includes('2.0')) {
-        return '⚡ Excellent for agent tasks - Native tool calling support'
-      }
-      if (modelId.includes('1.5-pro')) {
-        return '🖼️ Great for multimodal agent tasks - Excellent with images'
-      }
-      if (modelId.includes('flash')) {
-        return '💬 Good for chat - Fast and efficient'
-      }
-      return '🖼️ Great for multimodal tasks with images'
-    }
-
-    // Ollama models
-    if (providerType === 'ollama') {
-      if (modelId.includes('qwen3:4b') || modelId.includes('qwen')) {
-        return '🏠 Recommended for local agent tasks - Good balance of performance and speed'
-      }
-      if (modelId.includes('llama') && modelId.includes('70b')) {
-        return '🏠 Good for agent tasks - Requires high-end hardware'
-      }
-      if (modelId.includes('llama')) {
-        return '💬 Best for chat - Lighter agent tasks only'
-      }
-      if (modelId.includes('codellama')) {
-        return '💻 Best for code-focused tasks'
-      }
-      if (modelId.includes('mistral')) {
-        return '💬 Good for chat - Basic agent tasks'
-      }
-      return '🏠 Best for local development and testing'
-    }
-
-    // LM Studio / OpenAI Compatible
-    if (providerType === 'openai_compatible') {
-      return '🏠 Use Qwen or Llama models for agent tasks - Check model compatibility'
-    }
-
-    // OpenRouter
-    if (providerType === 'openrouter') {
-      return '🌐 Access to multiple models - Check specific model capabilities'
-    }
-
-    // BrowserOS
-    if (providerType === 'browseros') {
-      return '🌟 Optimized for web browsing tasks'
-    }
-
-    // Fallback
-    if (score.overall >= 8) {
-      return '✅ Excellent for both chat and agent tasks'
-    }
-    if (score.overall >= 6) {
-      return '💬 Suitable for basic chat interactions'
-    }
-
-    return '⚠️ May have performance limitations for agent tasks'
-  }
 
   /**
    * Store test results in chrome.browserOS prefs
