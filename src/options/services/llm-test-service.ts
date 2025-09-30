@@ -11,18 +11,28 @@ export interface TestResult {
 }
 
 export interface PerformanceScore {
-  latency: number
-  accuracy: number
-  reliability: number
-  planning?: number
-  navigation?: number
+  instructionFollowing: number
+  contextUnderstanding: number
+  toolUsage: number
+  planning: number
+  errorRecovery: number
+  performance: number
   overall: number
+}
+
+export interface ModelRecommendation {
+  useCase: string
+  description: string
+  suitability: string[]
+  agentScore: number
+  chatScore: number
 }
 
 export interface BenchmarkResult {
   success: boolean
   latency: number
   scores: PerformanceScore
+  recommendation: ModelRecommendation
   taskResults?: any[]
   error?: string
   timestamp: string
@@ -102,12 +112,20 @@ export class LLMTestService {
             success: false,
             latency: 0,
             scores: {
-              latency: 1,
-              accuracy: 1,
-              reliability: 1,
+              instructionFollowing: 1,
+              contextUnderstanding: 1,
+              toolUsage: 1,
               planning: 1,
-              navigation: 1,
+              errorRecovery: 1,
+              performance: 1,
               overall: 1
+            },
+            recommendation: {
+              useCase: 'unknown',
+              description: 'Test failed',
+              suitability: [],
+              agentScore: 0,
+              chatScore: 0
             },
             error: payload.error || 'Unknown error',
             timestamp: new Date().toISOString()
@@ -128,19 +146,27 @@ export class LLMTestService {
         port.disconnect()
         resolve({
           success: false,
-          latency: 30000,
+          latency: 120000,
           scores: {
-            latency: 1,
-            accuracy: 1,
-            reliability: 1,
+            instructionFollowing: 1,
+            contextUnderstanding: 1,
+            toolUsage: 1,
             planning: 1,
-            navigation: 1,
+            errorRecovery: 1,
+            performance: 1,
             overall: 1
           },
-          error: 'Benchmark timeout after 30 seconds',
+          recommendation: {
+            useCase: 'unknown',
+            description: 'Test timed out',
+            suitability: [],
+            agentScore: 0,
+            chatScore: 0
+          },
+          error: 'Benchmark timeout after 120 seconds',
           timestamp: new Date().toISOString()
         })
-      }, 30000)  // 30 seconds for simple benchmark
+      }, 120000)  // 120 seconds for comprehensive benchmark (12 tasks)
     })
   }
 
@@ -151,11 +177,12 @@ export class LLMTestService {
 
       if (!benchmarkResult.success) {
         return benchmarkResult.scores || {
-          latency: 1,
-          accuracy: 1,
-          reliability: 1,
+          instructionFollowing: 1,
+          contextUnderstanding: 1,
+          toolUsage: 1,
           planning: 1,
-          navigation: 1,
+          errorRecovery: 1,
+          performance: 1,
           overall: 1
         }
       }
@@ -163,34 +190,33 @@ export class LLMTestService {
       return benchmarkResult.scores
     }
 
-    // Use simple test for quick validation (existing logic)
+    // Use simple test for quick validation - not recommended, use benchmark instead
     const testResult = await this.testProvider(provider)
 
     if (!testResult.success) {
       return {
-        latency: 1,
-        accuracy: 1,
-        reliability: 1,
+        instructionFollowing: 1,
+        contextUnderstanding: 1,
+        toolUsage: 1,
+        planning: 1,
+        errorRecovery: 1,
+        performance: 1,
         overall: 1
       }
     }
 
-    // Calculate latency score based on response time
+    // For simple test, estimate scores
     const latencyScore = this.calculateLatencyScore(testResult.latency)
-
-    // Calculate reliability score based on test success
-    const reliability = 10 // Passed basic test
-
-    // Calculate accuracy score based on provider type and model (estimated)
     const accuracy = this.calculateAccuracyScore(provider)
 
-    const overall = (latencyScore + accuracy + reliability) / 3
-
     return {
-      latency: Math.round(latencyScore * 10) / 10,
-      accuracy: Math.round(accuracy * 10) / 10,
-      reliability: Math.round(reliability * 10) / 10,
-      overall: Math.round(overall * 10) / 10
+      instructionFollowing: Math.round(accuracy * 10) / 10,
+      contextUnderstanding: Math.round(accuracy * 10) / 10,
+      toolUsage: Math.round(accuracy * 10) / 10,
+      planning: Math.round(accuracy * 10) / 10,
+      errorRecovery: Math.round(accuracy * 10) / 10,
+      performance: Math.round(latencyScore * 10) / 10,
+      overall: Math.round(accuracy * 10) / 10
     }
   }
 

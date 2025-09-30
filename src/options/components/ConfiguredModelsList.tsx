@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { LLMProvider } from '../types/llm-settings'
 import { LLMTestService, TestResult, PerformanceScore, BenchmarkResult } from '../services/llm-test-service'
-import { Loader2, Zap, Brain, Shield, X, AlertCircle, Gauge, MapPin, GitBranch } from 'lucide-react'
+import { Loader2, Zap, Brain, Shield, X, AlertCircle, Gauge, MapPin, GitBranch, FlaskConical, Pencil, Trash2 } from 'lucide-react'
 
 interface ConfiguredModelsListProps {
   providers: LLMProvider[]
@@ -43,93 +43,59 @@ export function ConfiguredModelsList({
     })
   }, [providers])
 
-  const [recommendations, setRecommendations] = useState<Map<string, string>>(new Map())
+  const [recommendations, setRecommendations] = useState<Map<string, any>>(new Map())
 
-  const handleTestProvider = async (provider: LLMProvider) => {
+  const handleTestAndBenchmark = async (provider: LLMProvider) => {
     const providerId = provider.id
     setTestingProviders(prev => new Set(prev).add(providerId))
 
     try {
-      const testResult = await testService.testProvider(provider)
-      const scores = await testService.runPerformanceTests(provider, false)
-      const recommendation = testService.getRecommendation(provider, scores)
-
-      setTestResults(prev => new Map(prev).set(providerId, testResult))
-      setPerformanceScores(prev => new Map(prev).set(providerId, scores))
-      setRecommendations(prev => new Map(prev).set(providerId, recommendation))
-      setShowScores(prev => new Set(prev).add(providerId))
-
-      await testService.storeTestResults(providerId, testResult, scores)
-    } catch (error) {
-      console.error('Test failed:', error)
-
-      const errorResult: TestResult = {
-        success: false,
-        latency: 0,
-        error: error instanceof Error ? error.message : 'Test failed',
-        timestamp: new Date().toISOString()
-      }
-      setTestResults(prev => new Map(prev).set(providerId, errorResult))
-      setShowScores(prev => new Set(prev).add(providerId))
-    } finally {
-      setTestingProviders(prev => {
-        const next = new Set(prev)
-        next.delete(providerId)
-        return next
-      })
-    }
-  }
-
-  const handleBenchmarkProvider = async (provider: LLMProvider) => {
-    const providerId = provider.id
-    setBenchmarkingProviders(prev => new Set(prev).add(providerId))
-
-    try {
       const benchmarkResult = await testService.benchmarkProvider(provider)
-
       setBenchmarkResults(prev => new Map(prev).set(providerId, benchmarkResult))
 
       if (benchmarkResult.success) {
-        const recommendation = testService.getRecommendation(provider, benchmarkResult.scores)
         setPerformanceScores(prev => new Map(prev).set(providerId, benchmarkResult.scores))
-        setRecommendations(prev => new Map(prev).set(providerId, recommendation))
+        setRecommendations(prev => new Map(prev).set(providerId, benchmarkResult.recommendation))
         setShowScores(prev => new Set(prev).add(providerId))
         await testService.storeTestResults(providerId, benchmarkResult as any, benchmarkResult.scores)
       } else {
-        // Clear any existing scores if benchmark failed
         setPerformanceScores(prev => {
           const next = new Map(prev)
           next.delete(providerId)
           return next
         })
+        setShowScores(prev => new Set(prev).add(providerId))
         console.error('Benchmark failed:', benchmarkResult.error)
       }
     } catch (error) {
-      console.error('Benchmark failed:', error)
+      console.error('Test failed:', error)
 
       const errorResult: BenchmarkResult = {
         success: false,
         latency: 0,
         scores: {
-          latency: 1,
-          accuracy: 1,
-          reliability: 1,
+          instructionFollowing: 1,
+          contextUnderstanding: 1,
+          toolUsage: 1,
           planning: 1,
-          navigation: 1,
+          errorRecovery: 1,
+          performance: 1,
           overall: 1
         },
-        error: error instanceof Error ? error.message : 'Benchmark failed',
+        recommendation: {
+          useCase: 'unknown',
+          description: 'Test failed',
+          suitability: [],
+          agentScore: 0,
+          chatScore: 0
+        },
+        error: error instanceof Error ? error.message : 'Test failed',
         timestamp: new Date().toISOString()
       }
       setBenchmarkResults(prev => new Map(prev).set(providerId, errorResult))
-      // Don't show scores panel on error
-      setPerformanceScores(prev => {
-        const next = new Map(prev)
-        next.delete(providerId)
-        return next
-      })
+      setShowScores(prev => new Set(prev).add(providerId))
     } finally {
-      setBenchmarkingProviders(prev => {
+      setTestingProviders(prev => {
         const next = new Set(prev)
         next.delete(providerId)
         return next
@@ -212,71 +178,53 @@ export function ConfiguredModelsList({
                     <div className="chrome-settings-model-badges">
                       {provider.id === defaultProvider && (
                         <span className="chrome-settings-model-badge default">
-                          Default
+                          default
                         </span>
                       )}
                       {provider.isBuiltIn && (
                         <span className="chrome-settings-model-badge builtin">
-                          Built-in
+                          built-in
                         </span>
                       )}
                     </div>
                   </div>
                 </div>
 
-                <div className="chrome-settings-model-actions" style={{ opacity: 1 }}>
+                <div className="chrome-settings-model-actions">
                   <button
                     onClick={(e) => {
                       e.stopPropagation()
-                      handleTestProvider(provider)
+                      handleTestAndBenchmark(provider)
                     }}
                     className="chrome-settings-action-button chrome-settings-action-test"
-                    disabled={testingProviders.has(provider.id) || benchmarkingProviders.has(provider.id)}
-                    style={{
-                      color: testResults.get(provider.id)?.success ? '#81c995' : '#8ab4f8',
-                      minWidth: '50px',
-                      opacity: 1
-                    }}
+                    disabled={testingProviders.has(provider.id)}
                   >
                     {testingProviders.has(provider.id) ? (
-                      <Loader2 className="w-3 h-3 animate-spin" />
-                    ) : testResults.get(provider.id) ? (
-                      testResults.get(provider.id)?.success ? '✓ Tested' : 'Retry'
-                    ) : (
-                      'Test'
-                    )}
-                  </button>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      handleBenchmarkProvider(provider)
-                    }}
-                    className="chrome-settings-action-button"
-                    disabled={benchmarkingProviders.has(provider.id) || testingProviders.has(provider.id)}
-                    style={{
-                      color: benchmarkResults.get(provider.id)?.success ? '#81c995' : '#fbbc04',
-                      minWidth: '80px',
-                      opacity: 1
-                    }}
-                  >
-                    {benchmarkingProviders.has(provider.id) ? (
-                      <><Loader2 className="w-3 h-3 animate-spin inline mr-1" />Benchmarking</>
+                      <>
+                        <Loader2 style={{ width: '14px', height: '14px' }} className="animate-spin" />
+                        <span>Testing</span>
+                      </>
                     ) : benchmarkResults.get(provider.id) ? (
-                      `Score: ${benchmarkResults.get(provider.id)?.scores.overall}/10`
+                      benchmarkResults.get(provider.id)?.success ? (
+                        <span>✓ Score: {benchmarkResults.get(provider.id)?.scores.overall}/10</span>
+                      ) : (
+                        <span>Retry</span>
+                      )
                     ) : (
-                      <><Gauge className="w-3 h-3 inline mr-1" />Benchmark</>
+                      <span>Test</span>
                     )}
                   </button>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      onEditProvider(provider)
-                    }}
-                    className="chrome-settings-action-button chrome-settings-action-edit"
-                    style={{ opacity: 1 }}
-                  >
-                    Edit
-                  </button>
+                  {!provider.isBuiltIn && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        onEditProvider(provider)
+                      }}
+                      className="chrome-settings-action-button chrome-settings-action-edit"
+                    >
+                      Edit
+                    </button>
+                  )}
                   {!provider.isBuiltIn && (
                     <button
                       onClick={(e) => {
@@ -284,7 +232,6 @@ export function ConfiguredModelsList({
                         onDeleteProvider(provider.id)
                       }}
                       className="chrome-settings-action-button chrome-settings-action-delete"
-                      style={{ opacity: 1 }}
                     >
                       Delete
                     </button>
@@ -368,56 +315,66 @@ export function ConfiguredModelsList({
                     </div>
                   ) : performanceScores.has(provider.id) ? (
                     <>
-                      <div className="chrome-settings-scores-grid">
+                      <div style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(3, 1fr)',
+                        gap: '12px',
+                        marginBottom: '16px'
+                      }}>
                         <div className="chrome-settings-score-item">
-                          <Zap className="w-4 h-4" style={{ color: getScoreColor(performanceScores.get(provider.id)!.latency) }} />
+                          <Zap className="w-4 h-4" style={{ color: getScoreColor(performanceScores.get(provider.id)!.instructionFollowing) }} />
                           <div>
-                            <div className="chrome-settings-score-label">Latency</div>
+                            <div className="chrome-settings-score-label">Instruction Following</div>
                             <div className="chrome-settings-score-value">
-                              {Math.round(performanceScores.get(provider.id)!.latency * 10) / 10}/10
+                              {performanceScores.get(provider.id)!.instructionFollowing}/10
                             </div>
                           </div>
                         </div>
                         <div className="chrome-settings-score-item">
-                          <Brain className="w-4 h-4" style={{ color: getScoreColor(performanceScores.get(provider.id)!.accuracy) }} />
+                          <Brain className="w-4 h-4" style={{ color: getScoreColor(performanceScores.get(provider.id)!.contextUnderstanding) }} />
                           <div>
-                            <div className="chrome-settings-score-label">Accuracy</div>
+                            <div className="chrome-settings-score-label">Context Understanding</div>
                             <div className="chrome-settings-score-value">
-                              {Math.round(performanceScores.get(provider.id)!.accuracy * 10) / 10}/10
+                              {performanceScores.get(provider.id)!.contextUnderstanding}/10
                             </div>
                           </div>
                         </div>
                         <div className="chrome-settings-score-item">
-                          <Shield className="w-4 h-4" style={{ color: getScoreColor(performanceScores.get(provider.id)!.reliability) }} />
+                          <Shield className="w-4 h-4" style={{ color: getScoreColor(performanceScores.get(provider.id)!.toolUsage) }} />
                           <div>
-                            <div className="chrome-settings-score-label">Reliability</div>
+                            <div className="chrome-settings-score-label">Tool Usage</div>
                             <div className="chrome-settings-score-value">
-                              {Math.round(performanceScores.get(provider.id)!.reliability * 10) / 10}/10
+                              {performanceScores.get(provider.id)!.toolUsage}/10
                             </div>
                           </div>
                         </div>
-                        {performanceScores.get(provider.id)?.planning !== undefined && (
-                          <div className="chrome-settings-score-item">
-                            <GitBranch className="w-4 h-4" style={{ color: getScoreColor(performanceScores.get(provider.id)!.planning!) }} />
-                            <div>
-                              <div className="chrome-settings-score-label">Planning</div>
-                              <div className="chrome-settings-score-value">
-                                {Math.round(performanceScores.get(provider.id)!.planning! * 10) / 10}/10
-                              </div>
+                        <div className="chrome-settings-score-item">
+                          <GitBranch className="w-4 h-4" style={{ color: getScoreColor(performanceScores.get(provider.id)!.planning) }} />
+                          <div>
+                            <div className="chrome-settings-score-label">Planning</div>
+                            <div className="chrome-settings-score-value">
+                              {performanceScores.get(provider.id)!.planning}/10
                             </div>
                           </div>
-                        )}
-                        {performanceScores.get(provider.id)?.navigation !== undefined && (
-                          <div className="chrome-settings-score-item">
-                            <MapPin className="w-4 h-4" style={{ color: getScoreColor(performanceScores.get(provider.id)!.navigation!) }} />
-                            <div>
-                              <div className="chrome-settings-score-label">Navigation</div>
-                              <div className="chrome-settings-score-value">
-                                {Math.round(performanceScores.get(provider.id)!.navigation! * 10) / 10}/10
-                              </div>
+                        </div>
+                        <div className="chrome-settings-score-item">
+                          <AlertCircle className="w-4 h-4" style={{ color: getScoreColor(performanceScores.get(provider.id)!.errorRecovery) }} />
+                          <div>
+                            <div className="chrome-settings-score-label">Error Recovery</div>
+                            <div className="chrome-settings-score-value">
+                              {performanceScores.get(provider.id)!.errorRecovery}/10
                             </div>
                           </div>
-                        )}
+                        </div>
+                        <div className="chrome-settings-score-item">
+                          <Gauge className="w-4 h-4" style={{ color: getScoreColor(performanceScores.get(provider.id)!.performance) }} />
+                          <div>
+                            <div className="chrome-settings-score-label">Performance</div>
+                            <div className="chrome-settings-score-value">
+                              {performanceScores.get(provider.id)!.performance}/10
+                            </div>
+                          </div>
+                        </div>
                       </div>
                       {testResults.get(provider.id)?.latency && (
                         <div className="chrome-settings-test-info">
@@ -439,22 +396,55 @@ export function ConfiguredModelsList({
                       {recommendations.get(provider.id) && (
                         <div style={{
                           marginTop: '12px',
-                          padding: '12px',
-                          backgroundColor: 'rgba(138, 180, 248, 0.1)',
-                          border: '1px solid rgba(138, 180, 248, 0.3)',
-                          borderRadius: '6px',
-                          fontSize: '13px',
-                          color: '#e8eaed',
-                          lineHeight: '1.5'
+                          padding: '16px',
+                          backgroundColor: 'rgba(129, 201, 149, 0.12)',
+                          border: '1px solid rgba(129, 201, 149, 0.3)',
+                          borderRadius: '8px'
                         }}>
                           <div style={{
-                            fontWeight: 500,
-                            marginBottom: '4px',
-                            color: '#8ab4f8'
+                            fontWeight: 600,
+                            marginBottom: '8px',
+                            fontSize: '14px',
+                            color: '#81c995',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px'
                           }}>
-                            💡 Recommendation
+                            <Brain className="w-4 h-4" />
+                            Recommendation
                           </div>
-                          {recommendations.get(provider.id)}
+                          <div style={{
+                            fontSize: '13px',
+                            color: '#e8eaed',
+                            lineHeight: '1.6'
+                          }}>
+                            {typeof recommendations.get(provider.id) === 'object'
+                              ? recommendations.get(provider.id).description
+                              : recommendations.get(provider.id)}
+                          </div>
+                          {typeof recommendations.get(provider.id) === 'object' &&
+                            recommendations.get(provider.id).suitability?.length > 0 && (
+                            <div style={{
+                              marginTop: '8px',
+                              display: 'flex',
+                              gap: '6px',
+                              flexWrap: 'wrap'
+                            }}>
+                              {recommendations.get(provider.id).suitability.map((suit: string) => (
+                                <span key={suit} style={{
+                                  padding: '4px 10px',
+                                  backgroundColor: 'rgba(138, 180, 248, 0.2)',
+                                  borderRadius: '12px',
+                                  fontSize: '11px',
+                                  color: '#8ab4f8',
+                                  fontWeight: 500,
+                                  textTransform: 'capitalize'
+                                }}>
+                                  {suit.replace('_', ' ')}
+                                </span>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       )}
                     </>

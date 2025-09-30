@@ -5,6 +5,7 @@ import { ConfiguredModelsList } from './components/ConfiguredModelsList'
 import { AddProviderModal } from './components/AddProviderModal'
 import { useBrowserOSPrefs } from './hooks/useBrowserOSPrefs'
 import { LLMProvider } from './types/llm-settings'
+import { Brain } from 'lucide-react'
 
 export function OptionsNew() {
   const { providers, defaultProvider, setDefaultProvider, addProvider, updateProvider, deleteProvider } = useBrowserOSPrefs()
@@ -35,7 +36,30 @@ export function OptionsNew() {
             <h1>Settings</h1>
           </div>
           <div className="chrome-settings-nav">
-            <div className="chrome-settings-nav-item">
+            <div
+              className="chrome-settings-nav-item"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                transition: 'all 0.2s ease'
+              }}
+            >
+              <Brain
+                className="w-5 h-5"
+                style={{
+                  transition: 'all 0.3s ease',
+                  strokeWidth: 2
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = 'scale(1.1) rotate(5deg)'
+                  e.currentTarget.style.color = '#aecbfa'
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = 'scale(1) rotate(0deg)'
+                  e.currentTarget.style.color = ''
+                }}
+              />
               <span>BrowserOS AI</span>
             </div>
           </div>
