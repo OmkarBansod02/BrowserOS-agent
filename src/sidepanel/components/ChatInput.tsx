@@ -11,8 +11,6 @@ import { MessageType } from '@/lib/types/messaging'
 import { cn } from '@/sidepanel/lib/utils'
 import { Loader } from 'lucide-react'
 import { BrowserOSProvidersConfig, BrowserOSProvider } from '@/lib/llm/settings/browserOSTypes'
-import { ModeToggle } from './ModeToggle'
-// Tailwind classes used in ModeToggle; no separate CSS import
 import { SlashCommandPalette } from './SlashCommandPalette'
 import { useAgentsStore } from '@/newtab/stores/agentsStore'
 
@@ -281,12 +279,7 @@ export function ChatInput({ isConnected, isProcessing }: ChatInputProps) {
 
   
   return (
-    <div className="relative bg-[hsl(var(--header))] border-t border-border/50 px-3 py-2 pb-4 flex-shrink-0 overflow-hidden z-20">
-      
-      {/* Mode Toggle - top left, above input */}
-      <div className="px-2 mb-2">
-        <ModeToggle />
-      </div>
+    <div className="relative bg-[hsl(var(--header))] border-t border-border/50 px-3 py-3 pb-4 flex-shrink-0 overflow-hidden z-20">
 
       {/* Input container */}
       <div className="relative">
@@ -361,17 +354,17 @@ export function ChatInput({ isConnected, isProcessing }: ChatInputProps) {
               placeholder={getPlaceholder()}
               disabled={isProcessing}
               className={cn(
-                'max-h-[200px] resize-none pr-16 text-sm w-full',
+                'min-h-[120px] max-h-[260px] resize-none pr-16 text-sm w-full',
                 'bg-background/80 backdrop-blur-sm border-2 border-brand/30',
                 'focus-visible:outline-none focus-visible:border-brand/60 focus-visible:shadow-lg focus-visible:shadow-brand/10',
                 'focus:outline-none focus:border-brand/60 focus:shadow-lg focus:shadow-brand/10',
                 'hover:border-brand/50 hover:bg-background/90 hover:shadow-md',
                 'rounded-2xl shadow-sm',
-                'px-3 py-2',
+                'px-4 py-3',
                 'transition-all duration-300 ease-out',
                  isProcessing && 'opacity-50 cursor-not-allowed bg-muted'
               )}
-              rows={1}
+              rows={4}
               aria-label="Chat message input"
               aria-describedby="input-hint"
                aria-invalid={isProcessing}
@@ -427,7 +420,7 @@ export function ChatInput({ isConnected, isProcessing }: ChatInputProps) {
                 type="submit"
                 disabled={isProcessing || !input.trim()}
                 size="sm"
-                className="absolute right-3 bottom-3 h-8 w-8 p-0 rounded-full bg-[hsl(var(--brand))] hover:bg-[hsl(var(--brand))]/90 text-white shadow-lg flex items-center justify-center"
+                className="absolute right-3 bottom-4 h-9 w-9 p-0 rounded-full bg-[hsl(var(--brand))] hover:bg-[hsl(var(--brand))]/90 text-white shadow-lg flex items-center justify-center"
                 variant={'default'}
                 aria-label={'Send message'}
               >

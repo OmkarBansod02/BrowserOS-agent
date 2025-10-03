@@ -4,6 +4,7 @@ import { ExecutionContext } from "@/lib/runtime/ExecutionContext";
 import { MessageManager } from "@/lib/runtime/MessageManager";
 import { BrowserAgent } from "@/lib/agent/BrowserAgent";
 import { LocalAgent } from "@/lib/agent/LocalAgent";
+import { TeachAgent } from "@/lib/agent/TeachAgent";
 import { ChatAgent } from "@/lib/agent/ChatAgent";
 import { langChainProvider } from "@/lib/llm/LangChainProvider";
 import { Logging } from "@/lib/utils/Logging";
@@ -20,10 +21,11 @@ import { braintrustLogger } from "@/evals2/BraintrustLogger";
 
 // Execution options schema (without executionId since it's now fixed)
 export const ExecutionOptionsSchema = z.object({
-  mode: z.enum(["chat", "browse"]), // Execution mode
+  mode: z.enum(["chat", "browse", "teach"]), // Execution mode including teach
   tabId: z.number().optional(), // Target tab ID
   tabIds: z.array(z.number()).optional(), // Multiple tab context
   metadata: z.any().optional(), // Additional execution metadata
+  workflow: z.any().optional(), // Teach mode workflow
   debug: z.boolean().default(false), // Debug mode flag
 });
 
@@ -207,20 +209,38 @@ export class Execution {
         });
       }
 
-      // Create fresh agent
-      const provideType = await langChainProvider.getCurrentProviderType() || '';
-      const smallModelsList = ['ollama', 'custom', 'openai_compatible'];
-      const agent =
-        this.options.mode === "chat"
-          ? new ChatAgent(executionContext)
-          : getFeatureFlags().isEnabled('NEW_AGENT')
-            ? smallModelsList.includes(provideType)
-              ? new LocalAgent(executionContext)
-              : new BrowserAgent(executionContext)
-            : new BrowserAgent(executionContext);
+      // Create fresh agent and execute based on mode
+      if (this.options.mode === "teach") {
+        // Teach mode with workflow
+        if (!this.options.workflow) {
+          throw new Error("Teach mode requires a workflow to execute");
+        }
+        const teachAgent = new TeachAgent(executionContext);
+        await teachAgent.execute(this.options.workflow);
+      } else if (metadata?.executionMode === 'teach') {
+        // Legacy teach mode support via metadata
+        // Check if workflow is provided in metadata or options
+        const workflow = this.options.workflow || (metadata as any)?.workflow;
+        if (!workflow) {
+          throw new Error("Teach mode requires a workflow to execute. Please provide workflow in options or metadata.");
+        }
+        const teachAgent = new TeachAgent(executionContext);
+        await teachAgent.execute(workflow);
+      } else if (this.options.mode === "chat") {
+        const chatAgent = new ChatAgent(executionContext);
+        await chatAgent.execute(query);
+      } else {
+        // Browse mode
+        const provideType = await langChainProvider.getCurrentProviderType() || '';
+        const smallModelsList = ['ollama', 'custom', 'openai_compatible'];
 
-      // Execute
-      await agent.execute(query, metadata || this.options.metadata);
+        const browseAgent = getFeatureFlags().isEnabled('NEW_AGENT')
+          ? smallModelsList.includes(provideType)
+            ? new LocalAgent(executionContext)
+            : new BrowserAgent(executionContext)
+          : new BrowserAgent(executionContext);
+        await browseAgent.execute(query, metadata || this.options.metadata);
+      }
 
       // Evals2: post-execution scoring + upload
       if (ENABLE_EVALS2 && evalsEventMgr.isEnabled()) {
@@ -265,7 +285,9 @@ export class Execution {
             score,
             durationMs,
             {
-              agent: this.options.mode === 'chat' ? 'ChatAgent' : 'BrowserAgent',
+              agent: this.options.mode === 'chat' ? 'ChatAgent' :
+                     this.options.mode === 'teach' ? 'TeachAgent' :
+                     (getFeatureFlags().isEnabled('NEW_AGENT') ? 'LocalAgent' : 'BrowserAgent'),
               provider: provider?.name,
               model: provider?.modelId,
             },
@@ -338,6 +360,13 @@ export class Execution {
     this.currentAbortController.abort(abortReason);
     this.currentAbortController = null;
 
+    // Log metric for execution cancellation
+    Logging.logMetric('execution.cancelled', {
+      mode: this.options.mode
+    }).catch(() => {
+      // Metric logging failed, continue
+    });
+
     Logging.log("Execution", `Cancelled execution`);
   }
 
@@ -358,6 +387,13 @@ export class Execution {
 
     // Clear message history
     this.messageManager?.clear();
+
+    // Log metric for execution reset
+    Logging.logMetric('execution.reset', {
+      mode: this.options.mode
+    }).catch(() => {
+      // Metric logging failed, continue
+    });
 
     // Clear PubSub buffer
     this.pubsub?.clearBuffer();
@@ -402,7 +438,7 @@ export class Execution {
   getStatus(): {
     id: string;
     isRunning: boolean;
-    mode: "chat" | "browse";
+    mode: "chat" | "browse" | "teach";
   } {
     return {
       id: this.id,

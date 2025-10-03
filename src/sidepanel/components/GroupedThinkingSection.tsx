@@ -61,7 +61,7 @@ export function GroupedThinkingSection({ messages, isLatest = false, isTaskCompl
       {/* Grouped Thinking Content with smooth collapse animation */}
       <div className={cn(
         "transition-all duration-500 ease-out overflow-hidden",
-        isExpanded ? "max-h-[2000px] opacity-100 mt-1" : "max-h-0 opacity-0 mt-0"
+        isExpanded ? "max-h-none opacity-100 mt-1" : "max-h-0 opacity-0 mt-0"
       )}>
         <div className="ml-4 pl-2 border-l-2 border-muted-foreground/20 space-y-2">
           {messages.map((message, index) => {

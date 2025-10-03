@@ -50,6 +50,21 @@ export enum MessageType {
   SETTINGS_TEST_PROVIDER_RESPONSE = 'SETTINGS_TEST_PROVIDER_RESPONSE',
   SETTINGS_BENCHMARK_PROVIDER = 'SETTINGS_BENCHMARK_PROVIDER',
   SETTINGS_BENCHMARK_PROVIDER_RESPONSE = 'SETTINGS_BENCHMARK_PROVIDER_RESPONSE',
+  // Teach mode operations
+  TEACH_MODE_START = 'TEACH_MODE_START',
+  TEACH_MODE_STOP = 'TEACH_MODE_STOP',
+  TEACH_MODE_STATUS = 'TEACH_MODE_STATUS',
+  TEACH_MODE_LIST = 'TEACH_MODE_LIST',
+  TEACH_MODE_GET = 'TEACH_MODE_GET',
+  TEACH_MODE_DELETE = 'TEACH_MODE_DELETE',
+  TEACH_MODE_CLEAR = 'TEACH_MODE_CLEAR',
+  TEACH_MODE_EXPORT = 'TEACH_MODE_EXPORT',
+  TEACH_MODE_IMPORT = 'TEACH_MODE_IMPORT',
+  TEACH_MODE_STATS = 'TEACH_MODE_STATS',
+  TEACH_MODE_SEARCH = 'TEACH_MODE_SEARCH',
+  TEACH_MODE_GET_WORKFLOW = 'TEACH_MODE_GET_WORKFLOW',
+  TEACH_MODE_UPDATE_WORKFLOW = 'TEACH_MODE_UPDATE_WORKFLOW',
+  EXECUTE_TEACH_MODE_WORKFLOW = 'EXECUTE_TEACH_MODE_WORKFLOW',
   ERROR = 'ERROR'
 }
 
@@ -110,7 +125,7 @@ export type WorkflowStatusMessage = z.infer<typeof WorkflowStatusMessageSchema>
  */
 export const ExecutionMetadataSchema = z.object({
   source: z.enum(['newtab', 'sidepanel', 'popup']).optional(),  // Source of the query
-  executionMode: z.enum(['dynamic', 'predefined']).default('dynamic'),  // How to execute
+  executionMode: z.enum(['dynamic', 'predefined', 'teach']).default('dynamic'),  // How to execute
   predefinedPlan: z.object({  // Plan details when using predefined mode
     agentId: z.string(),
     steps: z.array(z.string()),

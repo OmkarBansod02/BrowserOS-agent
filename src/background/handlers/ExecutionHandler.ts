@@ -104,8 +104,7 @@ export class ExecutionHandler {
     
     try {
       this.execution.cancel()
-      Logging.logMetric('task_cancelled', {})
-      
+
       // Send success response
       port.postMessage({
         type: MessageType.WORKFLOW_STATUS,
@@ -143,8 +142,7 @@ export class ExecutionHandler {
     
     try {
       this.execution.reset()
-      Logging.logMetric('conversation_reset', {})
-      
+
       // Send success response
       port.postMessage({
         type: MessageType.WORKFLOW_STATUS,
@@ -186,6 +184,101 @@ export class ExecutionHandler {
     
     Logging.log('ExecutionHandler', 
       `Forwarded human input response`)
+  }
+
+  /**
+   * Handle EXECUTE_TEACH_MODE_WORKFLOW message
+   * Executes a teach mode workflow through the unified execution system
+   */
+  async handleExecuteTeachModeWorkflow(
+    message: PortMessage,
+    port: chrome.runtime.Port
+  ): Promise<void> {
+    const { workflowId } = message.payload as any
+
+    Logging.log('ExecutionHandler',
+      `Starting teach mode workflow with ID: ${workflowId}`)
+
+    // Retrieve the workflow from storage
+    const TeachModeService = (await import('@/lib/services/TeachModeService')).TeachModeService
+    const teachModeService = TeachModeService.getInstance()
+    const workflow = await teachModeService.getWorkflow(workflowId)
+
+    if (!workflow) {
+      Logging.log('ExecutionHandler',
+        `Workflow not found for ID: ${workflowId}`, 'error')
+
+      port.postMessage({
+        type: MessageType.WORKFLOW_STATUS,
+        payload: {
+          status: 'error',
+          error: `Workflow not found for ID: ${workflowId}`
+        },
+        id: message.id
+      })
+      return
+    }
+
+    // Log metrics
+    Logging.logMetric('teachmode.workflow.executed', {
+      workflowGoal: workflow.metadata.goal,
+      stepsCount: workflow.steps.length
+    })
+
+    try {
+      // If execution is running, cancel it first
+      if (this.execution.isRunning()) {
+        Logging.log('ExecutionHandler', `Cancelling previous task`)
+        this.execution.cancel()
+      }
+
+      // Update execution options for teach mode
+      this.execution.updateOptions({
+        mode: 'teach',
+        workflow: workflow,
+        metadata: {
+          source: 'teach_mode',
+          workflowId: workflowId,
+          workflowGoal: workflow.metadata.goal
+        },
+        debug: false
+      })
+
+      // Send immediate response that execution has started
+      port.postMessage({
+        type: MessageType.EXECUTE_TEACH_MODE_WORKFLOW,
+        payload: {
+          success: true,
+          message: `Workflow execution started for "${workflow.metadata.goal}"`
+        },
+        id: message.id
+      })
+
+      // Run the workflow in the background (not awaited)
+      // The execution will publish its own completion/failure events via PubSub
+      this.execution.run(workflow.metadata.goal).catch((error) => {
+        // Error handling happens inside TeachAgent which publishes execution_failed event
+        const errorMessage = error instanceof Error ? error.message : String(error)
+        Logging.log('ExecutionHandler',
+          `Background teach mode workflow execution failed: ${errorMessage}`, 'error')
+      })
+
+    } catch (error) {
+      // This catches errors in setup, before execution starts
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      Logging.log('ExecutionHandler',
+        `Error starting teach mode workflow: ${errorMessage}`, 'error')
+
+      // Send error response for setup failures
+      port.postMessage({
+        type: MessageType.EXECUTE_TEACH_MODE_WORKFLOW,
+        payload: {
+          success: false,
+          error: errorMessage
+        },
+        id: message.id
+      })
+    }
   }
 
   /**

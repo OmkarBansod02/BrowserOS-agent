@@ -318,9 +318,9 @@ export class BrowserAgent {
     const taskLower = task.toLowerCase();
 
     // BrowserOS Launch Upvote Task
-    if (taskLower === "visit browseros launch and upvote ❤️") {
+    if (taskLower === "read about our vision and upvote ❤️") {
       return {
-        task: "Visit BrowserOS launch and upvote",
+        task: "Read about our vision and upvote",
         metadata: {
           executionMode: 'predefined' as const,
           predefinedPlan: {
@@ -331,16 +331,16 @@ export class BrowserAgent {
               "Navigate to https://dub.sh/browseros-launch",
               "Find and click the upvote button on the page using visual_click",
               "Use celebration tool to show confetti animation"
-            ]  
+            ]
           }
         }
       };
     }
 
     // GitHub Star Task
-    if (taskLower === "go to github and star browseros ⭐") {
+    if (taskLower === "support browseros on github ⭐") {
       return {
-        task: "Star the BrowserOS GitHub repository",
+        task: "Support BrowserOS on GitHub",
         metadata: {
           executionMode: 'predefined' as const,
           predefinedPlan: {
@@ -787,8 +787,8 @@ ${fullHistory}
       // Build messages
       const messages = [
         new SystemMessage(systemPrompt),
-        browserStateMessage,
         new HumanMessage(userPrompt),
+        browserStateMessage,
       ];
 
       // Get structured response from LLM with retry logic
@@ -1407,8 +1407,8 @@ ${fullHistory}
       );
       const messages = [
         new SystemMessage(systemPrompt),
-        browserStateMessage,
         new HumanMessage(userPrompt),
+        browserStateMessage
       ];
 
       // Get structured response with retry
