@@ -78,36 +78,66 @@ export class ProvidersHandler {
         }))
       }
       const config = BrowserOSProvidersConfigSchema.parse(payload)
-
-      // ONLY use chrome.storage.local - we're an extension, not browser settings
       const key = BROWSEROS_PREFERENCE_KEYS.PROVIDERS
       const configStr = JSON.stringify(config)
-      Logging.log('ProvidersHandler', `Saving ${config.providers.length} providers to storage: ${key}`)
-      Logging.log('ProvidersHandler', `Provider IDs: ${config.providers.map(p => p.id).join(', ')}`)
 
-      chrome.storage?.local?.set({ [key]: configStr }, () => {
-        if (chrome.runtime.lastError) {
-          Logging.log('ProvidersHandler', `Storage save error: ${chrome.runtime.lastError.message}`, 'error')
+      // Try chrome.browserOS.setPref first (for BrowserOS browser)
+      const browserOS = (chrome as any)?.browserOS
+      if (browserOS?.setPref) {
+        Logging.log('ProvidersHandler', `Saving ${config.providers.length} providers via browserOS.setPref: ${key}`)
+        Logging.log('ProvidersHandler', `Provider IDs: ${config.providers.map(p => p.id).join(', ')}`)
+
+        browserOS.setPref(key, configStr, undefined, (success: boolean) => {
+          if (success) {
+            try { langChainProvider.clearCache() } catch (_) {}
+            this.lastProvidersConfigJson = configStr
+
+            Logging.log('ProvidersHandler', `Saved successfully to BrowserOS prefs, broadcasting to all ports`)
+            this.broadcastProvidersConfig(config)
+
+            port.postMessage({
+              type: MessageType.WORKFLOW_STATUS,
+              payload: { status: 'success', data: { providersConfig: config } },
+              id: message.id
+            })
+          } else {
+            Logging.log('ProvidersHandler', `BrowserOS setPref failed`, 'error')
+            port.postMessage({
+              type: MessageType.WORKFLOW_STATUS,
+              payload: { status: 'error', error: 'Failed to save to BrowserOS preferences' },
+              id: message.id
+            })
+          }
+        })
+      } else {
+        // Fallback to chrome.storage.local (for development/other browsers)
+        Logging.log('ProvidersHandler', `Fallback: Saving ${config.providers.length} providers to chrome.storage.local: ${key}`)
+        Logging.log('ProvidersHandler', `Provider IDs: ${config.providers.map(p => p.id).join(', ')}`)
+
+        chrome.storage?.local?.set({ [key]: configStr }, () => {
+          if (chrome.runtime.lastError) {
+            Logging.log('ProvidersHandler', `Storage save error: ${chrome.runtime.lastError.message}`, 'error')
+            port.postMessage({
+              type: MessageType.WORKFLOW_STATUS,
+              payload: { status: 'error', error: chrome.runtime.lastError.message },
+              id: message.id
+            })
+            return
+          }
+
+          try { langChainProvider.clearCache() } catch (_) {}
+          this.lastProvidersConfigJson = configStr
+
+          Logging.log('ProvidersHandler', `Saved successfully to chrome.storage, broadcasting to all ports`)
+          this.broadcastProvidersConfig(config)
+
           port.postMessage({
             type: MessageType.WORKFLOW_STATUS,
-            payload: { status: 'error', error: chrome.runtime.lastError.message },
+            payload: { status: 'success', data: { providersConfig: config } },
             id: message.id
           })
-          return
-        }
-
-        try { langChainProvider.clearCache() } catch (_) {}
-        this.lastProvidersConfigJson = configStr
-
-        Logging.log('ProvidersHandler', `Saved successfully, broadcasting to all ports`)
-        this.broadcastProvidersConfig(config)
-
-        port.postMessage({
-          type: MessageType.WORKFLOW_STATUS,
-          payload: { status: 'success', data: { providersConfig: config } },
-          id: message.id
         })
-      })
+      }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error)
       Logging.log('ProvidersHandler', `Save exception: ${errorMessage}`, 'error')

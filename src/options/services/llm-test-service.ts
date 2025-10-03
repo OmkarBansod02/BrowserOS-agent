@@ -85,7 +85,7 @@ export class LLMTestService {
     })
   }
 
-  async benchmarkProvider(provider: LLMProvider): Promise<BenchmarkResult> {
+  async benchmarkProvider(provider: LLMProvider, progressCallback?: (progress: string) => void): Promise<BenchmarkResult> {
     return new Promise((resolve) => {
       let port: chrome.runtime.Port | null = null
       let keepAliveInterval: NodeJS.Timeout | null = null
@@ -115,6 +115,15 @@ export class LLMTestService {
       }
 
       const listener = (msg: PortMessage) => {
+        // Handle progress messages
+        if (msg.id === `${messageId}_progress` && msg.type === MessageType.SETTINGS_BENCHMARK_PROGRESS) {
+          const payload = msg.payload as any
+          if (progressCallback && payload?.message) {
+            progressCallback(payload.message)
+          }
+          return  // Don't cleanup for progress messages
+        }
+
         if (msg.id === messageId && msg.type === MessageType.SETTINGS_BENCHMARK_PROVIDER_RESPONSE) {
           cleanup()
           const payload = msg.payload as any
@@ -230,7 +239,7 @@ export class LLMTestService {
 
 
   /**
-   * Store test results in chrome.browserOS prefs
+   * Store test results in localStorage (not BrowserOS prefs as these are temporary)
    */
   async storeTestResults(providerId: string, results: TestResult, scores?: PerformanceScore): Promise<boolean> {
     const data = {
@@ -240,86 +249,28 @@ export class LLMTestService {
       timestamp: new Date().toISOString()
     }
 
-    return new Promise((resolve) => {
-      const port = chrome.runtime.connect({ name: 'options' })
-      const messageId = `store-${Date.now()}`
-
-      const listener = (msg: PortMessage) => {
-        if (msg.id === messageId && msg.type === MessageType.SETTINGS_SET_PREF_RESPONSE) {
-          port.onMessage.removeListener(listener)
-          port.disconnect()
-          const payload = msg.payload as any
-          resolve(payload.success)
-        }
-      }
-
-      port.onMessage.addListener(listener)
-
-      port.postMessage({
-        type: MessageType.SETTINGS_SET_PREF,
-        payload: {
-          name: `browseros.llm_test_results_${providerId}`,
-          value: JSON.stringify(data)
-        },
-        id: messageId
-      })
-
-      setTimeout(() => {
-        port.onMessage.removeListener(listener)
-        port.disconnect()
-        localStorage.setItem(`browseros.llm_test_results_${providerId}`, JSON.stringify(data))
-        resolve(true)
-      }, 5000)
-    })
+    try {
+      // Use localStorage for temporary test results
+      localStorage.setItem(`llm_test_results_${providerId}`, JSON.stringify(data))
+      return true
+    } catch (error) {
+      console.error('Failed to store test results:', error)
+      return false
+    }
   }
 
   async getStoredResults(providerId: string): Promise<{ testResult: TestResult; performanceScores?: PerformanceScore } | null> {
-    return new Promise((resolve) => {
-      const port = chrome.runtime.connect({ name: 'options' })
-      const messageId = `get-${Date.now()}`
-
-      const listener = (msg: PortMessage) => {
-        if (msg.id === messageId && msg.type === MessageType.SETTINGS_GET_PREF_RESPONSE) {
-          port.onMessage.removeListener(listener)
-          port.disconnect()
-
-          const payload = msg.payload as any
-          if (payload.value) {
-            try {
-              const data = JSON.parse(payload.value)
-              resolve(data)
-            } catch {
-              resolve(null)
-            }
-          } else {
-            resolve(null)
-          }
-        }
+    try {
+      // Get from localStorage
+      const stored = localStorage.getItem(`llm_test_results_${providerId}`)
+      if (stored) {
+        const data = JSON.parse(stored)
+        return data
       }
-
-      port.onMessage.addListener(listener)
-
-      port.postMessage({
-        type: MessageType.SETTINGS_GET_PREF,
-        payload: { name: `browseros.llm_test_results_${providerId}` },
-        id: messageId
-      })
-
-      setTimeout(() => {
-        port.onMessage.removeListener(listener)
-        port.disconnect()
-        const stored = localStorage.getItem(`browseros.llm_test_results_${providerId}`)
-        if (stored) {
-          try {
-            const data = JSON.parse(stored)
-            resolve(data)
-          } catch {
-            resolve(null)
-          }
-        } else {
-          resolve(null)
-        }
-      }, 5000)
-    })
+      return null
+    } catch (error) {
+      console.error('Failed to get stored results:', error)
+      return null
+    }
   }
 }

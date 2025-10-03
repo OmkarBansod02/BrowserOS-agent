@@ -6,48 +6,100 @@ export class SettingsHandler {
   async handleGetPref(message: PortMessage, port: chrome.runtime.Port): Promise<void> {
     const { name } = message.payload as { name: string }
 
-    // ONLY use chrome.storage.local - we're an extension, not browser settings
-    try {
-      chrome.storage.local.get(name, (result) => {
+    // Try chrome.browserOS.getPref first (for BrowserOS browser)
+    if ((chrome as any)?.browserOS?.getPref) {
+      try {
+        (chrome as any).browserOS.getPref(name, (pref: any) => {
+          if (chrome.runtime.lastError) {
+            Logging.log('SettingsHandler', `BrowserOS getPref error for ${name}: ${chrome.runtime.lastError.message}`, 'error')
+            port.postMessage({
+              type: MessageType.ERROR,
+              payload: { error: `Failed to get preference: ${chrome.runtime.lastError.message}` },
+              id: message.id
+            })
+          } else {
+            port.postMessage({
+              type: MessageType.SETTINGS_GET_PREF_RESPONSE,
+              payload: { name, value: pref?.value || null },
+              id: message.id
+            })
+          }
+        })
+      } catch (error) {
+        Logging.log('SettingsHandler', `Error getting pref via browserOS ${name}: ${error}`, 'error')
         port.postMessage({
-          type: MessageType.SETTINGS_GET_PREF_RESPONSE,
-          payload: { name, value: result[name] || null },
+          type: MessageType.ERROR,
+          payload: { error: `Failed to get preference: ${error}` },
           id: message.id
         })
-      })
-    } catch (error) {
-      Logging.log('SettingsHandler', `Error getting pref from storage ${name}: ${error}`, 'error')
-      port.postMessage({
-        type: MessageType.ERROR,
-        payload: { error: `Failed to get preference: ${error}` },
-        id: message.id
-      })
+      }
+    } else {
+      // Fallback to chrome.storage.local (for development/other browsers)
+      try {
+        chrome.storage.local.get(name, (result) => {
+          port.postMessage({
+            type: MessageType.SETTINGS_GET_PREF_RESPONSE,
+            payload: { name, value: result[name] || null },
+            id: message.id
+          })
+        })
+      } catch (error) {
+        Logging.log('SettingsHandler', `Error getting pref from storage ${name}: ${error}`, 'error')
+        port.postMessage({
+          type: MessageType.ERROR,
+          payload: { error: `Failed to get preference: ${error}` },
+          id: message.id
+        })
+      }
     }
   }
 
   async handleSetPref(message: PortMessage, port: chrome.runtime.Port): Promise<void> {
     const { name, value } = message.payload as { name: string; value: string }
 
-    // ONLY use chrome.storage.local - we're an extension, not browser settings
-    try {
-      chrome.storage.local.set({ [name]: value }, () => {
-        const success = !chrome.runtime.lastError
-        if (!success) {
-          Logging.log('SettingsHandler', `Storage error for ${name}: ${chrome.runtime.lastError?.message}`, 'error')
-        }
+    // Try chrome.browserOS.setPref first (for BrowserOS browser)
+    if ((chrome as any)?.browserOS?.setPref) {
+      try {
+        (chrome as any).browserOS.setPref(name, value, undefined, (success: boolean) => {
+          if (!success) {
+            Logging.log('SettingsHandler', `BrowserOS setPref failed for ${name}`, 'error')
+          }
+          port.postMessage({
+            type: MessageType.SETTINGS_SET_PREF_RESPONSE,
+            payload: { name, success },
+            id: message.id
+          })
+        })
+      } catch (error) {
+        Logging.log('SettingsHandler', `Error setting pref via browserOS ${name}: ${error}`, 'error')
         port.postMessage({
-          type: MessageType.SETTINGS_SET_PREF_RESPONSE,
-          payload: { name, success },
+          type: MessageType.ERROR,
+          payload: { error: `Failed to set preference: ${error}` },
           id: message.id
         })
-      })
-    } catch (error) {
-      Logging.log('SettingsHandler', `Error setting pref in storage ${name}: ${error}`, 'error')
-      port.postMessage({
-        type: MessageType.ERROR,
-        payload: { error: `Failed to set preference: ${error}` },
-        id: message.id
-      })
+      }
+    } else {
+      // Fallback to chrome.storage.local (for development/other browsers)
+      try {
+        chrome.storage.local.set({ [name]: value }, () => {
+          const success = !chrome.runtime.lastError
+          if (!success) {
+            Logging.log('SettingsHandler', `Storage error for ${name}: ${chrome.runtime.lastError?.message}`, 'error')
+          }
+          port.postMessage({
+            type: MessageType.SETTINGS_SET_PREF_RESPONSE,
+            payload: { name, success },
+            id: message.id
+          })
+        })
+      } catch (error) {
+        Logging.log('SettingsHandler', `Error setting pref in storage ${name}: ${error}`, 'error')
+        port.postMessage({
+          type: MessageType.ERROR,
+          payload: { error: `Failed to set preference: ${error}` },
+          id: message.id
+        })
+      }
     }
   }
 
@@ -379,8 +431,27 @@ export class SettingsHandler {
         }
 
         // Run benchmark tasks
-        for (const task of benchmarkTasks) {
+        for (let i = 0; i < benchmarkTasks.length; i++) {
+          const task = benchmarkTasks[i]
           const taskStartTime = performance.now()
+
+          // Send progress update
+          try {
+            port.postMessage({
+              type: MessageType.SETTINGS_BENCHMARK_PROGRESS,
+              payload: {
+                current: i + 1,
+                total: benchmarkTasks.length,
+                taskName: task.name,
+                category: task.category,
+                message: `Running ${task.category} test: ${task.name} (${i + 1}/${benchmarkTasks.length})`
+              },
+              id: `${message.id}_progress`
+            })
+          } catch (err) {
+            // Port might be disconnected
+            Logging.log('SettingsHandler', `Failed to send progress: ${err}`, 'warning')
+          }
 
           try {
             const userPrompt = new HumanMessage(task.prompt)

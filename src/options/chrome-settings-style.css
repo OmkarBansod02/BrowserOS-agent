@@ -404,6 +404,37 @@ p {
   cursor: pointer;
   border-radius: 4px;
   transition: background-color 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.chrome-settings-action-test {
+  color: var(--cr-link-color);
+}
+
+.chrome-settings-action-test:hover {
+  background-color: rgba(26, 115, 232, 0.04);
+}
+
+.chrome-settings-action-test.success {
+  color: #188038;
+}
+
+.chrome-settings-action-test.error {
+  color: var(--cr-danger-color);
+}
+
+.chrome-settings-action-benchmark {
+  color: var(--cr-link-color);
+}
+
+.chrome-settings-action-benchmark:hover {
+  background-color: rgba(26, 115, 232, 0.04);
+}
+
+.chrome-settings-action-benchmark.success {
+  color: #188038;
 }
 
 .chrome-settings-action-edit {

@@ -99,13 +99,41 @@ export class LLMSettingsReader {
   }
   
   /**
-   * Read from storage - ONLY use chrome.storage.local
+   * Read from BrowserOS preferences API
    * @returns Promise resolving to the default provider or null
    */
   private static async readFromBrowserOS(): Promise<BrowserOSProvider | null> {
-    // ONLY use chrome.storage.local - we're an extension, not browser settings
     try {
       const key = BROWSEROS_PREFERENCE_KEYS.PROVIDERS
+
+      // Try chrome.browserOS.getPref first (for BrowserOS browser)
+      if ((chrome as any)?.browserOS?.getPref) {
+        const pref = await new Promise<BrowserOSPrefObject>((resolve, reject) => {
+          (chrome as any).browserOS.getPref(key, (pref: BrowserOSPrefObject) => {
+            if (chrome.runtime.lastError) {
+              reject(chrome.runtime.lastError)
+            } else {
+              resolve(pref)
+            }
+          })
+        })
+
+        if (pref?.value) {
+          const data = typeof pref.value === 'string' ? JSON.parse(pref.value) : pref.value
+          // Migrate providers to ensure they have isDefault field
+          if (data.providers) {
+            data.providers = data.providers.map((p: any) => ({
+              ...p,
+              isDefault: p.isDefault !== undefined ? p.isDefault : (p.id === 'browseros')
+            }))
+          }
+          const config = BrowserOSProvidersConfigSchema.parse(data)
+          const def = config.providers.find(p => p.id === config.defaultProviderId) || null
+          return def
+        }
+      }
+
+      // Fallback to chrome.storage.local (for development/other browsers)
       const stored = await new Promise<any>((resolve) => {
         chrome.storage?.local?.get(key, (result) => resolve(result))
       })
@@ -142,10 +170,40 @@ export class LLMSettingsReader {
    * @returns Promise resolving to providers config or null
    */
   private static async readProvidersConfig(): Promise<BrowserOSProvidersConfig | null> {
-    // ONLY use chrome.storage.local - we're an extension, not browser settings
     try {
       const key = BROWSEROS_PREFERENCE_KEYS.PROVIDERS
-      Logging.log('LLMSettingsReader', `Reading from chrome.storage.local with key: ${key}`)
+
+      // Try chrome.browserOS.getPref first (for BrowserOS browser)
+      if ((chrome as any)?.browserOS?.getPref) {
+        Logging.log('LLMSettingsReader', `Reading from chrome.browserOS.getPref with key: ${key}`)
+        const pref = await new Promise<BrowserOSPrefObject>((resolve, reject) => {
+          (chrome as any).browserOS.getPref(key, (pref: BrowserOSPrefObject) => {
+            if (chrome.runtime.lastError) {
+              reject(chrome.runtime.lastError)
+            } else {
+              resolve(pref)
+            }
+          })
+        })
+
+        if (pref?.value) {
+          Logging.log('LLMSettingsReader', `BrowserOS pref value type: ${typeof pref.value}`)
+          const data = typeof pref.value === 'string' ? JSON.parse(pref.value) : pref.value
+          // Migrate providers to ensure they have isDefault field
+          if (data.providers) {
+            data.providers = data.providers.map((p: any) => ({
+              ...p,
+              isDefault: p.isDefault !== undefined ? p.isDefault : (p.id === 'browseros')
+            }))
+          }
+          const parsed = BrowserOSProvidersConfigSchema.parse(data)
+          Logging.log('LLMSettingsReader', `Parsed ${parsed.providers.length} providers from BrowserOS prefs`)
+          return parsed
+        }
+      }
+
+      // Fallback to chrome.storage.local (for development/other browsers)
+      Logging.log('LLMSettingsReader', `Fallback: Reading from chrome.storage.local with key: ${key}`)
       const stored = await new Promise<any>((resolve) => {
         chrome.storage?.local?.get(key, (result) => resolve(result))
       })
@@ -167,7 +225,7 @@ export class LLMSettingsReader {
       Logging.log('LLMSettingsReader', `Parsed ${parsed.providers.length} providers from storage`)
       return parsed
     } catch (_e) {
-      Logging.log('LLMSettingsReader', `Error reading from storage: ${_e}`, 'error')
+      Logging.log('LLMSettingsReader', `Error reading providers: ${_e}`, 'error')
       return null
     }
   }

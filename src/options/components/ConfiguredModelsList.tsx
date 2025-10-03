@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { LLMProvider } from '../types/llm-settings'
 import { LLMTestService, TestResult, PerformanceScore, BenchmarkResult } from '../services/llm-test-service'
-import { Loader2, Zap, Brain, Shield, X, AlertCircle, Gauge, MapPin, GitBranch, FlaskConical, Pencil, Trash2 } from 'lucide-react'
+import { Loader2, Zap, Brain, Shield, X, AlertCircle, Gauge, MapPin, GitBranch, FlaskConical, Pencil, Trash2, CheckCircle, Activity } from 'lucide-react'
 
 interface ConfiguredModelsListProps {
   providers: LLMProvider[]
@@ -25,6 +25,7 @@ export function ConfiguredModelsList({
   const [testResults, setTestResults] = useState<Map<string, TestResult>>(new Map())
   const [performanceScores, setPerformanceScores] = useState<Map<string, PerformanceScore>>(new Map())
   const [benchmarkResults, setBenchmarkResults] = useState<Map<string, BenchmarkResult>>(new Map())
+  const [benchmarkProgress, setBenchmarkProgress] = useState<Map<string, string>>(new Map())
   const [showScores, setShowScores] = useState<Set<string>>(new Set())
 
   const testService = LLMTestService.getInstance()
@@ -53,12 +54,64 @@ export function ConfiguredModelsList({
   }, [providers])
 
 
-  const handleTestAndBenchmark = async (provider: LLMProvider) => {
+  // Quick connectivity test
+  const handleQuickTest = async (provider: LLMProvider) => {
     const providerId = provider.id
     setTestingProviders(prev => new Set(prev).add(providerId))
 
+    // Close all other panels
+    setShowScores(new Set([providerId]))
+
     try {
-      const benchmarkResult = await testService.benchmarkProvider(provider)
+      const testResult = await testService.testProvider(provider)
+      setTestResults(prev => new Map(prev).set(providerId, testResult))
+
+      if (!testResult.success) {
+        console.error('Test failed:', testResult.error)
+        // Show error panel for failed tests
+        setShowScores(prev => new Set(prev).add(providerId))
+      } else if (testResult.response) {
+        // Show success panel with response for successful tests
+        setShowScores(prev => new Set(prev).add(providerId))
+      }
+    } catch (error) {
+      console.error('Test failed:', error)
+      const errorResult: TestResult = {
+        success: false,
+        latency: 0,
+        error: error instanceof Error ? error.message : 'Test failed',
+        timestamp: new Date().toISOString()
+      }
+      setTestResults(prev => new Map(prev).set(providerId, errorResult))
+      // Show error panel
+      setShowScores(prev => new Set(prev).add(providerId))
+    } finally {
+      setTestingProviders(prev => {
+        const next = new Set(prev)
+        next.delete(providerId)
+        return next
+      })
+    }
+  }
+
+  // Full benchmark with performance scores
+  const handleBenchmark = async (provider: LLMProvider) => {
+    const providerId = provider.id
+    setBenchmarkingProviders(prev => new Set(prev).add(providerId))
+    setBenchmarkProgress(prev => new Map(prev).set(providerId, 'Starting benchmark...'))
+
+    // Close all other panels
+    setShowScores(new Set([providerId]))
+
+    try {
+      // Create progress callback
+      const progressCallback = (progress: string) => {
+        setBenchmarkProgress(prev => new Map(prev).set(providerId, progress))
+      }
+
+      setBenchmarkProgress(prev => new Map(prev).set(providerId, 'Starting benchmark...'))
+
+      const benchmarkResult = await testService.benchmarkProvider(provider, progressCallback)
       setBenchmarkResults(prev => new Map(prev).set(providerId, benchmarkResult))
 
       if (benchmarkResult.success) {
@@ -77,7 +130,7 @@ export function ConfiguredModelsList({
         console.error('Benchmark failed:', benchmarkResult.error)
       }
     } catch (error) {
-      console.error('Test failed:', error)
+      console.error('Benchmark failed:', error)
 
       const errorResult: BenchmarkResult = {
         success: false,
@@ -91,7 +144,7 @@ export function ConfiguredModelsList({
           performance: 0,
           overall: 0
         },
-        error: error instanceof Error ? error.message : 'Test failed',
+        error: error instanceof Error ? error.message : 'Benchmark failed',
         timestamp: new Date().toISOString()
       }
       setBenchmarkResults(prev => new Map(prev).set(providerId, errorResult))
@@ -104,8 +157,13 @@ export function ConfiguredModelsList({
       // Show error panel
       setShowScores(prev => new Set(prev).add(providerId))
     } finally {
-      setTestingProviders(prev => {
+      setBenchmarkingProviders(prev => {
         const next = new Set(prev)
+        next.delete(providerId)
+        return next
+      })
+      setBenchmarkProgress(prev => {
+        const next = new Map(prev)
         next.delete(providerId)
         return next
       })
@@ -183,6 +241,8 @@ export function ConfiguredModelsList({
                 className={`chrome-settings-model-item ${selectedProviderId === provider.id ? 'selected' : ''} ${provider.id === defaultProvider ? 'is-default' : ''}`}
                 onClick={() => {
                   setSelectedProviderId(provider.id)
+                  // Close all panels when selecting a provider
+                  setShowScores(new Set())
                   // Sync with agent provider when selected
                   if (onSelectProvider) {
                     onSelectProvider(provider.id)
@@ -222,35 +282,66 @@ export function ConfiguredModelsList({
                 </div>
 
                 <div className="chrome-settings-model-actions">
+                  {/* Quick Test button */}
                   <button
                     onClick={(e) => {
                       e.stopPropagation()
                       if (!provider.isBuiltIn) {
-                        handleTestAndBenchmark(provider)
+                        handleQuickTest(provider)
                       }
                     }}
                     className={`chrome-settings-action-button chrome-settings-action-test ${
-                      benchmarkResults.get(provider.id)?.success ? 'success' : ''
+                      testResults.get(provider.id)?.success === true ? 'success' :
+                      testResults.get(provider.id)?.success === false ? 'error' : ''
                     }`}
-                    disabled={testingProviders.has(provider.id) || provider.isBuiltIn}
+                    disabled={testingProviders.has(provider.id) || benchmarkingProviders.has(provider.id) || provider.isBuiltIn}
                     style={{ visibility: provider.isBuiltIn ? 'hidden' : 'visible' }}
+                    title={testResults.get(provider.id)?.success ?
+                      `✓ Test passed (${Math.round(testResults.get(provider.id)!.latency)}ms)` :
+                      testResults.get(provider.id)?.error || "Quick connectivity test"}
                   >
                     {testingProviders.has(provider.id) ? (
-                      <>
-                        <Loader2 style={{ width: '12px', height: '12px' }} className="animate-spin" />
-                        <span>Testing</span>
-                      </>
-                    ) : benchmarkResults.get(provider.id) ? (
-                      benchmarkResults.get(provider.id)?.success ? (
-                        <>
-                          <span style={{ fontSize: '14px' }}>✓</span>
-                          <span>{benchmarkResults.get(provider.id)?.scores.overall}/10</span>
-                        </>
+                      <Loader2 style={{ width: '12px', height: '12px' }} className="animate-spin" />
+                    ) : testResults.get(provider.id) ? (
+                      testResults.get(provider.id)?.success ? (
+                        <CheckCircle style={{ width: '12px', height: '12px', color: '#81c995' }} />
                       ) : (
-                        <span>Retry</span>
+                        <AlertCircle style={{ width: '12px', height: '12px', color: '#f28b82' }} />
                       )
                     ) : (
-                      <span>Test</span>
+                      <FlaskConical style={{ width: '12px', height: '12px' }} />
+                    )}
+                  </button>
+
+                  {/* Benchmark button */}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      if (!provider.isBuiltIn) {
+                        handleBenchmark(provider)
+                      }
+                    }}
+                    className={`chrome-settings-action-button chrome-settings-action-benchmark ${
+                      benchmarkResults.get(provider.id)?.success ? 'success' : ''
+                    }`}
+                    disabled={testingProviders.has(provider.id) || benchmarkingProviders.has(provider.id) || provider.isBuiltIn}
+                    style={{ visibility: provider.isBuiltIn ? 'hidden' : 'visible' }}
+                    title="Performance benchmark"
+                  >
+                    {benchmarkingProviders.has(provider.id) ? (
+                      <>
+                        <Loader2 style={{ width: '12px', height: '12px' }} className="animate-spin" />
+                        <span style={{ fontSize: '10px', marginLeft: '2px' }}>...</span>
+                      </>
+                    ) : benchmarkResults.get(provider.id)?.success ? (
+                      <>
+                        <Activity style={{ width: '12px', height: '12px' }} />
+                        <span style={{ fontSize: '11px', marginLeft: '2px' }}>
+                          {benchmarkResults.get(provider.id)?.scores.overall}/10
+                        </span>
+                      </>
+                    ) : (
+                      <Activity style={{ width: '12px', height: '12px' }} />
                     )}
                   </button>
 
@@ -258,6 +349,8 @@ export function ConfiguredModelsList({
                     onClick={(e) => {
                       e.stopPropagation()
                       if (!provider.isBuiltIn) {
+                        // Close all panels
+                        setShowScores(new Set())
                         onEditProvider(provider)
                       }
                     }}
@@ -272,6 +365,8 @@ export function ConfiguredModelsList({
                     onClick={(e) => {
                       e.stopPropagation()
                       if (!provider.isBuiltIn) {
+                        // Close all panels
+                        setShowScores(new Set())
                         onDeleteProvider(provider.id)
                       }
                     }}
@@ -318,7 +413,47 @@ export function ConfiguredModelsList({
                     <X className="w-4 h-4" />
                   </button>
 
-                  {(testResults.get(provider.id) && !testResults.get(provider.id)?.success) ||
+                  {/* Show test success with response */}
+                  {testResults.get(provider.id)?.success && testResults.get(provider.id)?.response && !performanceScores.has(provider.id) ? (
+                    <div style={{
+                      padding: '20px',
+                      paddingTop: '16px',
+                      backgroundColor: 'rgba(129, 201, 149, 0.08)',
+                      border: '1px solid rgba(129, 201, 149, 0.2)',
+                      borderRadius: '8px',
+                      background: 'linear-gradient(135deg, rgba(129, 201, 149, 0.05) 0%, rgba(129, 201, 149, 0.03) 100%)'
+                    }}>
+                      <div style={{
+                        color: '#81c995',
+                        fontWeight: 600,
+                        marginBottom: '12px',
+                        paddingBottom: '12px',
+                        borderBottom: '1px solid rgba(129, 201, 149, 0.15)',
+                        fontSize: '14px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px'
+                      }}>
+                        <CheckCircle className="w-4 h-4" style={{ flexShrink: 0 }} />
+                        Test Successful
+                        <span style={{ fontSize: '12px', fontWeight: 'normal', opacity: 0.8 }}>
+                          ({Math.round(testResults.get(provider.id)!.latency)}ms)
+                        </span>
+                      </div>
+                      <div style={{
+                        color: '#e8eaed',
+                        fontSize: '13px',
+                        lineHeight: '1.6',
+                        padding: '8px 12px',
+                        backgroundColor: 'rgba(255, 255, 255, 0.03)',
+                        borderRadius: '4px',
+                        border: '1px solid rgba(129, 201, 149, 0.1)',
+                        fontFamily: 'monospace'
+                      }}>
+                        <strong style={{ color: '#81c995' }}>Response:</strong> {testResults.get(provider.id)?.response}
+                      </div>
+                    </div>
+                  ) : (testResults.get(provider.id) && !testResults.get(provider.id)?.success) ||
                    (benchmarkResults.get(provider.id) && !benchmarkResults.get(provider.id)?.success) ? (
                     <div style={{
                       padding: '20px',
@@ -470,6 +605,25 @@ export function ConfiguredModelsList({
                       )}
                     </>
                   ) : null}
+                </div>
+              )}
+
+              {/* Benchmark progress indicator */}
+              {benchmarkingProviders.has(provider.id) && benchmarkProgress.has(provider.id) && (
+                <div style={{
+                  padding: '8px 12px',
+                  backgroundColor: 'rgba(26, 115, 232, 0.08)',
+                  borderRadius: '4px',
+                  marginTop: '8px',
+                  marginBottom: '-8px',
+                  fontSize: '12px',
+                  color: 'var(--cr-link-color)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px'
+                }}>
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                  <span>{benchmarkProgress.get(provider.id)}</span>
                 </div>
               )}
             </div>
