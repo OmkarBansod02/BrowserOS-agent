@@ -1,14 +1,6 @@
-import { LLMProvider } from '../types/llm-settings'
+import { LLMProvider, TestResult } from '../types/llm-settings'
 import { MessageType } from '@/lib/types/messaging'
 import { PortMessage } from '@/lib/runtime/PortMessaging'
-
-export interface TestResult {
-  success: boolean
-  latency: number
-  error?: string
-  response?: string
-  timestamp: string
-}
 
 export interface PerformanceScore {
   instructionFollowing: number
@@ -30,6 +22,77 @@ export interface BenchmarkResult {
   timestamp: string
 }
 
+// Export convenience functions
+export async function testLLMProvider(provider: LLMProvider): Promise<TestResult> {
+  const service = LLMTestService.getInstance()
+  return service.testProvider(provider)
+}
+
+export async function benchmarkLLMProvider(provider: LLMProvider): Promise<TestResult> {
+  const service = LLMTestService.getInstance()
+  const result = await service.benchmarkProvider(provider)
+
+  // Convert BenchmarkResult to TestResult format
+  if (result.success) {
+    // Convert PerformanceScore to Record<string, number>
+    const scoresRecord: Record<string, number> = {
+      instructionFollowing: result.scores.instructionFollowing,
+      contextUnderstanding: result.scores.contextUnderstanding,
+      toolUsage: result.scores.toolUsage,
+      planning: result.scores.planning,
+      errorRecovery: result.scores.errorRecovery,
+      performance: result.scores.performance,
+      overall: result.scores.overall
+    }
+
+    return {
+      status: 'success',
+      responseTime: result.latency,
+      timestamp: result.timestamp,
+      benchmark: {
+        overallScore: result.scores.overall,
+        scores: scoresRecord,
+        summary: generateBenchmarkSummary(result)
+      }
+    }
+  } else {
+    return {
+      status: 'error',
+      error: result.error || 'Benchmark failed',
+      timestamp: result.timestamp
+    }
+  }
+}
+
+function generateBenchmarkSummary(result: BenchmarkResult): string {
+  const { scores } = result
+  const overall = scores.overall
+
+  let summary = `Overall Score: ${overall.toFixed(1)}/10\n\n`
+
+  // Performance level
+  if (overall >= 8) {
+    summary += '🏆 Excellent Performance - Highly recommended for complex agent tasks\n'
+  } else if (overall >= 6) {
+    summary += '✅ Good Performance - Suitable for most automation tasks\n'
+  } else if (overall >= 4) {
+    summary += '⚠️ Moderate Performance - Best for simple tasks\n'
+  } else {
+    summary += '❌ Poor Performance - Not recommended for automation\n'
+  }
+
+  // Category breakdown
+  summary += '\nCategory Scores:\n'
+  summary += `• Instruction Following: ${scores.instructionFollowing}/10\n`
+  summary += `• Context Understanding: ${scores.contextUnderstanding}/10\n`
+  summary += `• Tool Usage: ${scores.toolUsage}/10\n`
+  summary += `• Planning: ${scores.planning}/10\n`
+  summary += `• Error Recovery: ${scores.errorRecovery}/10\n`
+  summary += `• Performance: ${scores.performance}/10`
+
+  return summary
+}
+
 export class LLMTestService {
   private static instance: LLMTestService
 
@@ -44,20 +107,38 @@ export class LLMTestService {
     return new Promise((resolve) => {
       const port = chrome.runtime.connect({ name: 'options' })
       const messageId = `test-${Date.now()}`
+      let timeoutTimer: NodeJS.Timeout | null = null
+
+      const cleanup = () => {
+        if (timeoutTimer) {
+          clearTimeout(timeoutTimer)
+          timeoutTimer = null
+        }
+        try {
+          port.onMessage.removeListener(listener)
+          port.disconnect()
+        } catch (e) {
+          // Port might already be disconnected
+        }
+      }
 
       const listener = (msg: PortMessage) => {
         if (msg.id === messageId && msg.type === MessageType.SETTINGS_TEST_PROVIDER_RESPONSE) {
-          port.onMessage.removeListener(listener)
-          port.disconnect()
+          cleanup()
           const payload = msg.payload as any
-          resolve(payload as TestResult)
+
+          // Convert the response to TestResult format
+          resolve({
+            status: payload.success ? 'success' : 'error',
+            responseTime: payload.latency,
+            error: payload.error,
+            timestamp: payload.timestamp
+          })
         } else if (msg.id === messageId && msg.type === MessageType.ERROR) {
-          port.onMessage.removeListener(listener)
-          port.disconnect()
+          cleanup()
           const payload = msg.payload as any
           resolve({
-            success: false,
-            latency: 0,
+            status: 'error',
             error: payload.error || 'Unknown error',
             timestamp: new Date().toISOString()
           })
@@ -72,12 +153,10 @@ export class LLMTestService {
         id: messageId
       })
 
-      setTimeout(() => {
-        port.onMessage.removeListener(listener)
-        port.disconnect()
+      timeoutTimer = setTimeout(() => {
+        cleanup()
         resolve({
-          success: false,
-          latency: 30000,
+          status: 'error',
           error: 'Test timeout after 30 seconds',
           timestamp: new Date().toISOString()
         })

@@ -91,9 +91,23 @@ export const ProviderTemplateSchema = z.object({
   })
 })
 
+// Test Result schema
+export const TestResultSchema = z.object({
+  status: z.enum(['idle', 'loading', 'success', 'error']),
+  error: z.string().optional(),
+  responseTime: z.number().optional(),
+  timestamp: z.string(),
+  benchmark: z.object({
+    overallScore: z.number(),
+    scores: z.record(z.string(), z.number()),
+    summary: z.string()
+  }).optional()
+})
+
 // Infer TypeScript types from schemas
 export type ProviderType = z.infer<typeof ProviderTypeSchema>
 export type LLMProvider = z.infer<typeof LLMProviderSchema>
 export type ConfiguredModel = z.infer<typeof ConfiguredModelSchema>
 export type PerformanceScore = z.infer<typeof PerformanceScoreSchema>
 export type ProviderTemplate = z.infer<typeof ProviderTemplateSchema>
+export type TestResult = z.infer<typeof TestResultSchema>

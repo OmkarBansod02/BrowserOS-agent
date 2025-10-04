@@ -165,8 +165,8 @@ module.exports = {
     }),
     new CopyPlugin({
       patterns: [
-        { 
-          from: 'manifest.json', 
+        {
+          from: 'manifest.json',
           to: '.',
           transform: (content) => {
             if (isChromeTarget) {
@@ -177,7 +177,8 @@ module.exports = {
             return content;
           }
         },
-        { from: 'assets', to: 'assets', noErrorOnMissing: true }
+        { from: 'assets', to: 'assets', noErrorOnMissing: true },
+        { from: 'src/options/theme-init.js', to: 'theme-init.js' }
       ]
     }),
     new webpack.DefinePlugin(processEnv),

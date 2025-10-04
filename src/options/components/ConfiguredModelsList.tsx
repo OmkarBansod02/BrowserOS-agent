@@ -1,635 +1,449 @@
-import React, { useState, useEffect } from 'react'
-import { LLMProvider } from '../types/llm-settings'
-import { LLMTestService, TestResult, PerformanceScore, BenchmarkResult } from '../services/llm-test-service'
-import { Loader2, Zap, Brain, Shield, X, AlertCircle, Gauge, MapPin, GitBranch, FlaskConical, Pencil, Trash2, CheckCircle, Activity } from 'lucide-react'
+import React, { useState } from 'react'
+import { Edit2, Trash2, Play, Activity, ChevronDown, Check, X, AlertCircle, Loader2, Zap } from 'lucide-react'
+import { LLMProvider, TestResult } from '../types/llm-settings'
 
 interface ConfiguredModelsListProps {
   providers: LLMProvider[]
   defaultProvider: string
-  onEditProvider: (provider: LLMProvider) => void
-  onDeleteProvider: (providerId: string) => void
-  onSelectProvider?: (providerId: string) => void
+  testResults: Record<string, TestResult>
+  benchmarkProgress?: Record<string, string>
+  onSetDefault: (providerId: string) => void
+  onTest: (providerId: string) => void
+  onBenchmark: (providerId: string) => void
+  onEdit: (provider: LLMProvider) => void
+  onDelete: (providerId: string) => void
 }
 
+const getProviderIcon = (type: string, name?: string) => {
+  // BrowserOS built-in provider
+  if (name === 'BrowserOS') {
+    return <img src="/assets/browseros.svg" alt="BrowserOS" className="w-8 h-8 object-cover" />
+  }
+
+  switch (type.toLowerCase()) {
+    case 'openai':
+      return (
+        <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
+          <path d="M22.282 9.821a5.985 5.985 0 0 0-.516-4.91 6.046 6.046 0 0 0-6.51-2.9A6.065 6.065 0 0 0 4.981 4.18a5.985 5.985 0 0 0-3.998 2.9 6.046 6.046 0 0 0 .743 7.097 5.98 5.98 0 0 0 .51 4.911 6.051 6.051 0 0 0 6.515 2.9A5.985 5.985 0 0 0 13.26 24a6.056 6.056 0 0 0 5.772-4.206 5.99 5.99 0 0 0 3.997-2.9 6.056 6.056 0 0 0-.747-7.073zM13.26 22.43a4.476 4.476 0 0 1-2.876-1.04l.141-.081 4.779-2.758a.795.795 0 0 0 .392-.681v-6.737l2.02 1.168a.071.071 0 0 1 .038.052v5.583a4.504 4.504 0 0 1-4.494 4.494zM3.6 18.304a4.47 4.47 0 0 1-.535-3.014l.142.085 4.783 2.759a.771.771 0 0 0 .78 0l5.843-3.369v2.332a.08.08 0 0 1-.033.062L9.74 19.95a4.5 4.5 0 0 1-6.14-1.646zM2.34 7.896a4.485 4.485 0 0 1 2.366-1.973V11.6a.766.766 0 0 0 .388.676l5.815 3.355-2.02 1.168a.076.076 0 0 1-.071 0l-4.83-2.786A4.504 4.504 0 0 1 2.34 7.872zm16.597 3.855l-5.833-3.387L15.119 7.2a.076.076 0 0 1 .071 0l4.83 2.791a4.494 4.494 0 0 1-.676 8.105v-5.678a.79.79 0 0 0-.407-.667zm2.01-3.023l-.141-.085-4.774-2.782a.776.776 0 0 0-.785 0L9.409 9.23V6.897a.066.066 0 0 1 .028-.061l4.83-2.787a4.5 4.5 0 0 1 6.68 4.66zm-12.64 4.135l-2.02-1.164a.08.08 0 0 1-.038-.057V6.075a4.5 4.5 0 0 1 7.375-3.453l-.142.08L8.704 5.46a.795.795 0 0 0-.393.681zm1.097-2.365l2.602-1.5 2.607 1.5v2.999l-2.597 1.5-2.607-1.5z"/>
+        </svg>
+      )
+    case 'claude':
+    case 'anthropic':
+      return (
+        <svg viewBox="0 0 24 24" fill="none" className="w-6 h-6">
+          <rect width="24" height="24" rx="4" fill="#CC9B7A"/>
+          <path d="M10.5 7.5L7.5 16.5h1.8l0.6-1.8h2.4l0.6 1.8h1.8L12 7.5h-1.5zm-0.3 5.7l0.9-2.7 0.9 2.7h-1.8z" fill="#191918"/>
+          <path d="M13.5 7.5L15 16.5h1.8l0.6-1.8h2.4l0.6 1.8h1.8L19.5 7.5H18zm0.3 5.7l0.9-2.7 0.9 2.7h-1.8z" fill="#191918"/>
+        </svg>
+      )
+    case 'gemini':
+    case 'google_gemini':
+      return (
+        <svg viewBox="0 0 24 24" fill="none" className="w-5 h-5">
+          <defs>
+            <linearGradient id="gemini-grad-list" x1="0" y1="0" x2="24" y2="24" gradientUnits="userSpaceOnUse">
+              <stop offset="0%" stopColor="#4285F4"/>
+              <stop offset="25%" stopColor="#9B72CB"/>
+              <stop offset="50%" stopColor="#D96570"/>
+              <stop offset="75%" stopColor="#9B72CB"/>
+              <stop offset="100%" stopColor="#4285F4"/>
+            </linearGradient>
+          </defs>
+          <path d="M12 3.5L12 3.5C12.4 3.5 12.7 3.7 12.9 4C13.5 5 14.3 5.9 15.3 6.6C16.3 7.3 17.4 7.9 18.6 8.2C19 8.3 19.2 8.6 19.2 9C19.2 9.4 19 9.7 18.6 9.8C17.4 10.1 16.3 10.7 15.3 11.4C14.3 12.1 13.5 13 12.9 14C12.7 14.3 12.4 14.5 12 14.5C11.6 14.5 11.3 14.3 11.1 14C10.5 13 9.7 12.1 8.7 11.4C7.7 10.7 6.6 10.1 5.4 9.8C5 9.7 4.8 9.4 4.8 9C4.8 8.6 5 8.3 5.4 8.2C6.6 7.9 7.7 7.3 8.7 6.6C9.7 5.9 10.5 5 11.1 4C11.3 3.7 11.6 3.5 12 3.5Z" fill="url(#gemini-grad-list)" stroke="none"/>
+          <path d="M17 13L17 13C17.3 13 17.5 13.2 17.6 13.4C17.9 14 18.4 14.5 18.9 14.9C19.4 15.3 20 15.6 20.6 15.8C20.9 15.9 21 16.1 21 16.4C21 16.7 20.9 16.9 20.6 17C20 17.2 19.4 17.5 18.9 17.9C18.4 18.3 17.9 18.8 17.6 19.4C17.5 19.6 17.3 19.8 17 19.8C16.7 19.8 16.5 19.6 16.4 19.4C16.1 18.8 15.6 18.3 15.1 17.9C14.6 17.5 14 17.2 13.4 17C13.1 16.9 13 16.7 13 16.4C13 16.1 13.1 15.9 13.4 15.8C14 15.6 14.6 15.3 15.1 14.9C15.6 14.5 16.1 14 16.4 13.4C16.5 13.2 16.7 13 17 13Z" fill="url(#gemini-grad-list)" stroke="none"/>
+        </svg>
+      )
+    case 'ollama':
+      return (
+        <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
+          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/>
+        </svg>
+      )
+    case 'openrouter':
+      return (
+        <svg viewBox="0 0 24 24" fill="none" className="w-5 h-5">
+          <path d="M4 8h16v2H4zm0 6h16v2H4z" fill="#8B5CF6"/>
+          <circle cx="7" cy="9" r="1.5" fill="#A78BFA"/>
+          <circle cx="12" cy="9" r="1.5" fill="#A78BFA"/>
+          <circle cx="17" cy="9" r="1.5" fill="#A78BFA"/>
+          <circle cx="7" cy="15" r="1.5" fill="#A78BFA"/>
+          <circle cx="12" cy="15" r="1.5" fill="#A78BFA"/>
+          <circle cx="17" cy="15" r="1.5" fill="#A78BFA"/>
+        </svg>
+      )
+    case 'browseros':
+      return <img src="/assets/browseros.svg" alt="BrowserOS" className="w-8 h-8 object-cover" />
+    case 'lm studio':
+    case 'openai_compatible':
+      return (
+        <svg viewBox="0 0 24 24" fill="none" className="w-5 h-5">
+          <rect x="4" y="4" width="16" height="16" rx="3" fill="#6F42C1"/>
+          <path d="M9 8h1.5v6H12v1.5H9V8zm4.5 0H15v6h1.5V8H18v1.5h-1.5v4.5c0 .8-.7 1.5-1.5 1.5h-1.5V8z" fill="white"/>
+        </svg>
+      )
+    default:
+      return (
+        <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
+          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/>
+          <circle cx="12" cy="12" r="3"/>
+        </svg>
+      )
+  }
+}
 
 export function ConfiguredModelsList({
   providers,
   defaultProvider,
-  onEditProvider,
-  onDeleteProvider,
-  onSelectProvider
+  testResults,
+  benchmarkProgress = {},
+  onSetDefault,
+  onTest,
+  onBenchmark,
+  onEdit,
+  onDelete
 }: ConfiguredModelsListProps) {
-  const [selectedProviderId, setSelectedProviderId] = useState(defaultProvider || '1')
-  const [testingProviders, setTestingProviders] = useState<Set<string>>(new Set())
-  const [benchmarkingProviders, setBenchmarkingProviders] = useState<Set<string>>(new Set())
-  const [testResults, setTestResults] = useState<Map<string, TestResult>>(new Map())
-  const [performanceScores, setPerformanceScores] = useState<Map<string, PerformanceScore>>(new Map())
-  const [benchmarkResults, setBenchmarkResults] = useState<Map<string, BenchmarkResult>>(new Map())
-  const [benchmarkProgress, setBenchmarkProgress] = useState<Map<string, string>>(new Map())
-  const [showScores, setShowScores] = useState<Set<string>>(new Set())
+  const [expandedProvider, setExpandedProvider] = useState<string | null>(null)
 
-  const testService = LLMTestService.getInstance()
+  const toggleExpanded = (providerId: string) => {
+    setExpandedProvider(expandedProvider === providerId ? null : providerId)
+  }
 
-  // Update selected provider when default changes
-  useEffect(() => {
-    if (defaultProvider) {
-      setSelectedProviderId(defaultProvider)
-    }
-  }, [defaultProvider])
-
-  useEffect(() => {
-    providers.forEach(async (provider) => {
-      if (provider.id) {
-        const stored = await testService.getStoredResults(provider.id)
-        if (stored) {
-          if (stored.testResult) {
-            setTestResults(prev => new Map(prev).set(provider.id, stored.testResult))
-          }
-          if (stored.performanceScores) {
-            setPerformanceScores(prev => new Map(prev).set(provider.id, stored.performanceScores!))
-          }
+  // Auto-expand when test/benchmark starts or completes
+  React.useEffect(() => {
+    Object.entries(testResults).forEach(([providerId, result]) => {
+      if (result && (result.status === 'loading' || result.status === 'success' || result.status === 'error')) {
+        // Auto-expand to show results
+        if (expandedProvider !== providerId) {
+          setExpandedProvider(providerId)
         }
       }
     })
-  }, [providers])
+  }, [testResults])
 
+  const renderTestResult = (result: TestResult, progress?: string) => {
+    if (!result) return null
 
-  // Quick connectivity test
-  const handleQuickTest = async (provider: LLMProvider) => {
-    const providerId = provider.id
-    setTestingProviders(prev => new Set(prev).add(providerId))
+    if (result.status === 'loading') {
+      // Check if it's a benchmark (has benchmark property even if empty)
+      const isBenchmark = result.benchmark !== undefined
 
-    // Close all other panels
-    setShowScores(new Set([providerId]))
+      return (
+        <div className="space-y-3">
+          <div className="flex items-center gap-2 text-sm">
+            <Loader2 className="w-4 h-4 animate-spin text-primary" />
+            <span className="font-medium text-foreground">
+              {isBenchmark ? 'Running Benchmark' : 'Testing Connection'}...
+            </span>
+          </div>
 
-    try {
-      const testResult = await testService.testProvider(provider)
-      setTestResults(prev => new Map(prev).set(providerId, testResult))
-
-      if (!testResult.success) {
-        console.error('Test failed:', testResult.error)
-        // Show error panel for failed tests
-        setShowScores(prev => new Set(prev).add(providerId))
-      } else if (testResult.response) {
-        // Show success panel with response for successful tests
-        setShowScores(prev => new Set(prev).add(providerId))
-      }
-    } catch (error) {
-      console.error('Test failed:', error)
-      const errorResult: TestResult = {
-        success: false,
-        latency: 0,
-        error: error instanceof Error ? error.message : 'Test failed',
-        timestamp: new Date().toISOString()
-      }
-      setTestResults(prev => new Map(prev).set(providerId, errorResult))
-      // Show error panel
-      setShowScores(prev => new Set(prev).add(providerId))
-    } finally {
-      setTestingProviders(prev => {
-        const next = new Set(prev)
-        next.delete(providerId)
-        return next
-      })
-    }
-  }
-
-  // Full benchmark with performance scores
-  const handleBenchmark = async (provider: LLMProvider) => {
-    const providerId = provider.id
-    setBenchmarkingProviders(prev => new Set(prev).add(providerId))
-    setBenchmarkProgress(prev => new Map(prev).set(providerId, 'Starting benchmark...'))
-
-    // Close all other panels
-    setShowScores(new Set([providerId]))
-
-    try {
-      // Create progress callback
-      const progressCallback = (progress: string) => {
-        setBenchmarkProgress(prev => new Map(prev).set(providerId, progress))
-      }
-
-      setBenchmarkProgress(prev => new Map(prev).set(providerId, 'Starting benchmark...'))
-
-      const benchmarkResult = await testService.benchmarkProvider(provider, progressCallback)
-      setBenchmarkResults(prev => new Map(prev).set(providerId, benchmarkResult))
-
-      if (benchmarkResult.success) {
-        setPerformanceScores(prev => new Map(prev).set(providerId, benchmarkResult.scores))
-        setShowScores(prev => new Set(prev).add(providerId))
-        await testService.storeTestResults(providerId, benchmarkResult as any, benchmarkResult.scores)
-      } else {
-        // Remove any existing scores for failed tests
-        setPerformanceScores(prev => {
-          const next = new Map(prev)
-          next.delete(providerId)
-          return next
-        })
-        // Show error panel
-        setShowScores(prev => new Set(prev).add(providerId))
-        console.error('Benchmark failed:', benchmarkResult.error)
-      }
-    } catch (error) {
-      console.error('Benchmark failed:', error)
-
-      const errorResult: BenchmarkResult = {
-        success: false,
-        latency: 0,
-        scores: {
-          instructionFollowing: 0,
-          contextUnderstanding: 0,
-          toolUsage: 0,
-          planning: 0,
-          errorRecovery: 0,
-          performance: 0,
-          overall: 0
-        },
-        error: error instanceof Error ? error.message : 'Benchmark failed',
-        timestamp: new Date().toISOString()
-      }
-      setBenchmarkResults(prev => new Map(prev).set(providerId, errorResult))
-      // Remove any existing scores
-      setPerformanceScores(prev => {
-        const next = new Map(prev)
-        next.delete(providerId)
-        return next
-      })
-      // Show error panel
-      setShowScores(prev => new Set(prev).add(providerId))
-    } finally {
-      setBenchmarkingProviders(prev => {
-        const next = new Set(prev)
-        next.delete(providerId)
-        return next
-      })
-      setBenchmarkProgress(prev => {
-        const next = new Map(prev)
-        next.delete(providerId)
-        return next
-      })
-    }
-  }
-
-  const getScoreColor = (score: number) => {
-    if (score >= 8) return '#81c995'
-    if (score >= 6) return '#fbbc04'
-    return '#f28b82'
-  }
-
-  const getProviderColor = (type: string) => {
-    switch (type) {
-      case 'openai': return '#10A37F'
-      case 'anthropic': return '#D97757'
-      case 'google_gemini': return '#FFFFFF'
-      case 'ollama': return '#000000'
-      case 'openrouter': return '#6B47ED'
-      case 'browseros': return '#8B5CF6'
-      default: return '#6B7280'
-    }
-  }
-
-  const getProviderIcon = (type: string) => {
-    switch (type) {
-      case 'browseros':
-        return <img src="/assets/browseros.svg" alt="BrowserOS" style={{ width: '32px', height: '32px', objectFit: 'cover', borderRadius: '50%' }} />
-      case 'openai':
-        return (
-          <svg viewBox="0 0 24 24" fill="currentColor" style={{ width: '24px', height: '24px' }}>
-            <path d="M22.282 9.821a5.985 5.985 0 0 0-.516-4.91 6.046 6.046 0 0 0-6.51-2.9A6.065 6.065 0 0 0 4.981 4.18a5.985 5.985 0 0 0-3.998 2.9 6.046 6.046 0 0 0 .743 7.097 5.98 5.98 0 0 0 .51 4.911 6.051 6.051 0 0 0 6.515 2.9A5.985 5.985 0 0 0 13.26 24a6.056 6.056 0 0 0 5.772-4.206 5.99 5.99 0 0 0 3.997-2.9 6.056 6.056 0 0 0-.747-7.073zM13.26 22.43a4.476 4.476 0 0 1-2.876-1.04l.141-.081 4.779-2.758a.795.795 0 0 0 .392-.681v-6.737l2.02 1.168a.071.071 0 0 1 .038.052v5.583a4.504 4.504 0 0 1-4.494 4.494zM3.6 18.304a4.47 4.47 0 0 1-.535-3.014l.142.085 4.783 2.759a.771.771 0 0 0 .78 0l5.843-3.369v2.332a.08.08 0 0 1-.033.062L9.74 19.95a4.5 4.5 0 0 1-6.14-1.646zM2.34 7.896a4.485 4.485 0 0 1 2.366-1.973V11.6a.766.766 0 0 0 .388.676l5.815 3.355-2.02 1.168a.076.076 0 0 1-.071 0l-4.83-2.786A4.504 4.504 0 0 1 2.34 7.872zm16.597 3.855l-5.833-3.387L15.119 7.2a.076.076 0 0 1 .071 0l4.83 2.791a4.494 4.494 0 0 1-.676 8.105v-5.678a.79.79 0 0 0-.407-.667zm2.01-3.023l-.141-.085-4.774-2.782a.776.776 0 0 0-.785 0L9.409 9.23V6.897a.066.066 0 0 1 .028-.061l4.83-2.787a4.5 4.5 0 0 1 6.68 4.66zm-12.64 4.135l-2.02-1.164a.08.08 0 0 1-.038-.057V6.075a4.5 4.5 0 0 1 7.375-3.453l-.142.08L8.704 5.46a.795.795 0 0 0-.393.681zm1.097-2.365l2.602-1.5 2.607 1.5v2.999l-2.597 1.5-2.607-1.5z"/>
-          </svg>
-        )
-      case 'anthropic':
-        return <img src="/assets/claude-ai-icon.webp" alt="Claude" style={{ width: '24px', height: '24px', objectFit: 'contain' }} />
-      case 'google_gemini':
-        return <img src="/assets/Google-gemini-icon.svg.png" alt="Gemini" style={{ width: '24px', height: '24px', objectFit: 'contain' }} />
-      case 'ollama':
-        return <img src="/assets/ollama.png" alt="Ollama" style={{ width: '24px', height: '24px', objectFit: 'contain' }} />
-      case 'openrouter':
-        return <img src="/assets/open router.png" alt="OpenRouter" style={{ width: '24px', height: '24px', objectFit: 'contain' }} />
-      case 'openai_compatible':
-      case 'custom':
-        return <img src="/assets/LM-studio.jpeg" alt="LM Studio" style={{ width: '24px', height: '24px', objectFit: 'contain' }} />
-      default:
-        return (
-          <svg viewBox="0 0 24 24" fill="currentColor" style={{ width: '24px', height: '24px' }}>
-            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/>
-            <circle cx="12" cy="12" r="3"/>
-          </svg>
-        )
-    }
-  }
-
-  const closeTestResults = (providerId: string) => {
-    setShowScores(prev => {
-      const next = new Set(prev)
-      next.delete(providerId)
-      return next
-    })
-  }
-
-  return (
-    <section className="chrome-settings-card">
-      <div className="chrome-settings-card-content">
-        <h3 className="chrome-settings-section-title" style={{ marginBottom: '16px' }}>
-          Configured Models
-        </h3>
-
-        <div className="chrome-settings-models-list">
-          {providers.map((provider) => (
-            <div key={provider.id}>
-              <div
-                className={`chrome-settings-model-item ${selectedProviderId === provider.id ? 'selected' : ''} ${provider.id === defaultProvider ? 'is-default' : ''}`}
-                onClick={() => {
-                  setSelectedProviderId(provider.id)
-                  // Close all panels when selecting a provider
-                  setShowScores(new Set())
-                  // Sync with agent provider when selected
-                  if (onSelectProvider) {
-                    onSelectProvider(provider.id)
-                  }
-                }}
-              >
-                <div className="chrome-settings-model-content">
-                  <div className="chrome-settings-model-radio" />
-
-                  <div className="chrome-settings-model-info">
-                    <div className="chrome-settings-model-icon">
-                      {getProviderIcon(provider.type)}
-                    </div>
-
-                    <div className="chrome-settings-model-details">
-                      <span className="chrome-settings-model-name">
-                        {provider.name}
-                      </span>
-                      <span className="chrome-settings-model-description">
-                        {provider.modelId ? `Model: ${provider.modelId}` : `Type: ${provider.type}`}
-                      </span>
-                    </div>
-
-                    <div className="chrome-settings-model-badges">
-                      {provider.id === defaultProvider && (
-                        <span className="chrome-settings-model-badge default">
-                          default
-                        </span>
-                      )}
-                      {provider.isBuiltIn && (
-                        <span className="chrome-settings-model-badge builtin">
-                          built-in
-                        </span>
-                      )}
-                    </div>
-                  </div>
+          {/* Show progress for benchmark */}
+          {isBenchmark && progress && (
+            <div className="space-y-2">
+              <div className="text-xs text-muted-foreground bg-muted/50 rounded-lg p-3">
+                <div className="flex items-center gap-2 mb-2">
+                  <Zap className="w-3 h-3 text-primary" />
+                  <span className="font-medium">Current Task:</span>
                 </div>
-
-                <div className="chrome-settings-model-actions">
-                  {/* Quick Test button */}
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      if (!provider.isBuiltIn) {
-                        handleQuickTest(provider)
-                      }
-                    }}
-                    className={`chrome-settings-action-button chrome-settings-action-test ${
-                      testResults.get(provider.id)?.success === true ? 'success' :
-                      testResults.get(provider.id)?.success === false ? 'error' : ''
-                    }`}
-                    disabled={testingProviders.has(provider.id) || benchmarkingProviders.has(provider.id) || provider.isBuiltIn}
-                    style={{ visibility: provider.isBuiltIn ? 'hidden' : 'visible' }}
-                    title={testResults.get(provider.id)?.success ?
-                      `✓ Test passed (${Math.round(testResults.get(provider.id)!.latency)}ms)` :
-                      testResults.get(provider.id)?.error || "Quick connectivity test"}
-                  >
-                    {testingProviders.has(provider.id) ? (
-                      <Loader2 style={{ width: '12px', height: '12px' }} className="animate-spin" />
-                    ) : testResults.get(provider.id) ? (
-                      testResults.get(provider.id)?.success ? (
-                        <CheckCircle style={{ width: '12px', height: '12px', color: '#81c995' }} />
-                      ) : (
-                        <AlertCircle style={{ width: '12px', height: '12px', color: '#f28b82' }} />
-                      )
-                    ) : (
-                      <FlaskConical style={{ width: '12px', height: '12px' }} />
-                    )}
-                  </button>
-
-                  {/* Benchmark button */}
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      if (!provider.isBuiltIn) {
-                        handleBenchmark(provider)
-                      }
-                    }}
-                    className={`chrome-settings-action-button chrome-settings-action-benchmark ${
-                      benchmarkResults.get(provider.id)?.success ? 'success' : ''
-                    }`}
-                    disabled={testingProviders.has(provider.id) || benchmarkingProviders.has(provider.id) || provider.isBuiltIn}
-                    style={{ visibility: provider.isBuiltIn ? 'hidden' : 'visible' }}
-                    title="Performance benchmark"
-                  >
-                    {benchmarkingProviders.has(provider.id) ? (
-                      <>
-                        <Loader2 style={{ width: '12px', height: '12px' }} className="animate-spin" />
-                        <span style={{ fontSize: '10px', marginLeft: '2px' }}>...</span>
-                      </>
-                    ) : benchmarkResults.get(provider.id)?.success ? (
-                      <>
-                        <Activity style={{ width: '12px', height: '12px' }} />
-                        <span style={{ fontSize: '11px', marginLeft: '2px' }}>
-                          {benchmarkResults.get(provider.id)?.scores.overall}/10
-                        </span>
-                      </>
-                    ) : (
-                      <Activity style={{ width: '12px', height: '12px' }} />
-                    )}
-                  </button>
-
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      if (!provider.isBuiltIn) {
-                        // Close all panels
-                        setShowScores(new Set())
-                        onEditProvider(provider)
-                      }
-                    }}
-                    className="chrome-settings-action-button chrome-settings-action-edit"
-                    disabled={provider.isBuiltIn}
-                    style={{ visibility: provider.isBuiltIn ? 'hidden' : 'visible' }}
-                  >
-                    Edit
-                  </button>
-
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      if (!provider.isBuiltIn) {
-                        // Close all panels
-                        setShowScores(new Set())
-                        onDeleteProvider(provider.id)
-                      }
-                    }}
-                    className="chrome-settings-action-button chrome-settings-action-delete"
-                    disabled={provider.isBuiltIn}
-                    style={{ visibility: provider.isBuiltIn ? 'hidden' : 'visible' }}
-                  >
-                    Delete
-                  </button>
-                </div>
+                <p className="ml-5">{progress}</p>
               </div>
+              <div className="text-xs text-muted-foreground">
+                This comprehensive test takes 2-3 minutes to complete
+              </div>
+            </div>
+          )}
+        </div>
+      )
+    }
 
-              {showScores.has(provider.id) && (
-                <div className="chrome-settings-scores-panel" style={{ position: 'relative' }}>
-                  <button
-                    onClick={() => closeTestResults(provider.id)}
-                    style={{
-                      position: 'absolute',
-                      top: '12px',
-                      right: '12px',
-                      background: 'rgba(255, 255, 255, 0.05)',
-                      border: '1px solid rgba(255, 255, 255, 0.1)',
-                      color: '#9aa0a6',
-                      cursor: 'pointer',
-                      padding: '6px',
-                      borderRadius: '6px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      transition: 'all 0.2s',
-                      zIndex: 10
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.1)'
-                      e.currentTarget.style.color = '#e8eaed'
-                      e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.2)'
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)'
-                      e.currentTarget.style.color = '#9aa0a6'
-                      e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.1)'
-                    }}
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
+    if (result.status === 'error') {
+      return (
+        <div className="space-y-3 p-4 bg-destructive/10 dark:bg-red-900/20 rounded-lg border border-destructive/20">
+          <div className="flex items-start gap-3">
+            <div className="p-1.5 bg-destructive/20 dark:bg-red-900/30 rounded-full">
+              <AlertCircle className="w-4 h-4 text-destructive dark:text-red-400" />
+            </div>
+            <div className="flex-1 space-y-2">
+              <h4 className="text-sm font-semibold text-destructive dark:text-red-400">
+                Test Failed
+              </h4>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                {result.error || 'Unknown error occurred'}
+              </p>
 
-                  {/* Show test success with response */}
-                  {testResults.get(provider.id)?.success && testResults.get(provider.id)?.response && !performanceScores.has(provider.id) ? (
-                    <div style={{
-                      padding: '20px',
-                      paddingTop: '16px',
-                      backgroundColor: 'rgba(129, 201, 149, 0.08)',
-                      border: '1px solid rgba(129, 201, 149, 0.2)',
-                      borderRadius: '8px',
-                      background: 'linear-gradient(135deg, rgba(129, 201, 149, 0.05) 0%, rgba(129, 201, 149, 0.03) 100%)'
-                    }}>
-                      <div style={{
-                        color: '#81c995',
-                        fontWeight: 600,
-                        marginBottom: '12px',
-                        paddingBottom: '12px',
-                        borderBottom: '1px solid rgba(129, 201, 149, 0.15)',
-                        fontSize: '14px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '8px'
-                      }}>
-                        <CheckCircle className="w-4 h-4" style={{ flexShrink: 0 }} />
-                        Test Successful
-                        <span style={{ fontSize: '12px', fontWeight: 'normal', opacity: 0.8 }}>
-                          ({Math.round(testResults.get(provider.id)!.latency)}ms)
-                        </span>
-                      </div>
-                      <div style={{
-                        color: '#e8eaed',
-                        fontSize: '13px',
-                        lineHeight: '1.6',
-                        padding: '8px 12px',
-                        backgroundColor: 'rgba(255, 255, 255, 0.03)',
-                        borderRadius: '4px',
-                        border: '1px solid rgba(129, 201, 149, 0.1)',
-                        fontFamily: 'monospace'
-                      }}>
-                        <strong style={{ color: '#81c995' }}>Response:</strong> {testResults.get(provider.id)?.response}
-                      </div>
-                    </div>
-                  ) : (testResults.get(provider.id) && !testResults.get(provider.id)?.success) ||
-                   (benchmarkResults.get(provider.id) && !benchmarkResults.get(provider.id)?.success) ? (
-                    <div style={{
-                      padding: '20px',
-                      paddingTop: '16px',
-                      backgroundColor: 'rgba(248, 113, 113, 0.08)',
-                      border: '1px solid rgba(248, 113, 113, 0.2)',
-                      borderRadius: '8px',
-                      background: 'linear-gradient(135deg, rgba(248, 113, 113, 0.05) 0%, rgba(252, 165, 165, 0.03) 100%)'
-                    }}>
-                      <div style={{
-                        color: '#f87171',
-                        fontWeight: 600,
-                        marginBottom: '12px',
-                        paddingBottom: '12px',
-                        borderBottom: '1px solid rgba(248, 113, 113, 0.15)',
-                        fontSize: '14px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '8px'
-                      }}>
-                        <AlertCircle className="w-4 h-4" style={{ flexShrink: 0 }} />
-                        {benchmarkResults.get(provider.id) && !benchmarkResults.get(provider.id)?.success
-                          ? 'Test Failed'
-                          : 'Connection Error'}
-                      </div>
-                      <div style={{
-                        color: '#bdc1c6',
-                        fontSize: '13px',
-                        lineHeight: '1.6',
-                        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-                        opacity: 0.95
-                      }}>
-                        {(() => {
-                          const testError = testResults.get(provider.id)?.error
-                          const benchmarkError = benchmarkResults.get(provider.id)?.error
-                          const error = benchmarkError || testError || ''
-
-                          // More specific error matching
-                          if (error.includes('401') || error.toLowerCase().includes('unauthorized') || error.toLowerCase().includes('api key')) {
-                            return 'Invalid API key - Please check your API key in the provider settings and ensure it has not expired.'
-                          } else if (error.includes('429') || error.toLowerCase().includes('rate limit')) {
-                            return 'Rate limit exceeded - Your API has hit its rate limit. Please wait a moment before trying again.'
-                          } else if (error.includes('403') || error.toLowerCase().includes('forbidden')) {
-                            return 'Access forbidden - Check your API permissions or subscription status. Your key may not have access to this model.'
-                          } else if (error.includes('404') || error.toLowerCase().includes('not found')) {
-                            return 'Model not found - The specified model does not exist. Please verify the model name is correct.'
-                          } else if (error.includes('500') || error.toLowerCase().includes('internal server')) {
-                            return 'Provider server error - The service is experiencing issues. Please try again later.'
-                          } else if (error.includes('502') || error.includes('503') || error.toLowerCase().includes('bad gateway')) {
-                            return 'Service temporarily unavailable - The provider service is down. Please try again later.'
-                          } else if (error.toLowerCase().includes('timeout')) {
-                            return 'Request timed out - The provider took too long to respond. It may be overloaded or experiencing issues.'
-                          } else if (error.toLowerCase().includes('network') || error.toLowerCase().includes('fetch') || error.toLowerCase().includes('connection')) {
-                            return 'Network error - Unable to connect to the provider. Please check your internet connection and firewall settings.'
-                          } else if (error.toLowerCase().includes('cors')) {
-                            return 'CORS error - The provider does not support browser-based requests. Try using a different provider or base URL.'
-                          } else if (error.toLowerCase().includes('invalid') || error.toLowerCase().includes('malformed')) {
-                            return 'Invalid configuration - Please verify your provider settings including API key, base URL, and model name.'
-                          } else if (error.toLowerCase().includes('quota') || error.toLowerCase().includes('limit exceeded')) {
-                            return 'Quota exceeded - You have reached your API usage limit. Check your provider dashboard for details.'
-                          } else if (error.toLowerCase().includes('billing') || error.toLowerCase().includes('payment')) {
-                            return 'Billing issue - There is a problem with your account billing. Please check your payment method or subscription.'
-                          } else {
-                            // Show the raw error if we can't categorize it
-                            return error || 'Failed to connect to the API. Please check your provider settings and try again.'
-                          }
-                        })()}
-                      </div>
-                    </div>
-                  ) : performanceScores.has(provider.id) ? (
-                    <>
-                      <div style={{
-                        display: 'grid',
-                        gridTemplateColumns: 'repeat(3, 1fr)',
-                        gap: '12px',
-                        marginBottom: '16px'
-                      }}>
-                        <div className="chrome-settings-score-item">
-                          <Zap className="w-4 h-4" style={{ color: getScoreColor(performanceScores.get(provider.id)!.instructionFollowing) }} />
-                          <div>
-                            <div className="chrome-settings-score-label">Instruction Following</div>
-                            <div className="chrome-settings-score-value">
-                              {performanceScores.get(provider.id)!.instructionFollowing}/10
-                            </div>
-                          </div>
-                        </div>
-                        <div className="chrome-settings-score-item">
-                          <Brain className="w-4 h-4" style={{ color: getScoreColor(performanceScores.get(provider.id)!.contextUnderstanding) }} />
-                          <div>
-                            <div className="chrome-settings-score-label">Context Understanding</div>
-                            <div className="chrome-settings-score-value">
-                              {performanceScores.get(provider.id)!.contextUnderstanding}/10
-                            </div>
-                          </div>
-                        </div>
-                        <div className="chrome-settings-score-item">
-                          <Shield className="w-4 h-4" style={{ color: getScoreColor(performanceScores.get(provider.id)!.toolUsage) }} />
-                          <div>
-                            <div className="chrome-settings-score-label">Tool Usage</div>
-                            <div className="chrome-settings-score-value">
-                              {performanceScores.get(provider.id)!.toolUsage}/10
-                            </div>
-                          </div>
-                        </div>
-                        <div className="chrome-settings-score-item">
-                          <GitBranch className="w-4 h-4" style={{ color: getScoreColor(performanceScores.get(provider.id)!.planning) }} />
-                          <div>
-                            <div className="chrome-settings-score-label">Planning</div>
-                            <div className="chrome-settings-score-value">
-                              {performanceScores.get(provider.id)!.planning}/10
-                            </div>
-                          </div>
-                        </div>
-                        <div className="chrome-settings-score-item">
-                          <AlertCircle className="w-4 h-4" style={{ color: getScoreColor(performanceScores.get(provider.id)!.errorRecovery) }} />
-                          <div>
-                            <div className="chrome-settings-score-label">Error Recovery</div>
-                            <div className="chrome-settings-score-value">
-                              {performanceScores.get(provider.id)!.errorRecovery}/10
-                            </div>
-                          </div>
-                        </div>
-                        <div className="chrome-settings-score-item">
-                          <Gauge className="w-4 h-4" style={{ color: getScoreColor(performanceScores.get(provider.id)!.performance) }} />
-                          <div>
-                            <div className="chrome-settings-score-label">Performance</div>
-                            <div className="chrome-settings-score-value">
-                              {performanceScores.get(provider.id)!.performance}/10
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                      {testResults.get(provider.id)?.latency && (
-                        <div className="chrome-settings-test-info">
-                          <div>Response time: {Math.round(testResults.get(provider.id)!.latency)}ms</div>
-                          {testResults.get(provider.id)?.response && (
-                            <div style={{
-                              marginTop: '8px',
-                              padding: '8px',
-                              backgroundColor: 'rgba(138, 180, 248, 0.1)',
-                              borderRadius: '4px',
-                              fontSize: '12px',
-                              color: '#e8eaed'
-                            }}>
-                              <strong>LLM Response:</strong> {testResults.get(provider.id)?.response}
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </>
-                  ) : null}
-                </div>
-              )}
-
-              {/* Benchmark progress indicator */}
-              {benchmarkingProviders.has(provider.id) && benchmarkProgress.has(provider.id) && (
-                <div style={{
-                  padding: '8px 12px',
-                  backgroundColor: 'rgba(26, 115, 232, 0.08)',
-                  borderRadius: '4px',
-                  marginTop: '8px',
-                  marginBottom: '-8px',
-                  fontSize: '12px',
-                  color: 'var(--cr-link-color)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px'
-                }}>
-                  <Loader2 className="w-3 h-3 animate-spin" />
-                  <span>{benchmarkProgress.get(provider.id)}</span>
+              {/* Error-specific help text */}
+              {result.error && (
+                <div className="mt-3 text-xs text-muted-foreground">
+                  {result.error.toLowerCase().includes('api') && (
+                    <p>💡 Check your API key in the provider settings</p>
+                  )}
+                  {result.error.toLowerCase().includes('timeout') && (
+                    <p>💡 The provider might be slow or unresponsive</p>
+                  )}
+                  {result.error.toLowerCase().includes('model') && (
+                    <p>💡 The specified model might not be available</p>
+                  )}
+                  {result.error.toLowerCase().includes('rate') && (
+                    <p>💡 You may have exceeded the rate limit</p>
+                  )}
                 </div>
               )}
             </div>
-          ))}
+          </div>
         </div>
-      </div>
-    </section>
+      )
+    }
+
+    if (result.status === 'success') {
+      const isBenchmark = result.benchmark && result.benchmark.overallScore !== undefined
+
+      if (isBenchmark) {
+        // Benchmark success display
+        const score = result.benchmark!.overallScore
+        const scoreColor = score >= 8 ? 'text-green-600 dark:text-green-400' :
+                          score >= 6 ? 'text-yellow-600 dark:text-yellow-400' :
+                          'text-red-600 dark:text-red-400'
+        const scoreBg = score >= 8 ? 'bg-green-100 dark:bg-green-900/30' :
+                       score >= 6 ? 'bg-yellow-100 dark:bg-yellow-900/30' :
+                       'bg-red-100 dark:bg-red-900/30'
+
+        return (
+          <div className="space-y-4">
+            <div className="flex items-start gap-3">
+              <div className={`p-2 rounded-lg ${scoreBg}`}>
+                <Activity className={`w-4 h-4 ${scoreColor}`} />
+              </div>
+              <div className="flex-1">
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="text-sm font-semibold">Benchmark Complete</h4>
+                  <div className={`text-2xl font-bold ${scoreColor}`}>
+                    {score.toFixed(1)}/10
+                  </div>
+                </div>
+
+                {/* Score breakdown with better visuals */}
+                <div className="grid grid-cols-1 gap-2 p-3 bg-muted/30 rounded-lg">
+                  {Object.entries(result.benchmark!.scores).filter(([key]) => key !== 'overall').map(([key, score]) => {
+                    const scoreNum = typeof score === 'number' ? score : 0
+                    return (
+                      <div key={key} className="flex items-center gap-3">
+                        <span className="text-xs font-medium text-muted-foreground w-32">
+                          {key.replace(/([A-Z])/g, ' $1').trim()}
+                        </span>
+                        <div className="flex-1 flex items-center gap-2">
+                          <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
+                            <div
+                              className={`h-full transition-all duration-500 ${
+                                scoreNum >= 8 ? 'bg-green-500' :
+                                scoreNum >= 6 ? 'bg-yellow-500' :
+                                scoreNum >= 4 ? 'bg-orange-500' :
+                                'bg-red-500'
+                              }`}
+                              style={{ width: `${scoreNum * 10}%` }}
+                            />
+                          </div>
+                          <span className="text-xs font-semibold w-8 text-right">
+                            {scoreNum.toFixed(1)}
+                          </span>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+
+              </div>
+            </div>
+          </div>
+        )
+      } else {
+        // Simple test success display
+        return (
+          <div className="flex items-start gap-3 p-4 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-900/50">
+            <div className="p-1.5 bg-green-100 dark:bg-green-900/30 rounded-full">
+              <Check className="w-4 h-4 text-green-600 dark:text-green-400" />
+            </div>
+            <div className="flex-1">
+              <h4 className="text-sm font-semibold text-green-900 dark:text-green-300">
+                Connection Verified
+              </h4>
+              <p className="text-xs text-green-700 dark:text-green-400 mt-1">
+                Provider responded successfully in {result.responseTime}ms
+              </p>
+            </div>
+          </div>
+        )
+      }
+    }
+
+    return null
+  }
+
+  // Sort providers: BrowserOS first, then others
+  const sortedProviders = [...providers].sort((a, b) => {
+    if (a.name === 'BrowserOS') return -1
+    if (b.name === 'BrowserOS') return 1
+    return 0
+  })
+
+  return (
+    <div className="space-y-3">
+      {sortedProviders.map((provider) => {
+        if (!provider || !provider.id) return null
+
+        const testResult = testResults[provider.id]
+        const isExpanded = expandedProvider === provider.id && testResult
+        const isBrowserOS = provider.name === 'BrowserOS'
+
+        return (
+          <div
+            key={provider.id}
+            className="settings-card overflow-hidden transition-all hover:bg-accent/50 cursor-pointer"
+            onClick={() => onSetDefault(provider.id)}
+          >
+            {/* Main provider row */}
+            <div className="p-4">
+              <div className="flex items-center gap-4">
+                {/* Radio button for default selection */}
+                <input
+                  type="radio"
+                  name="default-provider"
+                  checked={defaultProvider === provider.id}
+                  onChange={() => onSetDefault(provider.id)}
+                  className="w-4 h-4 text-primary focus:ring-primary pointer-events-none"
+                />
+
+                {/* Provider info */}
+                <div className="flex-1 flex items-center gap-3">
+                  <div className="provider-icon">
+                    {getProviderIcon(provider.type, provider.name)}
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[13px] font-normal">{provider.name}</span>
+                      {isBrowserOS && (
+                        <>
+                          <span className="px-1.5 py-0.5 text-[10px] bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 rounded uppercase">
+                            DEFAULT
+                          </span>
+                          <span className="px-1.5 py-0.5 text-[10px] bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 rounded uppercase">
+                            BUILT-IN
+                          </span>
+                        </>
+                      )}
+                    </div>
+                    {!isBrowserOS && (
+                      <div className="text-[12px] text-muted-foreground">
+                        {provider.modelId || provider.type}
+                      </div>
+                    )}
+                    {isBrowserOS && (
+                      <div className="text-[12px] text-muted-foreground">
+                        Automatically chooses the best model for each task
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Action buttons */}
+                <div className="flex items-center gap-2">
+                  {!isBrowserOS && (
+                    <>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          onEdit(provider)
+                        }}
+                        className="p-2 hover:bg-accent rounded-md transition-colors"
+                        title="Edit"
+                      >
+                        <Edit2 className="w-4 h-4" />
+                      </button>
+
+                      {testResult && testResult.status !== 'idle' && testResult.status !== 'loading' && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            toggleExpanded(provider.id)
+                          }}
+                          className="p-2 hover:bg-accent rounded-md transition-colors"
+                          title="Toggle test results"
+                        >
+                          <ChevronDown className={`w-4 h-4 transition-transform ${
+                            isExpanded ? 'rotate-180' : ''
+                          }`} />
+                        </button>
+                      )}
+                    </>
+                  )}
+
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onTest(provider.id)
+                    }}
+                    disabled={testResult?.status === 'loading'}
+                    className="settings-button settings-button-ghost flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                    title="Test connection"
+                  >
+                    {testResult?.status === 'loading' && !testResult?.benchmark ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Play className="w-4 h-4" />
+                    )}
+                    <span className="text-sm">Test</span>
+                  </button>
+
+                  {!isBrowserOS && (
+                    <>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          onBenchmark(provider.id)
+                        }}
+                        disabled={testResult?.status === 'loading'}
+                        className="settings-button settings-button-ghost flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                        title="Run benchmark"
+                      >
+                        {testResult?.status === 'loading' && testResult?.benchmark !== undefined ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Activity className="w-4 h-4" />
+                        )}
+                        <span className="text-sm">Benchmark</span>
+                      </button>
+
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          onDelete(provider.id)
+                        }}
+                        className="settings-button settings-button-destructive"
+                        title="Delete"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Expandable test results */}
+            {isExpanded && testResult && (
+              <div className="border-t border-border bg-muted/30 p-4">
+                {renderTestResult(testResult, benchmarkProgress[provider.id])}
+              </div>
+            )}
+          </div>
+        )
+      })}
+
+      {providers.length === 0 && (
+        <div className="text-center py-12 text-muted-foreground">
+          <AlertCircle className="w-12 h-12 mx-auto mb-4 opacity-50" />
+          <p className="text-sm">No providers configured yet</p>
+          <p className="text-xs mt-1">Add a provider using the templates above</p>
+        </div>
+      )}
+    </div>
   )
 }

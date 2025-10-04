@@ -1,6 +1,5 @@
 import React from 'react'
 import { createRoot } from 'react-dom/client'
-import './dark-theme-style.css'
 import { OptionsNew } from './OptionsNew'
 
 // Initialize React root

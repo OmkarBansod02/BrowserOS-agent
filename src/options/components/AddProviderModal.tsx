@@ -147,46 +147,51 @@ export function AddProviderModal({ isOpen, onClose, onSave, editProvider }: AddP
   if (!isOpen) return null
 
   return (
-    <div className="chrome-settings-modal-overlay" onClick={onClose}>
-      <div className="chrome-settings-modal" onClick={(e) => e.stopPropagation()}>
-        <div className="chrome-settings-modal-header">
-          <h2 className="chrome-settings-modal-title">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in" onClick={onClose}>
+      <div
+        className="bg-background dark:bg-[#2D2E31] rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col animate-fade-in border border-border dark:border-[#5F6368]"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-border dark:border-[#5F6368] bg-background-alt dark:bg-[#202124]">
+          <h2 className="text-[16px] font-medium text-foreground dark:text-white">
             {editProvider ? 'Edit Provider' : 'Configure New Provider'}
           </h2>
           <button
             onClick={onClose}
-            className="chrome-settings-modal-close"
+            className="p-1.5 hover:bg-accent dark:hover:bg-[#3C4043] rounded-full transition-colors"
             aria-label="Close"
           >
-            <X className="w-5 h-5" />
+            <X className="w-4 h-4 text-muted-foreground dark:text-[#9AA0A6]" />
           </button>
         </div>
 
-        <div className="chrome-settings-modal-content">
+        {/* Content - Scrollable */}
+        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5 bg-background dark:bg-[#2D2E31]">
           {/* Provider Type and Name */}
-          <div className="chrome-settings-form-row">
-            <div className="chrome-settings-form-field">
-              <label htmlFor="provider-type">
-                Provider Type <span className="required">*</span>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <label htmlFor="provider-type" className="block text-[13px] font-normal text-foreground dark:text-[#E8EAED]">
+                Provider Type <span className="text-red-500">*</span>
               </label>
               <select
                 id="provider-type"
                 value={providerType}
                 onChange={(e) => setProviderType(e.target.value as ProviderType)}
-                className="chrome-settings-select"
+                className="w-full px-3 py-2 bg-background dark:bg-[#202124] border border-input dark:border-[#5F6368] rounded-lg text-foreground dark:text-white text-[13px] focus:outline-none focus:border-primary dark:focus:border-[#8AB4F8] transition-colors"
                 disabled={!!editProvider}
               >
                 {PROVIDER_TYPES.map(({ value, label }) => (
-                  <option key={value} value={value}>
+                  <option key={value} value={value} className="bg-background dark:bg-[#202124]">
                     {label}
                   </option>
                 ))}
               </select>
             </div>
 
-            <div className="chrome-settings-form-field">
-              <label htmlFor="provider-name">
-                Provider Name <span className="required">*</span>
+            <div className="space-y-2">
+              <label htmlFor="provider-name" className="block text-[13px] font-normal text-foreground dark:text-[#E8EAED]">
+                Provider Name <span className="text-red-500">*</span>
               </label>
               <input
                 id="provider-name"
@@ -194,31 +199,33 @@ export function AddProviderModal({ isOpen, onClose, onSave, editProvider }: AddP
                 value={providerName}
                 onChange={(e) => setProviderName(e.target.value)}
                 placeholder="e.g., Work OpenAI"
-                className="chrome-settings-input"
+                className="w-full px-3 py-2 bg-background dark:bg-[#202124] border border-input dark:border-[#5F6368] rounded-lg text-foreground dark:text-white text-[13px] placeholder:text-muted-foreground dark:placeholder:text-[#9AA0A6] focus:outline-none focus:border-primary dark:focus:border-[#8AB4F8] transition-colors"
               />
             </div>
           </div>
 
           {/* Base URL and Model ID */}
-          <div className="chrome-settings-form-row">
-            <div className="chrome-settings-form-field">
-              <label htmlFor="base-url">Base URL</label>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <label htmlFor="base-url" className="block text-[13px] font-normal text-foreground dark:text-[#E8EAED]">
+                Base URL
+              </label>
               <input
                 id="base-url"
                 type="text"
                 value={baseUrl}
                 onChange={(e) => setBaseUrl(e.target.value)}
                 placeholder={DEFAULT_BASE_URLS[providerType]}
-                className="chrome-settings-input"
+                className="w-full px-3 py-2 bg-background dark:bg-[#202124] border border-input dark:border-[#5F6368] rounded-lg text-foreground dark:text-white text-[13px] placeholder:text-muted-foreground dark:placeholder:text-[#9AA0A6] focus:outline-none focus:border-primary dark:focus:border-[#8AB4F8] transition-colors"
               />
-              <span className="chrome-settings-field-help">
+              <p className="text-[11px] text-muted-foreground dark:text-[#9AA0A6]">
                 Override the default API endpoint
-              </span>
+              </p>
             </div>
 
-            <div className="chrome-settings-form-field">
-              <label htmlFor="model-id">
-                Model ID <span className="required">*</span>
+            <div className="space-y-2">
+              <label htmlFor="model-id" className="block text-[13px] font-normal text-foreground dark:text-[#E8EAED]">
+                Model ID <span className="text-red-500">*</span>
               </label>
               {providerType === 'ollama' && modelId === 'custom' ? (
                 <input
@@ -227,7 +234,7 @@ export function AddProviderModal({ isOpen, onClose, onSave, editProvider }: AddP
                   value={customModelId}
                   onChange={(e) => setCustomModelId(e.target.value)}
                   placeholder="Enter custom Ollama model (e.g., llama3.2:latest)"
-                  className="chrome-settings-input"
+                  className="w-full px-3 py-2 bg-background dark:bg-[#202124] border border-input dark:border-[#5F6368] rounded-lg text-foreground dark:text-white text-[13px] placeholder:text-muted-foreground dark:placeholder:text-[#9AA0A6] focus:outline-none focus:border-primary dark:focus:border-[#8AB4F8] transition-colors"
                 />
               ) : (
                 <select
@@ -239,10 +246,17 @@ export function AddProviderModal({ isOpen, onClose, onSave, editProvider }: AddP
                       setCustomModelId('')
                     }
                   }}
-                  className="chrome-settings-select"
+                  className="w-full px-3 py-2 bg-background dark:bg-[#202124] border border-input dark:border-[#5F6368] rounded-lg text-foreground dark:text-white text-[13px] focus:outline-none focus:border-primary dark:focus:border-[#8AB4F8] transition-colors appearance-none"
+                  style={{
+                    backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%239AA0A6' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M2 5l6 6 6-6'/%3e%3c/svg%3e")`,
+                    backgroundRepeat: 'no-repeat',
+                    backgroundPosition: 'right 0.5rem center',
+                    backgroundSize: '1.25em 1.25em',
+                    paddingRight: '2.5rem'
+                  }}
                 >
                   {MODEL_OPTIONS[providerType].map((model) => (
-                    <option key={model} value={model}>
+                    <option key={model} value={model} className="bg-background dark:bg-[#202124]">
                       {model}
                     </option>
                   ))}
@@ -252,52 +266,58 @@ export function AddProviderModal({ isOpen, onClose, onSave, editProvider }: AddP
           </div>
 
           {/* API Key */}
-          <div className="chrome-settings-form-field">
-            <label htmlFor="api-key">API Key</label>
+          <div className="space-y-2">
+            <label htmlFor="api-key" className="block text-[13px] font-normal text-foreground dark:text-[#E8EAED]">
+              API Key
+            </label>
             <input
               id="api-key"
               type="password"
               value={apiKey}
               onChange={(e) => setApiKey(e.target.value)}
               placeholder="Enter your API key (optional for some providers)"
-              className="chrome-settings-input"
+              className="w-full px-3 py-2 bg-background dark:bg-[#202124] border border-input dark:border-[#5F6368] rounded-lg text-foreground dark:text-white text-[13px] placeholder:text-muted-foreground dark:placeholder:text-[#9AA0A6] focus:outline-none focus:border-primary dark:focus:border-[#8AB4F8] transition-colors"
             />
-            <span className="chrome-settings-field-help">
+            <p className="text-[11px] text-muted-foreground dark:text-[#9AA0A6]">
               Your API key is encrypted and stored locally
-            </span>
+            </p>
           </div>
 
           {/* Model Configuration Section */}
-          <div className="chrome-settings-form-section">
-            <h3 className="chrome-settings-form-section-title">Model Configuration</h3>
+          <div className="space-y-4 pt-4 border-t border-border dark:border-[#5F6368]">
+            <h3 className="text-[14px] font-medium text-foreground dark:text-white">Model Configuration</h3>
 
-            <div className="chrome-settings-form-field">
-              <label className="chrome-settings-checkbox-label">
+            <div className="space-y-2">
+              <label className="flex items-center gap-2 cursor-pointer">
                 <input
                   type="checkbox"
                   checked={supportsImages}
                   onChange={(e) => setSupportsImages(e.target.checked)}
-                  className="chrome-settings-checkbox"
+                  className="w-4 h-4 text-primary dark:text-[#8AB4F8] focus:ring-primary dark:focus:ring-[#8AB4F8] rounded border-input dark:border-[#5F6368] bg-background dark:bg-[#202124]"
                 />
-                <span>Supports Images</span>
+                <span className="text-[13px] text-foreground dark:text-[#E8EAED]">Supports Images</span>
               </label>
             </div>
 
-            <div className="chrome-settings-form-row">
-              <div className="chrome-settings-form-field">
-                <label htmlFor="context-window">Context Window Size</label>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label htmlFor="context-window" className="block text-[13px] font-normal text-foreground dark:text-[#E8EAED]">
+                  Context Window Size
+                </label>
                 <input
                   id="context-window"
                   type="number"
                   value={contextWindow}
                   onChange={(e) => setContextWindow(e.target.value)}
                   placeholder="128000"
-                  className="chrome-settings-input"
+                  className="w-full px-3 py-2 bg-background dark:bg-[#202124] border border-input dark:border-[#5F6368] rounded-lg text-foreground dark:text-white text-[13px] placeholder:text-muted-foreground dark:placeholder:text-[#9AA0A6] focus:outline-none focus:border-primary dark:focus:border-[#8AB4F8] transition-colors"
                 />
               </div>
 
-              <div className="chrome-settings-form-field">
-                <label htmlFor="temperature">Temperature (0-2)</label>
+              <div className="space-y-2">
+                <label htmlFor="temperature" className="block text-[13px] font-normal text-foreground dark:text-[#E8EAED]">
+                  Temperature (0-2)
+                </label>
                 <input
                   id="temperature"
                   type="number"
@@ -307,24 +327,25 @@ export function AddProviderModal({ isOpen, onClose, onSave, editProvider }: AddP
                   value={temperature}
                   onChange={(e) => setTemperature(e.target.value)}
                   placeholder="0.7"
-                  className="chrome-settings-input"
+                  className="w-full px-3 py-2 bg-background dark:bg-[#202124] border border-input dark:border-[#5F6368] rounded-lg text-foreground dark:text-white text-[13px] placeholder:text-muted-foreground dark:placeholder:text-[#9AA0A6] focus:outline-none focus:border-primary dark:focus:border-[#8AB4F8] transition-colors"
                 />
               </div>
             </div>
           </div>
         </div>
 
-        <div className="chrome-settings-modal-footer">
+        {/* Footer */}
+        <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-border dark:border-[#5F6368] bg-background-alt dark:bg-[#202124]">
           <button
             onClick={onClose}
-            className="chrome-settings-button-secondary"
+            className="px-4 py-2 text-[13px] font-medium text-foreground dark:text-[#8AB4F8] bg-transparent border border-input dark:border-[#5F6368] rounded-lg hover:bg-accent dark:hover:bg-[#3C4043] transition-colors"
             disabled={isSaving}
           >
             Cancel
           </button>
           <button
             onClick={handleSave}
-            className="chrome-settings-button-primary"
+            className="px-4 py-2 text-[13px] font-medium text-white bg-primary dark:bg-[#8AB4F8] rounded-lg hover:bg-primary/90 dark:hover:bg-[#8AB4F8]/90 transition-colors disabled:opacity-50"
             disabled={isSaving}
           >
             {isSaving ? 'Saving...' : 'Save'}

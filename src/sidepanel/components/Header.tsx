@@ -6,7 +6,7 @@ import { useAnalytics } from '../hooks/useAnalytics'
 import { SettingsModal } from './SettingsModal'
 import { HelpSection } from './HelpSection'
 // import { ExperimentModal } from './ExperimentModal'  // Removed - old evals system deprecated
-import { HelpCircle, Settings, Pause, RotateCcw, ChevronDown, Plus, Trash2, Star, Copy, Sparkles } from 'lucide-react'
+import { HelpCircle, Settings, Pause, RotateCcw, ChevronDown, Plus, Trash2, Star, Copy, SlidersHorizontal } from 'lucide-react'
 import { useSettingsStore } from '@/sidepanel/stores/settingsStore'
 import { useEffect } from 'react'
 import { z } from 'zod'
@@ -346,7 +346,7 @@ export const Header = memo(function Header({ onReset, showReset, isProcessing, i
             aria-label="AI Settings"
             title="AI Settings"
           >
-            <Sparkles className="w-4 h-4 group-hover:animate-pulse" />
+            <SlidersHorizontal className="w-4 h-4" />
             <span className="hidden sm:inline text-xs font-medium">AI</span>
           </Button>
 

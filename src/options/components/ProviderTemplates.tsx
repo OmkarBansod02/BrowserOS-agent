@@ -7,7 +7,6 @@ interface ProviderTemplatesProps {
 }
 
 const getProviderIcon = (type: string) => {
-  // Use exact same icons as ConfiguredModelsList
   switch (type.toLowerCase()) {
     case 'openai':
       return (
@@ -17,17 +16,56 @@ const getProviderIcon = (type: string) => {
       )
     case 'claude':
     case 'anthropic':
-      return <img src="/assets/claude-ai-icon.webp" alt="Claude" style={{ width: '24px', height: '24px', objectFit: 'contain' }} />
+      return (
+        <svg viewBox="0 0 24 24" fill="none" style={{ width: '24px', height: '24px' }}>
+          <rect width="24" height="24" rx="4" fill="#CC9B7A"/>
+          <path d="M10.5 7.5L7.5 16.5h1.8l0.6-1.8h2.4l0.6 1.8h1.8L12 7.5h-1.5zm-0.3 5.7l0.9-2.7 0.9 2.7h-1.8z" fill="#191918"/>
+          <path d="M13.5 7.5L15 16.5h1.8l0.6-1.8h2.4l0.6 1.8h1.8L19.5 7.5H18zm0.3 5.7l0.9-2.7 0.9 2.7h-1.8z" fill="#191918"/>
+        </svg>
+      )
     case 'gemini':
     case 'google_gemini':
-      return <img src="/assets/Google-gemini-icon.svg.png" alt="Gemini" style={{ width: '24px', height: '24px', objectFit: 'contain' }} />
+      return (
+        <svg viewBox="0 0 24 24" fill="none" style={{ width: '24px', height: '24px' }}>
+          <defs>
+            <linearGradient id="gemini-grad-template" x1="0" y1="0" x2="24" y2="24" gradientUnits="userSpaceOnUse">
+              <stop offset="0%" stopColor="#4285F4"/>
+              <stop offset="25%" stopColor="#9B72CB"/>
+              <stop offset="50%" stopColor="#D96570"/>
+              <stop offset="75%" stopColor="#9B72CB"/>
+              <stop offset="100%" stopColor="#4285F4"/>
+            </linearGradient>
+          </defs>
+          <path d="M12 3.5L12 3.5C12.4 3.5 12.7 3.7 12.9 4C13.5 5 14.3 5.9 15.3 6.6C16.3 7.3 17.4 7.9 18.6 8.2C19 8.3 19.2 8.6 19.2 9C19.2 9.4 19 9.7 18.6 9.8C17.4 10.1 16.3 10.7 15.3 11.4C14.3 12.1 13.5 13 12.9 14C12.7 14.3 12.4 14.5 12 14.5C11.6 14.5 11.3 14.3 11.1 14C10.5 13 9.7 12.1 8.7 11.4C7.7 10.7 6.6 10.1 5.4 9.8C5 9.7 4.8 9.4 4.8 9C4.8 8.6 5 8.3 5.4 8.2C6.6 7.9 7.7 7.3 8.7 6.6C9.7 5.9 10.5 5 11.1 4C11.3 3.7 11.6 3.5 12 3.5Z" fill="url(#gemini-grad-template)" stroke="none"/>
+          <path d="M17 13L17 13C17.3 13 17.5 13.2 17.6 13.4C17.9 14 18.4 14.5 18.9 14.9C19.4 15.3 20 15.6 20.6 15.8C20.9 15.9 21 16.1 21 16.4C21 16.7 20.9 16.9 20.6 17C20 17.2 19.4 17.5 18.9 17.9C18.4 18.3 17.9 18.8 17.6 19.4C17.5 19.6 17.3 19.8 17 19.8C16.7 19.8 16.5 19.6 16.4 19.4C16.1 18.8 15.6 18.3 15.1 17.9C14.6 17.5 14 17.2 13.4 17C13.1 16.9 13 16.7 13 16.4C13 16.1 13.1 15.9 13.4 15.8C14 15.6 14.6 15.3 15.1 14.9C15.6 14.5 16.1 14 16.4 13.4C16.5 13.2 16.7 13 17 13Z" fill="url(#gemini-grad-template)" stroke="none"/>
+        </svg>
+      )
     case 'ollama':
-      return <img src="/assets/ollama.png" alt="Ollama" style={{ width: '24px', height: '24px', objectFit: 'contain' }} />
+      return (
+        <svg viewBox="0 0 24 24" fill="currentColor" style={{ width: '24px', height: '24px' }}>
+          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/>
+        </svg>
+      )
     case 'openrouter':
-      return <img src="/assets/open router.png" alt="OpenRouter" style={{ width: '24px', height: '24px', objectFit: 'contain' }} />
+      return (
+        <svg viewBox="0 0 24 24" fill="none" style={{ width: '24px', height: '24px' }}>
+          <path d="M4 8h16v2H4zm0 6h16v2H4z" fill="#8B5CF6"/>
+          <circle cx="7" cy="9" r="1.5" fill="#A78BFA"/>
+          <circle cx="12" cy="9" r="1.5" fill="#A78BFA"/>
+          <circle cx="17" cy="9" r="1.5" fill="#A78BFA"/>
+          <circle cx="7" cy="15" r="1.5" fill="#A78BFA"/>
+          <circle cx="12" cy="15" r="1.5" fill="#A78BFA"/>
+          <circle cx="17" cy="15" r="1.5" fill="#A78BFA"/>
+        </svg>
+      )
     case 'lm studio':
     case 'openai_compatible':
-      return <img src="/assets/LM-studio.jpeg" alt="LM Studio" style={{ width: '24px', height: '24px', objectFit: 'contain' }} />
+      return (
+        <svg viewBox="0 0 24 24" fill="none" style={{ width: '24px', height: '24px' }}>
+          <rect x="4" y="4" width="16" height="16" rx="3" fill="#6F42C1"/>
+          <path d="M9 8h1.5v6H12v1.5H9V8zm4.5 0H15v6h1.5V8H18v1.5h-1.5v4.5c0 .8-.7 1.5-1.5 1.5h-1.5V8z" fill="white"/>
+        </svg>
+      )
     default:
       return (
         <svg viewBox="0 0 24 24" fill="currentColor" style={{ width: '24px', height: '24px' }}>
@@ -134,23 +172,23 @@ export function ProviderTemplates({ onUseTemplate }: ProviderTemplatesProps) {
   const [isExpanded, setIsExpanded] = useState(true)
 
   return (
-    <section className="chrome-settings-card">
-      <div className="chrome-settings-card-content">
+    <section className="settings-card mb-8">
+      <div className="px-5 py-6">
         {/* Section Header with Collapse */}
         <div
           onClick={() => setIsExpanded(!isExpanded)}
-          className="chrome-settings-collapsible-header"
+          className="flex items-center cursor-pointer hover:opacity-80 transition-opacity mb-5"
         >
-          <div className="chrome-settings-collapsible-title">
-            {isExpanded ? (
-              <ChevronDown className="chrome-settings-collapsible-icon expanded" />
-            ) : (
-              <ChevronUp className="chrome-settings-collapsible-icon" />
-            )}
-            <h3 className="chrome-settings-section-title">
+          <ChevronDown
+            className={`w-5 h-5 text-muted-foreground transition-transform mr-3 ${
+              isExpanded ? 'rotate-0' : '-rotate-90'
+            }`}
+          />
+          <div>
+            <h3 className="text-[14px] font-medium text-foreground">
               Quick provider templates
             </h3>
-            <span className="chrome-settings-section-description">
+            <span className="text-[12px] text-muted-foreground">
               6 templates available
             </span>
           </div>
@@ -158,25 +196,25 @@ export function ProviderTemplates({ onUseTemplate }: ProviderTemplatesProps) {
 
         {/* Templates Grid */}
         {isExpanded && (
-          <div className="chrome-settings-templates-grid">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {PROVIDER_TEMPLATES.map((provider) => (
               <div
                 key={provider.name}
-                className="chrome-settings-template-card"
+                className="flex items-center justify-between p-3 rounded-lg border border-border hover:bg-accent/50 cursor-pointer transition-colors group"
                 onClick={() => onUseTemplate(provider.template as LLMProvider)}
               >
-                <div className="chrome-settings-template-info">
-                  <div className="chrome-settings-model-icon">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-full overflow-hidden flex items-center justify-center bg-muted">
                     {getProviderIcon(provider.type)}
                   </div>
-                  <span className="chrome-settings-template-name">
+                  <span className="text-[13px] font-normal">
                     {provider.name}
                   </span>
                 </div>
 
                 {/* USE Button */}
                 <button
-                  className="chrome-settings-template-use"
+                  className="px-3 py-1 text-[11px] font-medium text-muted-foreground hover:text-foreground border border-border rounded hover:bg-background transition-colors uppercase"
                   onClick={(e) => {
                     e.stopPropagation()
                     onUseTemplate(provider.template as LLMProvider)
