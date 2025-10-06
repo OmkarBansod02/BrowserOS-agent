@@ -148,21 +148,11 @@ export class LLMTestService {
 
       port.onMessage.addListener(listener)
 
-      try {
-        port.postMessage({
-          type: MessageType.SETTINGS_TEST_PROVIDER,
-          payload: { provider },
-          id: messageId
-        })
-      } catch (error) {
-        cleanup()
-        resolve({
-          status: 'error',
-          error: 'Failed to send test request - port disconnected',
-          timestamp: new Date().toISOString()
-        })
-        return
-      }
+      port.postMessage({
+        type: MessageType.SETTINGS_TEST_PROVIDER,
+        payload: { provider },
+        id: messageId
+      })
 
       timeoutTimer = setTimeout(() => {
         cleanup()
@@ -280,31 +270,11 @@ export class LLMTestService {
           }
         }, 20000) // Every 20 seconds
 
-        try {
-          port.postMessage({
-            type: MessageType.SETTINGS_BENCHMARK_PROVIDER,
-            payload: { provider },
-            id: messageId
-          })
-        } catch (error) {
-          cleanup()
-          resolve({
-            success: false,
-            latency: 0,
-            scores: {
-              instructionFollowing: 0,
-              contextUnderstanding: 0,
-              toolUsage: 0,
-              planning: 0,
-              errorRecovery: 0,
-              performance: 0,
-              overall: 0
-            },
-            error: 'Failed to send benchmark request - port disconnected',
-            timestamp: new Date().toISOString()
-          })
-          return
-        }
+        port.postMessage({
+          type: MessageType.SETTINGS_BENCHMARK_PROVIDER,
+          payload: { provider },
+          id: messageId
+        })
 
         // Set timeout for 180 seconds (3 minutes) instead of 120
         timeoutTimer = setTimeout(() => {
