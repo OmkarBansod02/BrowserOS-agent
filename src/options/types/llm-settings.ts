@@ -96,6 +96,7 @@ export const TestResultSchema = z.object({
   status: z.enum(['idle', 'loading', 'success', 'error']),
   error: z.string().optional(),
   responseTime: z.number().optional(),
+  response: z.string().optional(),  // AI response message from test
   timestamp: z.string(),
   benchmark: z.object({
     overallScore: z.number(),

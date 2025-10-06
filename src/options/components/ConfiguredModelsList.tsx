@@ -12,7 +12,10 @@ interface ConfiguredModelsListProps {
   onBenchmark: (providerId: string) => void
   onEdit: (provider: LLMProvider) => void
   onDelete: (providerId: string) => void
+  onClearTestResult?: (providerId: string) => void
 }
+
+const BENCHMARK_ENABLED = false
 
 const getProviderIcon = (type: string, name?: string) => {
   // BrowserOS built-in provider
@@ -100,12 +103,76 @@ export function ConfiguredModelsList({
   onTest,
   onBenchmark,
   onEdit,
-  onDelete
+  onDelete,
+  onClearTestResult
 }: ConfiguredModelsListProps) {
   const [expandedProvider, setExpandedProvider] = useState<string | null>(null)
 
   const toggleExpanded = (providerId: string) => {
     setExpandedProvider(expandedProvider === providerId ? null : providerId)
+  }
+
+  // Extract user-friendly error message
+  const getErrorMessage = (error: string): string => {
+    const lowerError = error.toLowerCase()
+
+    // API key errors
+    if (lowerError.includes('api key not valid') || lowerError.includes('api_key_invalid')) {
+      return 'Invalid API key'
+    }
+    if (lowerError.includes('unauthorized') || lowerError.includes('401')) {
+      return 'Authentication failed - check your API key'
+    }
+
+    // Model errors
+    if (lowerError.includes('model') && lowerError.includes('not found')) {
+      return 'Model not found or not accessible'
+    }
+
+    // Rate limit
+    if (lowerError.includes('rate limit') || lowerError.includes('429')) {
+      return 'Rate limit exceeded - please try again later'
+    }
+
+    // Timeout
+    if (lowerError.includes('timeout')) {
+      return 'Request timed out - provider may be slow'
+    }
+
+    // Connection errors
+    if (lowerError.includes('fetch') || lowerError.includes('network') || lowerError.includes('econnrefused')) {
+      return 'Connection failed - check provider URL'
+    }
+
+    // Extract first meaningful sentence if available
+    const firstSentence = error.split(/[.\n]/)[0].trim()
+    if (firstSentence.length > 0 && firstSentence.length < 100) {
+      return firstSentence
+    }
+
+    return 'Test failed - check provider configuration'
+  }
+
+  const getErrorHint = (error: string): string => {
+    const lowerError = error.toLowerCase()
+
+    if (lowerError.includes('api') || lowerError.includes('unauthorized') || lowerError.includes('401')) {
+      return 'Verify your API key in provider settings'
+    }
+    if (lowerError.includes('model')) {
+      return 'Check if the model ID is correct'
+    }
+    if (lowerError.includes('rate')) {
+      return 'Wait a few minutes before testing again'
+    }
+    if (lowerError.includes('timeout')) {
+      return 'Try increasing timeout or check network'
+    }
+    if (lowerError.includes('fetch') || lowerError.includes('network')) {
+      return 'Verify the base URL is correct'
+    }
+
+    return 'Review provider configuration and try again'
   }
 
   // Auto-expand when test/benchmark starts or completes
@@ -120,12 +187,54 @@ export function ConfiguredModelsList({
     })
   }, [testResults])
 
-  const renderTestResult = (result: TestResult, progress?: string) => {
+  const renderStatusBadge = (result?: TestResult): JSX.Element | null => {
+    if (!result) return null
+
+    const isBenchmark = result.benchmark !== undefined
+    if (isBenchmark && !BENCHMARK_ENABLED) {
+      return null
+    }
+
+    if (result.status === 'loading') {
+      return (
+        <span className="mt-1 inline-flex items-center gap-1 text-[11px] text-muted-foreground">
+          <Loader2 className="w-3 h-3 animate-spin" />
+          Testing...
+        </span>
+      )
+    }
+
+    if (result.status === 'success' && !result.benchmark) {
+      return (
+        <span className="mt-1 inline-flex items-center gap-1 text-[11px] font-medium text-green-600 dark:text-green-400">
+          <Check className="w-3 h-3" />
+          Connection verified
+        </span>
+      )
+    }
+
+    if (result.status === 'error') {
+      return (
+        <span className="mt-1 inline-flex items-center gap-1 text-[11px] font-medium text-red-600 dark:text-red-400">
+          <X className="w-3 h-3" />
+          Test failed
+        </span>
+      )
+    }
+
+    return null
+  }
+
+  const renderTestResult = (result: TestResult, providerId: string, progress?: string) => {
     if (!result) return null
 
     if (result.status === 'loading') {
       // Check if it's a benchmark (has benchmark property even if empty)
       const isBenchmark = result.benchmark !== undefined
+
+      if (isBenchmark && !BENCHMARK_ENABLED) {
+        return null
+      }
 
       return (
         <div className="space-y-3">
@@ -156,37 +265,40 @@ export function ConfiguredModelsList({
     }
 
     if (result.status === 'error') {
-      return (
-        <div className="space-y-3 p-4 bg-destructive/10 dark:bg-red-900/20 rounded-lg border border-destructive/20">
-          <div className="flex items-start gap-3">
-            <div className="p-1.5 bg-destructive/20 dark:bg-red-900/30 rounded-full">
-              <AlertCircle className="w-4 h-4 text-destructive dark:text-red-400" />
-            </div>
-            <div className="flex-1 space-y-2">
-              <h4 className="text-sm font-semibold text-destructive dark:text-red-400">
-                Test Failed
-              </h4>
-              <p className="text-xs text-muted-foreground leading-relaxed">
-                {result.error || 'Unknown error occurred'}
-              </p>
+      const errorMsg = result.error ? getErrorMessage(result.error) : 'Test failed'
+      const hint = result.error ? getErrorHint(result.error) : ''
 
-              {/* Error-specific help text */}
-              {result.error && (
-                <div className="mt-3 text-xs text-muted-foreground">
-                  {result.error.toLowerCase().includes('api') && (
-                    <p>💡 Check your API key in the provider settings</p>
-                  )}
-                  {result.error.toLowerCase().includes('timeout') && (
-                    <p>💡 The provider might be slow or unresponsive</p>
-                  )}
-                  {result.error.toLowerCase().includes('model') && (
-                    <p>💡 The specified model might not be available</p>
-                  )}
-                  {result.error.toLowerCase().includes('rate') && (
-                    <p>💡 You may have exceeded the rate limit</p>
+      return (
+        <div className="relative p-4 bg-red-50 dark:bg-red-950/30 rounded-lg border border-red-200 dark:border-red-900/50">
+          <div className="flex items-start gap-3">
+            <div className="p-1.5 bg-red-100 dark:bg-red-900/30 rounded-full flex-shrink-0">
+              <AlertCircle className="w-4 h-4 text-red-600 dark:text-red-400" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex-1 min-w-0">
+                  <h4 className="text-sm font-semibold text-red-900 dark:text-red-300">
+                    {errorMsg}
+                  </h4>
+                  {hint && (
+                    <p className="text-xs text-red-700 dark:text-red-400 mt-1">
+                      {hint}
+                    </p>
                   )}
                 </div>
-              )}
+                {onClearTestResult && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onClearTestResult(providerId)
+                    }}
+                    className="p-1 hover:bg-red-200 dark:hover:bg-red-900/50 rounded transition-colors flex-shrink-0"
+                    aria-label="Dismiss error"
+                  >
+                    <X className="w-4 h-4 text-red-600 dark:text-red-400" />
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -194,7 +306,11 @@ export function ConfiguredModelsList({
     }
 
     if (result.status === 'success') {
-      const isBenchmark = result.benchmark && result.benchmark.overallScore !== undefined
+      const isBenchmark = !!(result.benchmark && result.benchmark.overallScore !== undefined)
+
+      if (isBenchmark && !BENCHMARK_ENABLED) {
+        return null
+      }
 
       if (isBenchmark) {
         // Benchmark success display
@@ -257,17 +373,45 @@ export function ConfiguredModelsList({
       } else {
         // Simple test success display
         return (
-          <div className="flex items-start gap-3 p-4 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-900/50">
-            <div className="p-1.5 bg-green-100 dark:bg-green-900/30 rounded-full">
-              <Check className="w-4 h-4 text-green-600 dark:text-green-400" />
-            </div>
-            <div className="flex-1">
-              <h4 className="text-sm font-semibold text-green-900 dark:text-green-300">
-                Connection Verified
-              </h4>
-              <p className="text-xs text-green-700 dark:text-green-400 mt-1">
-                Provider responded successfully in {result.responseTime}ms
-              </p>
+          <div className="relative p-4 bg-green-50 dark:bg-green-950/30 rounded-lg border border-green-200 dark:border-green-900/50">
+            <div className="flex items-start gap-3">
+              <div className="p-1.5 bg-green-100 dark:bg-green-900/30 rounded-full flex-shrink-0">
+                <Check className="w-4 h-4 text-green-600 dark:text-green-400" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex-1 min-w-0 space-y-2">
+                    <h4 className="text-sm font-semibold text-green-900 dark:text-green-300">
+                      Connection Verified
+                    </h4>
+                    <p className="text-xs text-green-700 dark:text-green-400">
+                      Provider responded successfully in {result.responseTime}ms
+                    </p>
+                    {result.response && (
+                      <div className="p-2 bg-green-100/50 dark:bg-green-900/30 rounded border border-green-200 dark:border-green-800">
+                        <p className="text-[11px] font-medium text-green-900 dark:text-green-300 mb-1">
+                          AI Response:
+                        </p>
+                        <p className="text-xs text-green-800 dark:text-green-400 italic">
+                          "{result.response}"
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                  {onClearTestResult && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        onClearTestResult(providerId)
+                      }}
+                      className="p-1 hover:bg-green-200 dark:hover:bg-green-900/50 rounded transition-colors flex-shrink-0"
+                      aria-label="Dismiss result"
+                    >
+                      <X className="w-4 h-4 text-green-600 dark:text-green-400" />
+                    </button>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
         )
@@ -331,9 +475,12 @@ export function ConfiguredModelsList({
                       )}
                     </div>
                     {!isBrowserOS && (
-                      <div className="text-[12px] text-muted-foreground">
-                        {provider.modelId || provider.type}
-                      </div>
+                      <>
+                        <div className="text-[12px] text-muted-foreground">
+                          {provider.modelId || provider.type}
+                        </div>
+                        {renderStatusBadge(testResult)}
+                      </>
                     )}
                     {isBrowserOS && (
                       <div className="text-[12px] text-muted-foreground">
@@ -394,22 +541,24 @@ export function ConfiguredModelsList({
 
                   {!isBrowserOS && (
                     <>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          onBenchmark(provider.id)
-                        }}
-                        disabled={testResult?.status === 'loading'}
-                        className="settings-button settings-button-ghost flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                        title="Run benchmark"
-                      >
-                        {testResult?.status === 'loading' && testResult?.benchmark !== undefined ? (
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                        ) : (
-                          <Activity className="w-4 h-4" />
-                        )}
-                        <span className="text-sm">Benchmark</span>
-                      </button>
+                      {BENCHMARK_ENABLED && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            onBenchmark(provider.id)
+                          }}
+                          disabled={testResult?.status === 'loading'}
+                          className="settings-button settings-button-ghost flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                          title="Run benchmark"
+                        >
+                          {testResult?.status === 'loading' && testResult?.benchmark !== undefined ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <Activity className="w-4 h-4" />
+                          )}
+                          <span className="text-sm">Benchmark</span>
+                        </button>
+                      )}
 
                       <button
                         onClick={(e) => {
@@ -430,7 +579,7 @@ export function ConfiguredModelsList({
             {/* Expandable test results */}
             {isExpanded && testResult && (
               <div className="border-t border-border bg-muted/30 p-4">
-                {renderTestResult(testResult, benchmarkProgress[provider.id])}
+                {renderTestResult(testResult, provider.id, benchmarkProgress[provider.id])}
               </div>
             )}
           </div>

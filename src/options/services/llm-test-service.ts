@@ -131,6 +131,7 @@ export class LLMTestService {
           resolve({
             status: payload.success ? 'success' : 'error',
             responseTime: payload.latency,
+            response: payload.response,  // Include AI response message
             error: payload.error,
             timestamp: payload.timestamp
           })

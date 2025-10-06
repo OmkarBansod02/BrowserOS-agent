@@ -19,16 +19,15 @@ const PROVIDER_TYPES: { value: ProviderType; label: string }[] = [
 ]
 
 const MODEL_OPTIONS: Record<ProviderType, string[]> = {
-  openai: ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo', 'gpt-3.5-turbo', 'gpt-4'],
-  anthropic: ['claude-3-5-sonnet-latest', 'claude-3-opus', 'claude-3-sonnet', 'claude-3-haiku', 'claude-2.1'],
-  google_gemini: ['gemini-2.0-flash', 'gemini-1.5-pro', 'gemini-1.5-flash', 'gemini-pro', 'gemini-pro-vision'],
+  openai: ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo', 'gpt-3.5-turbo', 'gpt-4', 'custom'],
+  anthropic: ['claude-3-5-sonnet-latest', 'claude-3-opus', 'claude-3-sonnet', 'claude-3-haiku', 'claude-2.1', 'custom'],
+  google_gemini: ['gemini-2.0-flash', 'gemini-1.5-pro', 'gemini-1.5-flash', 'gemini-pro', 'gemini-pro-vision', 'custom'],
   ollama: ['llama2', 'mistral', 'codellama', 'phi', 'neural-chat', 'qwen3:4b', 'custom'],
-  openrouter: ['auto', 'anthropic/claude-3.5-sonnet', 'openai/gpt-4o'],
+  openrouter: ['auto', 'anthropic/claude-3.5-sonnet', 'openai/gpt-4o', 'custom'],
   openai_compatible: ['custom'],
   browseros: ['auto'],
   custom: ['custom']
 }
-
 const DEFAULT_BASE_URLS: Record<ProviderType, string> = {
   openai: 'https://api.openai.com/v1',
   anthropic: 'https://api.anthropic.com',
@@ -57,19 +56,22 @@ export function AddProviderModal({ isOpen, onClose, onSave, editProvider }: AddP
       if (editProvider) {
         setProviderType(editProvider.type)
         setProviderName(editProvider.name)
-        setBaseUrl(editProvider.baseUrl || DEFAULT_BASE_URLS[editProvider.type])
+        setBaseUrl(editProvider.baseUrl ?? DEFAULT_BASE_URLS[editProvider.type])
 
-        // Check if the model is a custom Ollama model
-        const isOllamaCustom = editProvider.type === 'ollama' &&
-          !MODEL_OPTIONS.ollama.includes(editProvider.modelId || '') &&
-          editProvider.modelId !== 'custom'
+        const availableModels = MODEL_OPTIONS[editProvider.type] ?? []
+        const supportsCustom = availableModels.includes('custom')
+        const storedModelId = editProvider.modelId || ''
 
-        if (isOllamaCustom) {
+        if (supportsCustom && storedModelId && storedModelId !== 'custom' && !availableModels.includes(storedModelId)) {
           setModelId('custom')
-          setCustomModelId(editProvider.modelId || '')
-        } else {
-          setModelId(editProvider.modelId || MODEL_OPTIONS[editProvider.type][0])
+          setCustomModelId(storedModelId)
+        } else if (supportsCustom && storedModelId === 'custom') {
+          setModelId('custom')
           setCustomModelId('')
+        } else {
+          const fallbackModel = storedModelId || availableModels[0] || (supportsCustom ? 'custom' : '')
+          setModelId(fallbackModel)
+          setCustomModelId(fallbackModel === 'custom' ? '' : '')
         }
 
         setApiKey(editProvider.apiKey || '')
@@ -93,10 +95,19 @@ export function AddProviderModal({ isOpen, onClose, onSave, editProvider }: AddP
   useEffect(() => {
     if (!editProvider) {
       setBaseUrl(DEFAULT_BASE_URLS[providerType])
-      setModelId(MODEL_OPTIONS[providerType][0])
-      setCustomModelId('')
+      const options = MODEL_OPTIONS[providerType] ?? []
+      const defaultModel = options[0] || (options.includes('custom') ? 'custom' : '')
+      setModelId(defaultModel)
+      setCustomModelId(defaultModel === 'custom' ? '' : '')
     }
   }, [providerType, editProvider])
+
+  const handleModelChange = (value: string) => {
+    setModelId(value)
+    if (value !== 'custom') {
+      setCustomModelId('')
+    }
+  }
 
   const handleSave = async () => {
     if (!providerName.trim()) {
@@ -104,9 +115,22 @@ export function AddProviderModal({ isOpen, onClose, onSave, editProvider }: AddP
       return
     }
 
-    // Validate custom model for Ollama
-    if (providerType === 'ollama' && modelId === 'custom' && !customModelId.trim()) {
-      alert('Please enter a custom model ID for Ollama')
+    let resolvedModelId: string
+    if (modelId === 'custom') {
+      const trimmedCustomId = customModelId.trim()
+      if (!trimmedCustomId) {
+        alert('Please enter a custom model ID')
+        return
+      }
+      setCustomModelId(trimmedCustomId)
+      resolvedModelId = trimmedCustomId
+    } else {
+      const options = MODEL_OPTIONS[providerType] ?? []
+      resolvedModelId = modelId || options[0] || ''
+    }
+
+    if (!resolvedModelId) {
+      alert('Please select a model ID')
       return
     }
 
@@ -117,9 +141,7 @@ export function AddProviderModal({ isOpen, onClose, onSave, editProvider }: AddP
         name: providerName,
         type: providerType,
         baseUrl: baseUrl || DEFAULT_BASE_URLS[providerType],
-        modelId: (providerType === 'ollama' && modelId === 'custom')
-          ? customModelId
-          : (modelId || MODEL_OPTIONS[providerType][0]),
+        modelId: resolvedModelId,
         apiKey: apiKey || undefined,
         capabilities: {
           supportsImages
@@ -129,7 +151,7 @@ export function AddProviderModal({ isOpen, onClose, onSave, editProvider }: AddP
           temperature: parseFloat(temperature) || 0.7
         },
         isBuiltIn: false,
-        isDefault: false,  // Required field, but we don't use it for display
+        isDefault: false,
         createdAt: editProvider?.createdAt || new Date().toISOString(),
         updatedAt: new Date().toISOString()
       }
@@ -143,6 +165,14 @@ export function AddProviderModal({ isOpen, onClose, onSave, editProvider }: AddP
       setIsSaving(false)
     }
   }
+
+  const modelOptions = MODEL_OPTIONS[providerType] ?? []
+  const supportsCustomModel = modelOptions.includes('custom')
+  const isCustomOnlyOption = supportsCustomModel && modelOptions.length === 1
+  const showCustomModelInput = supportsCustomModel && (isCustomOnlyOption || modelId === 'custom')
+  const customModelPlaceholder = providerType === 'ollama'
+    ? 'Enter custom Ollama model (e.g., llama3:latest)'
+    : 'Enter the exact model identifier'
 
   if (!isOpen) return null
 
@@ -227,40 +257,42 @@ export function AddProviderModal({ isOpen, onClose, onSave, editProvider }: AddP
               <label htmlFor="model-id" className="block text-[13px] font-normal text-foreground dark:text-[#E8EAED]">
                 Model ID <span className="text-red-500">*</span>
               </label>
-              {providerType === 'ollama' && modelId === 'custom' ? (
-                <input
-                  id="custom-model-id"
-                  type="text"
-                  value={customModelId}
-                  onChange={(e) => setCustomModelId(e.target.value)}
-                  placeholder="Enter custom Ollama model (e.g., llama3.2:latest)"
-                  className="w-full px-3 py-2 bg-background dark:bg-[#202124] border border-input dark:border-[#5F6368] rounded-lg text-foreground dark:text-white text-[13px] placeholder:text-muted-foreground dark:placeholder:text-[#9AA0A6] focus:outline-none focus:border-primary dark:focus:border-[#8AB4F8] transition-colors"
-                />
-              ) : (
+              {modelOptions.length > 0 && !isCustomOnlyOption && (
                 <select
                   id="model-id"
                   value={modelId}
-                  onChange={(e) => {
-                    setModelId(e.target.value)
-                    if (e.target.value === 'custom') {
-                      setCustomModelId('')
-                    }
-                  }}
+                  onChange={(e) => handleModelChange(e.target.value)}
                   className="w-full px-3 py-2 bg-background dark:bg-[#202124] border border-input dark:border-[#5F6368] rounded-lg text-foreground dark:text-white text-[13px] focus:outline-none focus:border-primary dark:focus:border-[#8AB4F8] transition-colors appearance-none"
                   style={{
-                    backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%239AA0A6' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M2 5l6 6 6-6'/%3e%3c/svg%3e")`,
+                    backgroundImage: "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%239AA0A6' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M2 5l6 6 6-6'/%3e%3c/svg%3e\")",
                     backgroundRepeat: 'no-repeat',
                     backgroundPosition: 'right 0.5rem center',
                     backgroundSize: '1.25em 1.25em',
                     paddingRight: '2.5rem'
                   }}
                 >
-                  {MODEL_OPTIONS[providerType].map((model) => (
+                  {modelOptions.map((model) => (
                     <option key={model} value={model} className="bg-background dark:bg-[#202124]">
                       {model}
                     </option>
                   ))}
                 </select>
+              )}
+
+              {showCustomModelInput && (
+                <div className="space-y-1">
+                  <input
+                    id="custom-model-id"
+                    type="text"
+                    value={customModelId}
+                    onChange={(e) => setCustomModelId(e.target.value)}
+                    placeholder={customModelPlaceholder}
+                    className="w-full px-3 py-2 bg-background dark:bg-[#202124] border border-input dark:border-[#5F6368] rounded-lg text-foreground dark:text-white text-[13px] placeholder:text-muted-foreground dark:placeholder:text-[#9AA0A6] focus:outline-none focus:border-primary dark:focus:border-[#8AB4F8] transition-colors"
+                  />
+                  <p className="text-[11px] text-muted-foreground dark:text-[#9AA0A6]">
+                    Enter the exact model identifier your provider expects.
+                  </p>
+                </div>
               )}
             </div>
           </div>

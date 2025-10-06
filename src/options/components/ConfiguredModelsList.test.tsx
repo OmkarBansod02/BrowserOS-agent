@@ -51,97 +51,126 @@ describe('ConfiguredModelsList-unit-test', () => {
     render(
       <ConfiguredModelsList
         providers={mockProviders}
-        onEditProvider={mockOnEditProvider}
-        onDeleteProvider={mockOnDeleteProvider}
+        defaultProvider={mockProviders[1].id}
+        testResults={{}}
+        onSetDefault={vi.fn()}
+        onTest={vi.fn()}
+        onBenchmark={vi.fn()}
+        onEdit={mockOnEditProvider}
+        onDelete={mockOnDeleteProvider}
       />
     )
 
-    expect(screen.getByText('Configured Models')).toBeInTheDocument()
     expect(screen.getByText('Test OpenAI')).toBeInTheDocument()
     expect(screen.getByText('Test Anthropic')).toBeInTheDocument()
   })
 
-  it('tests that test button triggers provider testing and state changes', async () => {
-    mockTestService.testProvider.mockResolvedValue({
-      success: true,
-      latency: 500,
-      response: 'Hello World',
+  it('tests that test button triggers provider testing and displays AI response', async () => {
+    const mockTestResult = {
+      status: 'success' as const,
+      responseTime: 500,
+      response: 'Hello World! I am working correctly.',
       timestamp: '2023-01-01T00:00:00Z'
-    })
-    mockTestService.runPerformanceTests.mockResolvedValue({
-      latency: 8.5,
-      accuracy: 9.0,
-      reliability: 9.5,
-      overall: 9.0
-    })
-    mockTestService.storeTestResults.mockResolvedValue(true)
+    }
 
     render(
       <ConfiguredModelsList
         providers={mockProviders}
-        onEditProvider={mockOnEditProvider}
-        onDeleteProvider={mockOnDeleteProvider}
+        defaultProvider={mockProviders[0].id}
+        testResults={{}}
+        onSetDefault={vi.fn()}
+        onTest={vi.fn()}
+        onBenchmark={vi.fn()}
+        onEdit={mockOnEditProvider}
+        onDelete={mockOnDeleteProvider}
       />
     )
 
-    const testButton = screen.getAllByText('Test')[0]
-    fireEvent.click(testButton)
+    // Now update with test result
+    const { rerender } = render(
+      <ConfiguredModelsList
+        providers={mockProviders}
+        defaultProvider={mockProviders[0].id}
+        testResults={{ [mockProviders[0].id]: mockTestResult }}
+        onSetDefault={vi.fn()}
+        onTest={vi.fn()}
+        onBenchmark={vi.fn()}
+        onEdit={mockOnEditProvider}
+        onDelete={mockOnDeleteProvider}
+      />
+    )
 
-    // Verify methods are called
+    // Verify success message is displayed
     await waitFor(() => {
-      expect(mockTestService.testProvider).toHaveBeenCalledWith(mockProviders[0])
-      expect(mockTestService.runPerformanceTests).toHaveBeenCalledWith(mockProviders[0])
+      expect(screen.getByText('Connection Verified')).toBeInTheDocument()
     })
 
-    // Verify button text changes to show success
-    await waitFor(() => {
-      expect(screen.getByText('✓ Tested')).toBeInTheDocument()
-    })
+    // Verify response time is shown
+    expect(screen.getByText(/500ms/)).toBeInTheDocument()
+
+    // Verify AI response is displayed
+    expect(screen.getByText('AI Response:')).toBeInTheDocument()
+    expect(screen.getByText(/"Hello World! I am working correctly."/)).toBeInTheDocument()
   })
 
   it('tests that test failures are handled gracefully', async () => {
-    mockTestService.testProvider.mockRejectedValue(new Error('API key invalid'))
+    const mockErrorResult = {
+      status: 'error' as const,
+      error: 'API key invalid',
+      timestamp: '2023-01-01T00:00:00Z'
+    }
 
     render(
       <ConfiguredModelsList
         providers={mockProviders}
-        onEditProvider={mockOnEditProvider}
-        onDeleteProvider={mockOnDeleteProvider}
+        defaultProvider={mockProviders[0].id}
+        testResults={{ [mockProviders[0].id]: mockErrorResult }}
+        onSetDefault={vi.fn()}
+        onTest={vi.fn()}
+        onBenchmark={vi.fn()}
+        onEdit={mockOnEditProvider}
+        onDelete={mockOnDeleteProvider}
       />
     )
 
-    const testButton = screen.getAllByText('Test')[0]
-    fireEvent.click(testButton)
-
-    // Verify error handling
+    // Verify error is displayed
     await waitFor(() => {
-      expect(mockTestService.testProvider).toHaveBeenCalled()
+      expect(screen.getByText('Test Failed')).toBeInTheDocument()
     })
 
-    // Should show retry button after error
-    await waitFor(() => {
-      expect(screen.getByText('Retry')).toBeInTheDocument()
-    })
+    // Verify error message is shown
+    expect(screen.getByText('API key invalid')).toBeInTheDocument()
+
+    // Verify helpful hint is shown
+    expect(screen.getByText(/Check your API key/)).toBeInTheDocument()
   })
 
   it('tests that provider actions call correct handlers', () => {
+    const mockOnEdit = vi.fn()
+    const mockOnDelete = vi.fn()
+
     render(
       <ConfiguredModelsList
         providers={mockProviders}
-        onEditProvider={mockOnEditProvider}
-        onDeleteProvider={mockOnDeleteProvider}
+        defaultProvider={mockProviders[0].id}
+        testResults={{}}
+        onSetDefault={vi.fn()}
+        onTest={vi.fn()}
+        onBenchmark={vi.fn()}
+        onEdit={mockOnEdit}
+        onDelete={mockOnDelete}
       />
     )
 
     // Test edit button
     const editButtons = screen.getAllByText('Edit')
     fireEvent.click(editButtons[0])
-    expect(mockOnEditProvider).toHaveBeenCalledWith(mockProviders[0])
+    expect(mockOnEdit).toHaveBeenCalledWith(mockProviders[0])
 
     // Test delete button (only available for non-built-in providers)
     const deleteButtons = screen.getAllByText('Delete')
     fireEvent.click(deleteButtons[0])
-    expect(mockOnDeleteProvider).toHaveBeenCalledWith(mockProviders[0].id)
+    expect(mockOnDelete).toHaveBeenCalledWith(mockProviders[0].id)
   })
 })
 

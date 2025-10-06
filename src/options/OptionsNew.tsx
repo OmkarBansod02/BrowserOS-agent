@@ -206,6 +206,13 @@ export function OptionsNew() {
               setIsAddingProvider(true)
             }}
             onDelete={deleteProvider}
+            onClearTestResult={(providerId) => {
+              setTestResults(prev => {
+                const newResults = { ...prev }
+                delete newResults[providerId]
+                return newResults
+              })
+            }}
           />
         </div>
 

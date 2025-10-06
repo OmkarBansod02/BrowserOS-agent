@@ -103,7 +103,12 @@ export function useBrowserOSPrefs() {
 
   const setDefaultProvider = useCallback(async (providerId: string) => {
     setDefaultProviderState(providerId)
-    await saveProvidersConfig(providers, providerId)
+    const normalizedProviders = providers.map(provider => ({
+      ...provider,
+      isDefault: provider.id === providerId
+    }))
+    setProviders(normalizedProviders)
+    await saveProvidersConfig(normalizedProviders, providerId)
   }, [providers, saveProvidersConfig])
 
   const addProvider = useCallback(async (provider: LLMProvider) => {
@@ -124,29 +129,36 @@ export function useBrowserOSPrefs() {
   const updateProvider = useCallback(async (provider: LLMProvider) => {
     const updatedProvider = {
       ...provider,
-      isDefault: provider.isDefault !== undefined ? provider.isDefault : false,
+      isDefault: provider.id === defaultProvider,
       updatedAt: new Date().toISOString()
     }
     const updatedProviders = providers.map(p =>
-      p.id === provider.id ? updatedProvider : p
+      p.id === provider.id
+        ? updatedProvider
+        : { ...p, isDefault: p.id === defaultProvider }
     )
     setProviders(updatedProviders)
     await saveProvidersConfig(updatedProviders)
     return updatedProvider
-  }, [providers, saveProvidersConfig])
+  }, [providers, defaultProvider, saveProvidersConfig])
 
   const deleteProvider = useCallback(async (providerId: string) => {
-    const updatedProviders = providers.filter(p => p.id !== providerId)
-    setProviders(updatedProviders)
+    const remainingProviders = providers.filter(p => p.id !== providerId)
 
-    // If deleting default provider, set default to browseros
-    let newDefaultId = defaultProvider
+    let nextDefaultId = defaultProvider
     if (providerId === defaultProvider) {
-      newDefaultId = 'browseros'
-      setDefaultProviderState(newDefaultId)
+      const browserOSProvider = remainingProviders.find(p => p.id === 'browseros')
+      nextDefaultId = browserOSProvider?.id || remainingProviders[0]?.id || 'browseros'
+      setDefaultProviderState(nextDefaultId)
     }
 
-    await saveProvidersConfig(updatedProviders, newDefaultId)
+    const normalizedProviders = remainingProviders.map(p => ({
+      ...p,
+      isDefault: p.id === nextDefaultId
+    }))
+
+    setProviders(normalizedProviders)
+    await saveProvidersConfig(normalizedProviders, nextDefaultId)
   }, [providers, defaultProvider, saveProvidersConfig])
 
   return {
