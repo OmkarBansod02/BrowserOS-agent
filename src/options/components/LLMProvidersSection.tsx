@@ -16,7 +16,7 @@ export function LLMProvidersSection({
   onAddProvider
 }: LLMProvidersSectionProps) {
   return (
-    <section className="bg-card dark:bg-card rounded-lg px-6 py-5 mb-8 border border-border shadow-sm">
+    <section className="bg-card rounded-lg px-6 py-5 mb-8 border border-border shadow-sm">
       <div className="flex items-start gap-4 mb-6">
         {/* BrowserOS Logo */}
         <div className="w-12 h-12 rounded-full bg-brand flex items-center justify-center flex-shrink-0 overflow-hidden shadow-md">
