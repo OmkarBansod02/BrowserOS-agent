@@ -24,13 +24,18 @@ export function OptionsNew() {
   }
 
   const handleSaveProvider = async (provider: Partial<LLMProvider>) => {
-    if (editingProvider?.id) {
-      await updateProvider(provider as LLMProvider)
-    } else {
-      await addProvider(provider as LLMProvider)
+    try {
+      if (editingProvider?.id) {
+        await updateProvider(provider as LLMProvider)
+      } else {
+        await addProvider(provider as LLMProvider)
+      }
+      setIsAddingProvider(false)
+      setEditingProvider(null)
+    } catch (error) {
+      // Show error to user - the error will be displayed in the modal
+      throw error
     }
-    setIsAddingProvider(false)
-    setEditingProvider(null)
   }
 
   const handleTestProvider = async (providerId: string) => {

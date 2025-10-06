@@ -160,7 +160,8 @@ export function AddProviderModal({ isOpen, onClose, onSave, editProvider }: AddP
       onClose()
     } catch (error) {
       console.error('Error saving provider:', error)
-      alert('Failed to save provider. Please try again.')
+      const errorMessage = error instanceof Error ? error.message : 'Failed to save provider. Please try again.'
+      alert(errorMessage)
     } finally {
       setIsSaving(false)
     }
