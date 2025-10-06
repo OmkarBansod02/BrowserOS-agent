@@ -47,13 +47,18 @@ export function useBrowserOSPrefs() {
     setPort(newPort)
 
     // Add delay to ensure port is ready before sending message
-    setTimeout(() => {
-      // Request initial config
-      newPort.postMessage({
-        type: MessageType.GET_LLM_PROVIDERS,
-        payload: {},
-        id: `get-providers-${Date.now()}`
-      })
+    const initialTimeout = setTimeout(() => {
+      try {
+        // Request initial config
+        newPort.postMessage({
+          type: MessageType.GET_LLM_PROVIDERS,
+          payload: {},
+          id: `get-providers-${Date.now()}`
+        })
+      } catch (error) {
+        // Port might be disconnected already
+        console.debug('Initial request failed, port might be disconnected')
+      }
     }, 100)
 
     // Also request again after a bit more time in case first one fails
@@ -67,12 +72,13 @@ export function useBrowserOSPrefs() {
           })
         } catch (error) {
           // Port might be disconnected, that's okay
-          console.log('Retry failed, port disconnected')
+          console.debug('Retry failed, port disconnected')
         }
       }
     }, 500)
 
     return () => {
+      clearTimeout(initialTimeout)
       clearTimeout(retryTimeout)
       newPort.onMessage.removeListener(listener)
       newPort.disconnect()
@@ -92,13 +98,17 @@ export function useBrowserOSPrefs() {
     }
 
     // Send via persistent port - broadcast will update state automatically
-    port.postMessage({
-      type: MessageType.SAVE_LLM_PROVIDERS,
-      payload: config,
-      id: `save-providers-${Date.now()}`
-    })
-
-    return true
+    try {
+      port.postMessage({
+        type: MessageType.SAVE_LLM_PROVIDERS,
+        payload: config,
+        id: `save-providers-${Date.now()}`
+      })
+      return true
+    } catch (error) {
+      console.error('Failed to save providers - port disconnected:', error)
+      return false
+    }
   }, [port, defaultProvider])
 
   const setDefaultProvider = useCallback(async (providerId: string) => {

@@ -16,6 +16,19 @@ export class ProvidersHandler {
   private portManager: PortManager | null = null
 
   /**
+   * Safely send a message to a port with error handling
+   */
+  private safePostMessage(port: chrome.runtime.Port, message: any): boolean {
+    try {
+      port.postMessage(message)
+      return true
+    } catch (error) {
+      Logging.log('ProvidersHandler', `Failed to send message to ${port.name}: Port disconnected`, 'warning')
+      return false
+    }
+  }
+
+  /**
    * Set the port manager for broadcasting config changes
    */
   setPortManager(portManager: PortManager): void {
@@ -38,7 +51,7 @@ export class ProvidersHandler {
       Logging.log('ProvidersHandler', `Provider IDs: ${config.providers.map(p => p.id).join(', ')}`)
       Logging.log('ProvidersHandler', `Default provider: ${config.defaultProviderId}`)
 
-      port.postMessage({
+      this.safePostMessage(port, {
         type: MessageType.WORKFLOW_STATUS,
         payload: {
           status: 'success',
@@ -50,7 +63,7 @@ export class ProvidersHandler {
       const errorMessage = error instanceof Error ? error.message : String(error)
       Logging.log('ProvidersHandler', `Error getting providers: ${errorMessage}`, 'error')
 
-      port.postMessage({
+      this.safePostMessage(port, {
         type: MessageType.WORKFLOW_STATUS,
         payload: {
           status: 'error',
@@ -95,14 +108,14 @@ export class ProvidersHandler {
             Logging.log('ProvidersHandler', `Saved successfully to BrowserOS prefs, broadcasting to all ports`)
             this.broadcastProvidersConfig(config)
 
-            port.postMessage({
+            this.safePostMessage(port, {
               type: MessageType.WORKFLOW_STATUS,
               payload: { status: 'success', data: { providersConfig: config } },
               id: message.id
             })
           } else {
             Logging.log('ProvidersHandler', `BrowserOS setPref failed`, 'error')
-            port.postMessage({
+            this.safePostMessage(port, {
               type: MessageType.WORKFLOW_STATUS,
               payload: { status: 'error', error: 'Failed to save to BrowserOS preferences' },
               id: message.id
@@ -117,7 +130,7 @@ export class ProvidersHandler {
         chrome.storage?.local?.set({ [key]: configStr }, () => {
           if (chrome.runtime.lastError) {
             Logging.log('ProvidersHandler', `Storage save error: ${chrome.runtime.lastError.message}`, 'error')
-            port.postMessage({
+            this.safePostMessage(port, {
               type: MessageType.WORKFLOW_STATUS,
               payload: { status: 'error', error: chrome.runtime.lastError.message },
               id: message.id
@@ -131,7 +144,7 @@ export class ProvidersHandler {
           Logging.log('ProvidersHandler', `Saved successfully to chrome.storage, broadcasting to all ports`)
           this.broadcastProvidersConfig(config)
 
-          port.postMessage({
+          this.safePostMessage(port, {
             type: MessageType.WORKFLOW_STATUS,
             payload: { status: 'success', data: { providersConfig: config } },
             id: message.id
@@ -141,7 +154,7 @@ export class ProvidersHandler {
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error)
       Logging.log('ProvidersHandler', `Save exception: ${errorMessage}`, 'error')
-      port.postMessage({
+      this.safePostMessage(port, {
         type: MessageType.WORKFLOW_STATUS,
         payload: { status: 'error', error: errorMessage },
         id: message.id
@@ -164,17 +177,15 @@ export class ProvidersHandler {
     Logging.log('ProvidersHandler', `Broadcasting provider config to ${ports.length} connected ports`)
 
     for (const port of ports) {
-      try {
-        port.postMessage({
-          type: MessageType.WORKFLOW_STATUS,
-          payload: {
-            status: 'success',
-            data: { providersConfig: config }
-          }
-        })
+      const success = this.safePostMessage(port, {
+        type: MessageType.WORKFLOW_STATUS,
+        payload: {
+          status: 'success',
+          data: { providersConfig: config }
+        }
+      })
+      if (success) {
         Logging.log('ProvidersHandler', `Broadcasted provider config to ${port.name}`)
-      } catch (error) {
-        Logging.log('ProvidersHandler', `Failed to broadcast to ${port.name}: ${error}`, 'warning')
       }
     }
   }
