@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { ChevronDown, ChevronUp } from 'lucide-react'
+import { ChevronDown } from 'lucide-react'
 import { LLMProvider } from '../types/llm-settings'
 
 interface ProviderTemplatesProps {
