@@ -18,32 +18,64 @@ interface ConfiguredModelsListProps {
 const BENCHMARK_ENABLED = false
 
 const getProviderIcon = (type: string, name?: string) => {
-  // BrowserOS built-in provider
+  // BrowserOS built-in provider with larger size
   if (name === 'BrowserOS') {
-    return <img src="/assets/browseros.svg" alt="BrowserOS" className="w-6 h-6 object-contain" />
+    return (
+      <div className="w-8 h-8 rounded-full bg-white dark:bg-white flex items-center justify-center p-1">
+        <img src="/assets/browseros.svg" alt="BrowserOS" className="w-full h-full object-contain" />
+      </div>
+    )
   }
 
   switch (type.toLowerCase()) {
     case 'openai':
-      return <img src="/assets/openai.svg" alt="OpenAI" className="w-6 h-6 object-contain" />
+      return (
+        <div className="w-8 h-8 rounded-full bg-white dark:bg-white flex items-center justify-center p-1.5">
+          <img src="/assets/openai.svg" alt="OpenAI" className="w-full h-full object-contain" />
+        </div>
+      )
     case 'claude':
     case 'anthropic':
-      return <img src="/assets/anthropic.svg" alt="Anthropic" className="w-6 h-6 object-contain" />
+      return (
+        <div className="w-8 h-8 rounded-full bg-white dark:bg-white flex items-center justify-center p-1.5">
+          <img src="/assets/anthropic.svg" alt="Anthropic" className="w-full h-full object-contain" />
+        </div>
+      )
     case 'gemini':
     case 'google_gemini':
-      return <img src="/assets/Google-gemini-icon.svg" alt="Google Gemini" className="w-6 h-6 object-contain" />
+      return (
+        <div className="w-8 h-8 rounded-full bg-white dark:bg-white flex items-center justify-center p-1.5">
+          <img src="/assets/Google-gemini-icon.svg" alt="Google Gemini" className="w-full h-full object-contain" />
+        </div>
+      )
     case 'ollama':
-      return <img src="/assets/ollama.svg" alt="Ollama" className="w-6 h-6 object-contain" />
+      return (
+        <div className="w-8 h-8 rounded-full bg-white dark:bg-white flex items-center justify-center p-1.5">
+          <img src="/assets/ollama.svg" alt="Ollama" className="w-full h-full object-contain" />
+        </div>
+      )
     case 'openrouter':
-      return <img src="/assets/openrouter.svg" alt="OpenRouter" className="w-6 h-6 object-contain" />
+      return (
+        <div className="w-8 h-8 rounded-full bg-white dark:bg-white flex items-center justify-center p-1.5">
+          <img src="/assets/openrouter.svg" alt="OpenRouter" className="w-full h-full object-contain" />
+        </div>
+      )
     case 'browseros':
-      return <img src="/assets/browseros.svg" alt="BrowserOS" className="w-6 h-6 object-contain" />
+      return (
+        <div className="w-8 h-8 rounded-full bg-white dark:bg-white flex items-center justify-center p-1">
+          <img src="/assets/browseros.svg" alt="BrowserOS" className="w-full h-full object-contain" />
+        </div>
+      )
     case 'lm studio':
     case 'openai_compatible':
-      return <img src="/assets/lmstudio.svg" alt="LM Studio" className="w-6 h-6 object-contain" />
+      return (
+        <div className="w-8 h-8 rounded-full bg-white dark:bg-white flex items-center justify-center p-1.5">
+          <img src="/assets/lmstudio.svg" alt="LM Studio" className="w-full h-full object-contain" />
+        </div>
+      )
     default:
       return (
-        <svg viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6">
+        <svg viewBox="0 0 24 24" fill="currentColor" className="w-8 h-8">
           <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/>
           <circle cx="12" cy="12" r="3"/>
         </svg>
@@ -454,12 +486,22 @@ export function ConfiguredModelsList({
                       <button
                         onClick={(e) => {
                           e.stopPropagation()
+                          onTest(provider.id)
+                        }}
+                        disabled={testResult?.status === 'loading'}
+                        className="px-3 py-1.5 text-[12px] font-medium text-foreground bg-background hover:bg-accent border border-border rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {testResult?.status === 'loading' && !testResult?.benchmark ? 'Testing...' : 'Test'}
+                      </button>
+
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
                           onEdit(provider)
                         }}
-                        className="p-2 hover:bg-accent rounded-md transition-colors"
-                        title="Edit"
+                        className="px-3 py-1.5 text-[12px] font-medium text-foreground bg-background hover:bg-accent border border-border rounded-md transition-colors"
                       >
-                        <Edit2 className="w-4 h-4" />
+                        Edit
                       </button>
 
                       {testResult && testResult.status !== 'idle' && testResult.status !== 'loading' && (
@@ -468,7 +510,7 @@ export function ConfiguredModelsList({
                             e.stopPropagation()
                             toggleExpanded(provider.id)
                           }}
-                          className="p-2 hover:bg-accent rounded-md transition-colors"
+                          className="p-1.5 hover:bg-accent rounded-md transition-colors border border-border"
                           title="Toggle test results"
                         >
                           <ChevronDown className={`w-4 h-4 transition-transform ${
@@ -476,28 +518,7 @@ export function ConfiguredModelsList({
                           }`} />
                         </button>
                       )}
-                    </>
-                  )}
 
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      onTest(provider.id)
-                    }}
-                    disabled={testResult?.status === 'loading'}
-                    className="settings-button settings-button-ghost flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                    title="Test connection"
-                  >
-                    {testResult?.status === 'loading' && !testResult?.benchmark ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <Play className="w-4 h-4" />
-                    )}
-                    <span className="text-sm">Test</span>
-                  </button>
-
-                  {!isBrowserOS && (
-                    <>
                       {BENCHMARK_ENABLED && (
                         <button
                           onClick={(e) => {
@@ -505,15 +526,9 @@ export function ConfiguredModelsList({
                             onBenchmark(provider.id)
                           }}
                           disabled={testResult?.status === 'loading'}
-                          className="settings-button settings-button-ghost flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                          title="Run benchmark"
+                          className="px-3 py-1.5 text-[12px] font-medium text-foreground bg-background hover:bg-accent border border-border rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                          {testResult?.status === 'loading' && testResult?.benchmark !== undefined ? (
-                            <Loader2 className="w-4 h-4 animate-spin" />
-                          ) : (
-                            <Activity className="w-4 h-4" />
-                          )}
-                          <span className="text-sm">Benchmark</span>
+                          {testResult?.status === 'loading' && testResult?.benchmark !== undefined ? 'Running...' : 'Benchmark'}
                         </button>
                       )}
 
@@ -522,10 +537,10 @@ export function ConfiguredModelsList({
                           e.stopPropagation()
                           onDelete(provider.id)
                         }}
-                        className="settings-button settings-button-destructive"
+                        className="p-1.5 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-md transition-colors border border-border hover:border-red-300 dark:hover:border-red-900"
                         title="Delete"
                       >
-                        <Trash2 className="w-4 h-4" />
+                        <Trash2 className="w-4 h-4 text-red-600 dark:text-red-400" />
                       </button>
                     </>
                   )}

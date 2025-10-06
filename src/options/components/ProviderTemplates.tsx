@@ -7,27 +7,49 @@ interface ProviderTemplatesProps {
 }
 
 const getProviderIcon = (type: string) => {
-  const iconClass = "w-6 h-6 object-contain"
-
   switch (type.toLowerCase()) {
     case 'openai':
-      return <img src="/assets/openai.svg" alt="OpenAI" className={iconClass} />
+      return (
+        <div className="w-8 h-8 rounded-full bg-white dark:bg-white flex items-center justify-center p-1.5">
+          <img src="/assets/openai.svg" alt="OpenAI" className="w-full h-full object-contain" />
+        </div>
+      )
     case 'claude':
     case 'anthropic':
-      return <img src="/assets/anthropic.svg" alt="Anthropic" className={iconClass} />
+      return (
+        <div className="w-8 h-8 rounded-full bg-white dark:bg-white flex items-center justify-center p-1.5">
+          <img src="/assets/anthropic.svg" alt="Anthropic" className="w-full h-full object-contain" />
+        </div>
+      )
     case 'gemini':
     case 'google_gemini':
-      return <img src="/assets/Google-gemini-icon.svg" alt="Google Gemini" className={iconClass} />
+      return (
+        <div className="w-8 h-8 rounded-full bg-white dark:bg-white flex items-center justify-center p-1.5">
+          <img src="/assets/Google-gemini-icon.svg" alt="Google Gemini" className="w-full h-full object-contain" />
+        </div>
+      )
     case 'ollama':
-      return <img src="/assets/ollama.svg" alt="Ollama" className={iconClass} />
+      return (
+        <div className="w-8 h-8 rounded-full bg-white dark:bg-white flex items-center justify-center p-1.5">
+          <img src="/assets/ollama.svg" alt="Ollama" className="w-full h-full object-contain" />
+        </div>
+      )
     case 'openrouter':
-      return <img src="/assets/openrouter.svg" alt="OpenRouter" className={iconClass} />
+      return (
+        <div className="w-8 h-8 rounded-full bg-white dark:bg-white flex items-center justify-center p-1.5">
+          <img src="/assets/openrouter.svg" alt="OpenRouter" className="w-full h-full object-contain" />
+        </div>
+      )
     case 'lm studio':
     case 'openai_compatible':
-      return <img src="/assets/lmstudio.svg" alt="LM Studio" className={iconClass} />
+      return (
+        <div className="w-8 h-8 rounded-full bg-white dark:bg-white flex items-center justify-center p-1.5">
+          <img src="/assets/lmstudio.svg" alt="LM Studio" className="w-full h-full object-contain" />
+        </div>
+      )
     default:
       return (
-        <svg viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6">
+        <svg viewBox="0 0 24 24" fill="currentColor" className="w-8 h-8">
           <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/>
           <circle cx="12" cy="12" r="3"/>
         </svg>
@@ -163,9 +185,7 @@ export function ProviderTemplates({ onUseTemplate }: ProviderTemplatesProps) {
                 onClick={() => onUseTemplate(provider.template as LLMProvider)}
               >
                 <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full overflow-hidden flex items-center justify-center bg-muted">
-                    {getProviderIcon(provider.type)}
-                  </div>
+                  {getProviderIcon(provider.type)}
                   <span className="text-[13px] font-normal">
                     {provider.name}
                   </span>

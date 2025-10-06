@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { X } from 'lucide-react'
 import { LLMProvider, ProviderType } from '../types/llm-settings'
+import { getModelsForProvider, ModelInfo } from '../data/models'
 
 interface AddProviderModalProps {
   isOpen: boolean
@@ -18,15 +19,10 @@ const PROVIDER_TYPES: { value: ProviderType; label: string }[] = [
   { value: 'openai_compatible', label: 'OpenAI Compatible' }
 ]
 
-const MODEL_OPTIONS: Record<ProviderType, string[]> = {
-  openai: ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo', 'gpt-3.5-turbo', 'gpt-4', 'custom'],
-  anthropic: ['claude-3-5-sonnet-latest', 'claude-3-opus', 'claude-3-sonnet', 'claude-3-haiku', 'claude-2.1', 'custom'],
-  google_gemini: ['gemini-2.0-flash', 'gemini-1.5-pro', 'gemini-1.5-flash', 'gemini-pro', 'gemini-pro-vision', 'custom'],
-  ollama: ['llama2', 'mistral', 'codellama', 'phi', 'neural-chat', 'qwen3:4b', 'custom'],
-  openrouter: ['auto', 'anthropic/claude-3.5-sonnet', 'openai/gpt-4o', 'custom'],
-  openai_compatible: ['custom'],
-  browseros: ['auto'],
-  custom: ['custom']
+// Get model options dynamically from models data with custom option
+function getModelOptions(providerType: ProviderType): string[] {
+  const builtInModels = getModelsForProvider(providerType).map(m => m.modelId)
+  return builtInModels.length > 0 ? [...builtInModels, 'custom'] : ['custom']
 }
 const DEFAULT_BASE_URLS: Record<ProviderType, string> = {
   openai: 'https://api.openai.com/v1',
@@ -58,7 +54,7 @@ export function AddProviderModal({ isOpen, onClose, onSave, editProvider }: AddP
         setProviderName(editProvider.name)
         setBaseUrl(editProvider.baseUrl ?? DEFAULT_BASE_URLS[editProvider.type])
 
-        const availableModels = MODEL_OPTIONS[editProvider.type] ?? []
+        const availableModels = getModelOptions(editProvider.type)
         const supportsCustom = availableModels.includes('custom')
         const storedModelId = editProvider.modelId || ''
 
@@ -82,7 +78,7 @@ export function AddProviderModal({ isOpen, onClose, onSave, editProvider }: AddP
         setProviderType('openai')
         setProviderName('')
         setBaseUrl(DEFAULT_BASE_URLS.openai)
-        setModelId(MODEL_OPTIONS.openai[0])
+        setModelId(getModelOptions('openai')[0])
         setCustomModelId('')
         setApiKey('')
         setSupportsImages(false)
@@ -95,7 +91,7 @@ export function AddProviderModal({ isOpen, onClose, onSave, editProvider }: AddP
   useEffect(() => {
     if (!editProvider) {
       setBaseUrl(DEFAULT_BASE_URLS[providerType])
-      const options = MODEL_OPTIONS[providerType] ?? []
+      const options = getModelOptions(providerType)
       const defaultModel = options[0] || (options.includes('custom') ? 'custom' : '')
       setModelId(defaultModel)
       setCustomModelId(defaultModel === 'custom' ? '' : '')
@@ -125,7 +121,7 @@ export function AddProviderModal({ isOpen, onClose, onSave, editProvider }: AddP
       setCustomModelId(trimmedCustomId)
       resolvedModelId = trimmedCustomId
     } else {
-      const options = MODEL_OPTIONS[providerType] ?? []
+      const options = getModelOptions(providerType)
       resolvedModelId = modelId || options[0] || ''
     }
 
@@ -167,12 +163,14 @@ export function AddProviderModal({ isOpen, onClose, onSave, editProvider }: AddP
     }
   }
 
-  const modelOptions = MODEL_OPTIONS[providerType] ?? []
+  const modelOptions = getModelOptions(providerType)
   const supportsCustomModel = modelOptions.includes('custom')
   const isCustomOnlyOption = supportsCustomModel && modelOptions.length === 1
   const showCustomModelInput = supportsCustomModel && (isCustomOnlyOption || modelId === 'custom')
   const customModelPlaceholder = providerType === 'ollama'
-    ? 'Enter custom Ollama model (e.g., llama3:latest)'
+    ? 'e.g., llama3.1:8b or custom-model:latest'
+    : providerType === 'openai_compatible'
+    ? 'e.g., lmstudio-community/Meta-Llama-3.1-8B-Instruct-GGUF'
     : 'Enter the exact model identifier'
 
   if (!isOpen) return null
@@ -274,7 +272,7 @@ export function AddProviderModal({ isOpen, onClose, onSave, editProvider }: AddP
                 >
                   {modelOptions.map((model) => (
                     <option key={model} value={model} className="bg-background dark:bg-[#202124]">
-                      {model}
+                      {model === 'custom' ? 'Custom' : model}
                     </option>
                   ))}
                 </select>

@@ -12,8 +12,7 @@ interface SidebarItem {
 }
 
 const sidebarItems: SidebarItem[] = [
-  { id: 'browseros-ai', label: 'BrowserOS AI', icon: Bot },
-  { id: 'browseros-settings', label: 'BrowserOS Settings', icon: Settings, disabled: true }
+  { id: 'browseros-ai', label: 'BrowserOS AI', icon: Bot }
 ]
 
 interface SettingsLayoutProps {
@@ -85,7 +84,7 @@ export function SettingsLayout({ children }: SettingsLayoutProps) {
             </button>
 
             {/* Settings Title */}
-            <h1 className="text-[20px] font-medium">Settings</h1>
+            <h1 className="text-[20px] font-medium" style={{ fontFamily: 'Arial, sans-serif' }}>Settings</h1>
           </div>
 
           {/* Theme Toggle */}
@@ -112,7 +111,7 @@ export function SettingsLayout({ children }: SettingsLayoutProps) {
           <div className="flex flex-col h-full">
             {/* Sidebar Header - Mobile only */}
             <div className="flex md:hidden items-center justify-between p-4 border-b border-border">
-              <h2 className="text-lg font-semibold">Menu</h2>
+              <h2 className="text-lg font-medium" style={{ fontFamily: 'Arial, sans-serif' }}>Menu</h2>
               <button
                 onClick={() => setSidebarOpen(false)}
                 className="p-1 hover:bg-accent rounded-md transition-colors"
@@ -139,7 +138,7 @@ export function SettingsLayout({ children }: SettingsLayoutProps) {
                       className="absolute left-5 w-5 h-5 flex-shrink-0"
                       style={{ strokeWidth: 1.5 }}
                     />
-                    <span>{item.label}</span>
+                    <span className="font-normal" style={{ fontFamily: 'Arial, sans-serif' }}>{item.label}</span>
                   </div>
                 )
               })}
