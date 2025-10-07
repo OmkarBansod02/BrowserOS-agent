@@ -3,21 +3,10 @@ import {
   BrowserOSProvider,
   BrowserOSProvidersConfig,
   BrowserOSProvidersConfigSchema,
-  BROWSEROS_PREFERENCE_KEYS
+  BROWSEROS_PREFERENCE_KEYS,
+  createDefaultProvidersConfig
 } from '@/lib/llm/settings/browserOSTypes'
 
-// Type definitions for chrome.browserOS API
-declare global {
-  interface ChromeBrowserOS {
-    getPref(name: string, callback: (pref: { value: any }) => void): void
-    setPref(name: string, value: any, pageId?: string, callback?: (success: boolean) => void): void
-    getAllPrefs(callback: (prefs: { key: string; value: any }[]) => void): void
-  }
-
-  interface Chrome {
-    browserOS?: ChromeBrowserOS
-  }
-}
 
 interface OptionsStore {
   providers: BrowserOSProvider[]
@@ -34,108 +23,164 @@ interface OptionsStore {
   deleteProvider: (providerId: string) => Promise<void>
 }
 
-// Helper function to get chrome.browserOS API
-const getBrowserOSAPI = (): ChromeBrowserOS | null => {
-  return (chrome as any)?.browserOS || null
+
+// Merge two provider configs, deduplicating by provider.id
+const mergeProviderConfigs = (
+  config1: BrowserOSProvidersConfig | null,
+  config2: BrowserOSProvidersConfig | null
+): BrowserOSProvidersConfig | null => {
+  if (!config1 && !config2) return null
+  if (!config1) return config2
+  if (!config2) return config1
+
+  // Merge providers by id, preferring newer updatedAt
+  const providerMap = new Map<string, BrowserOSProvider>()
+
+  for (const provider of config1.providers) {
+    providerMap.set(provider.id, provider)
+  }
+
+  for (const provider of config2.providers) {
+    const existing = providerMap.get(provider.id)
+    if (!existing) {
+      providerMap.set(provider.id, provider)
+    } else {
+      // Prefer provider with newer updatedAt timestamp
+      const existingTime = new Date(existing.updatedAt || 0).getTime()
+      const newTime = new Date(provider.updatedAt || 0).getTime()
+      if (newTime > existingTime) {
+        providerMap.set(provider.id, provider)
+      }
+    }
+  }
+
+  const mergedProviders = Array.from(providerMap.values())
+
+  // Use defaultProviderId from config with more providers (or config1 if equal)
+  const defaultProviderId = config1.providers.length >= config2.providers.length
+    ? config1.defaultProviderId
+    : config2.defaultProviderId
+
+  // Ensure default provider exists in merged list
+  const finalDefaultId = mergedProviders.some(p => p.id === defaultProviderId)
+    ? defaultProviderId
+    : (mergedProviders[0]?.id || 'browseros')
+
+  return {
+    defaultProviderId: finalDefaultId,
+    providers: mergedProviders
+  }
 }
 
-// Helper function to read providers from BrowserOS preferences
-const readProvidersFromPrefs = (): Promise<BrowserOSProvidersConfig | null> => {
-  return new Promise((resolve) => {
-    const browserOS = getBrowserOSAPI()
+const readProvidersFromPrefs = async (): Promise<BrowserOSProvidersConfig | null> => {
+  const key = BROWSEROS_PREFERENCE_KEYS.PROVIDERS
+  let browserOSConfig: BrowserOSProvidersConfig | null = null
+  let storageLocalConfig: BrowserOSProvidersConfig | null = null
 
-    if (!browserOS?.getPref) {
-      // Fallback to chrome.storage.local
-      chrome.storage?.local?.get(BROWSEROS_PREFERENCE_KEYS.PROVIDERS, (result) => {
-        try {
-          const raw = result?.[BROWSEROS_PREFERENCE_KEYS.PROVIDERS]
-          if (!raw) {
-            resolve(null)
-            return
+  // Read from BrowserOS prefs
+  if ((chrome as any)?.browserOS?.getPref) {
+    try {
+      const pref = await new Promise<any>((resolve, reject) => {
+        (chrome as any).browserOS.getPref(key, (pref: any) => {
+          if (chrome.runtime?.lastError) {
+            reject(chrome.runtime.lastError)
+          } else {
+            resolve(pref)
           }
-          const config = BrowserOSProvidersConfigSchema.parse(
-            typeof raw === 'string' ? JSON.parse(raw) : raw
-          )
-          resolve(config)
-        } catch (e) {
-          console.error('Failed to parse providers from storage:', e)
-          resolve(null)
+        })
+      })
+
+      if (pref?.value) {
+        const data = typeof pref.value === 'string' ? JSON.parse(pref.value) : pref.value
+        browserOSConfig = BrowserOSProvidersConfigSchema.parse(data)
+      }
+    } catch (error) {
+      // Silently continue to fallback
+    }
+  }
+
+  // Read from chrome.storage.local
+  if (chrome.storage?.local) {
+    try {
+      const stored = await new Promise<Record<string, unknown>>((resolve) => {
+        chrome.storage.local.get(key, (result) => resolve(result ?? {}))
+      })
+      const raw = stored?.[key]
+      if (raw) {
+        const data = typeof raw === 'string' ? JSON.parse(raw) : raw
+        storageLocalConfig = BrowserOSProvidersConfigSchema.parse(data)
+      }
+    } catch (error) {
+      console.error('[optionsStore] Failed to read from chrome.storage.local:', error)
+    }
+  }
+
+  // Merge both configs
+  const mergedConfig = mergeProviderConfigs(browserOSConfig, storageLocalConfig)
+
+  if (!mergedConfig) {
+    return null
+  }
+
+  // Check if merge recovered providers - auto-save if recovery happened
+  const browserOSCount = browserOSConfig?.providers.length || 0
+  const storageLocalCount = storageLocalConfig?.providers.length || 0
+  const mergedCount = mergedConfig.providers.length
+
+  if (mergedCount > browserOSCount || mergedCount > storageLocalCount) {
+    await writeProvidersToPrefs(mergedConfig)
+  }
+
+  return mergedConfig
+}
+
+const writeProvidersToPrefs = async (config: BrowserOSProvidersConfig): Promise<boolean> => {
+  const key = BROWSEROS_PREFERENCE_KEYS.PROVIDERS
+  const configJson = JSON.stringify(config)
+
+  let browserOSSuccess = false
+  let storageSuccess = false
+
+  // Save to chrome.browserOS.setPref (for BrowserOS browser)
+  if ((chrome as any)?.browserOS?.setPref) {
+    browserOSSuccess = await new Promise<boolean>((resolve) => {
+      (chrome as any).browserOS.setPref(key, configJson, undefined, (success?: boolean) => {
+        const error = chrome.runtime?.lastError
+        if (error) {
+          console.warn('[optionsStore] BrowserOS setPref error:', error.message)
+          resolve(false)
+        } else if (success !== false) {
+          resolve(true)
+        } else {
+          console.warn('[optionsStore] BrowserOS setPref returned false')
+          resolve(false)
         }
       })
-      return
-    }
-
-    browserOS.getPref(BROWSEROS_PREFERENCE_KEYS.PROVIDERS, (pref) => {
-      if (chrome.runtime.lastError) {
-        console.error('Failed to read preference:', chrome.runtime.lastError.message)
-        resolve(null)
-        return
-      }
-
-      if (!pref?.value) {
-        resolve(null)
-        return
-      }
-
-      try {
-        const config = BrowserOSProvidersConfigSchema.parse(JSON.parse(pref.value))
-        resolve(config)
-      } catch (error) {
-        console.error('Failed to parse providers config:', error)
-        resolve(null)
-      }
     })
-  })
-}
+  }
 
-// Helper function to write providers to BrowserOS preferences
-const writeProvidersToPrefs = (config: BrowserOSProvidersConfig): Promise<boolean> => {
-  return new Promise((resolve) => {
-    const browserOS = getBrowserOSAPI()
-    const configJson = JSON.stringify(config)
-
-    if (!browserOS?.setPref) {
-      // Fallback to chrome.storage.local
-      chrome.storage?.local?.set(
-        { [BROWSEROS_PREFERENCE_KEYS.PROVIDERS]: configJson },
-        () => {
-          if (chrome.runtime.lastError) {
-            console.error('Failed to save to storage:', chrome.runtime.lastError.message)
-            resolve(false)
-          } else {
-            resolve(true)
-          }
-        }
-      )
-      return
-    }
-
-    browserOS.setPref(
-      BROWSEROS_PREFERENCE_KEYS.PROVIDERS,
-      configJson,
-      '',
-      (success) => {
-        if (chrome.runtime.lastError) {
-          console.error('Failed to save preference:', chrome.runtime.lastError.message)
+  // ALSO save to chrome.storage.local (always, for extension reliability)
+  if (chrome.storage?.local) {
+    storageSuccess = await new Promise((resolve) => {
+      chrome.storage.local.set({ [key]: configJson }, () => {
+        if (chrome.runtime?.lastError) {
+          console.error('[optionsStore] chrome.storage.local save error:', chrome.runtime.lastError.message)
           resolve(false)
         } else {
-          resolve(success)
+          resolve(true)
         }
-      }
-    )
-  })
+      })
+    })
+  }
+
+  // Success if either storage mechanism worked
+  const success = browserOSSuccess || storageSuccess
+  if (!success) {
+    console.error('[optionsStore] Failed to save to any storage mechanism')
+  }
+  return success
 }
 
-// Default BrowserOS provider
-const getDefaultBrowserOSProvider = (): BrowserOSProvider => ({
-  id: 'browseros',
-  name: 'BrowserOS',
-  type: 'browseros',
-  isDefault: true,
-  isBuiltIn: true,
-  createdAt: new Date().toISOString(),
-  updatedAt: new Date().toISOString()
-})
 
 export const useOptionsStore = create<OptionsStore>((set, get) => ({
   providers: [],
@@ -150,7 +195,6 @@ export const useOptionsStore = create<OptionsStore>((set, get) => ({
       const config = await readProvidersFromPrefs()
 
       if (config) {
-        // Normalize isDefault flags
         const normalizedProviders = config.providers.map(p => ({
           ...p,
           isDefault: p.id === config.defaultProviderId
@@ -161,27 +205,24 @@ export const useOptionsStore = create<OptionsStore>((set, get) => ({
           defaultProviderId: config.defaultProviderId,
           isLoading: false
         })
-      } else {
-        // No config found, use default
-        const defaultProvider = getDefaultBrowserOSProvider()
-        set({
-          providers: [defaultProvider],
-          defaultProviderId: defaultProvider.id,
-          isLoading: false
-        })
+        return
       }
-    } catch (error) {
-      console.error('Failed to load providers:', error)
+
+      const defaultConfig = createDefaultProvidersConfig()
+      await writeProvidersToPrefs(defaultConfig)
       set({
-        error: 'Failed to load providers',
+        providers: defaultConfig.providers,
+        defaultProviderId: defaultConfig.defaultProviderId,
         isLoading: false
       })
-
-      // Fallback to default
-      const defaultProvider = getDefaultBrowserOSProvider()
+    } catch (error) {
+      console.error('Failed to load providers:', error)
+      const fallbackConfig = createDefaultProvidersConfig()
       set({
-        providers: [defaultProvider],
-        defaultProviderId: defaultProvider.id
+        error: 'Failed to load providers',
+        providers: fallbackConfig.providers,
+        defaultProviderId: fallbackConfig.defaultProviderId,
+        isLoading: false
       })
     }
   },
@@ -303,3 +344,14 @@ export const useOptionsStore = create<OptionsStore>((set, get) => ({
     }
   }
 }))
+
+
+
+
+
+
+
+
+
+
+

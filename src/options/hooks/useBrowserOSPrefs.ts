@@ -29,6 +29,9 @@ export function useBrowserOSPrefs() {
       // Handle provider config responses and broadcasts
       if (msg.type === MessageType.WORKFLOW_STATUS) {
         const payload = msg.payload as any
+        if (payload?.status === 'error') {
+          console.error('[useBrowserOSPrefs] Error from background:', payload.error)
+        }
         if (payload?.data?.providersConfig) {
           const config = payload.data.providersConfig as BrowserOSProvidersConfig
           // Ensure all providers have isDefault field (migration for old data)
@@ -46,19 +49,31 @@ export function useBrowserOSPrefs() {
     newPort.onMessage.addListener(listener)
     setPort(newPort)
 
+    // Track if port is still connected
+    let isPortConnected = true
+    const handleDisconnect = () => {
+      isPortConnected = false
+    }
+    newPort.onDisconnect.addListener(handleDisconnect)
+
     // Add delay to ensure port is ready before sending message
-    setTimeout(() => {
-      // Request initial config
-      newPort.postMessage({
-        type: MessageType.GET_LLM_PROVIDERS,
-        payload: {},
-        id: `get-providers-${Date.now()}`
-      })
+    const initialTimeout = setTimeout(() => {
+      if (isPortConnected) {
+        try {
+          newPort.postMessage({
+            type: MessageType.GET_LLM_PROVIDERS,
+            payload: {},
+            id: `get-providers-${Date.now()}`
+          })
+        } catch (error) {
+          console.error('[useBrowserOSPrefs] Failed to send initial message:', error)
+        }
+      }
     }, 100)
 
     // Also request again after a bit more time in case first one fails
     const retryTimeout = setTimeout(() => {
-      if (isLoading) {
+      if (isLoading && isPortConnected) {
         try {
           newPort.postMessage({
             type: MessageType.GET_LLM_PROVIDERS,
@@ -66,15 +81,17 @@ export function useBrowserOSPrefs() {
             id: `get-providers-retry-${Date.now()}`
           })
         } catch (error) {
-          // Port might be disconnected, that's okay
-          console.log('Retry failed, port disconnected')
+          // Silently fail, port disconnected
         }
       }
     }, 500)
 
     return () => {
+      isPortConnected = false
+      clearTimeout(initialTimeout)
       clearTimeout(retryTimeout)
       newPort.onMessage.removeListener(listener)
+      newPort.onDisconnect.removeListener(handleDisconnect)
       newPort.disconnect()
       setPort(null)
     }
@@ -82,7 +99,7 @@ export function useBrowserOSPrefs() {
 
   const saveProvidersConfig = useCallback(async (updatedProviders: LLMProvider[], newDefaultId?: string) => {
     if (!port) {
-      console.error('Port not connected')
+      console.error('[useBrowserOSPrefs] Port not connected')
       return false
     }
 

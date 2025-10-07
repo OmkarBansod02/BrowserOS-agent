@@ -3,11 +3,10 @@ import { SettingsHandler } from './SettingsHandler'
 import { MessageType } from '@/lib/types/messaging'
 import { PortMessage } from '@/lib/runtime/PortMessaging'
 
-// Mock Chrome browserOS API
-const mockBrowserOS = {
-  getPref: vi.fn(),
-  setPref: vi.fn(),
-  getAllPrefs: vi.fn()
+// Mock Chrome BrowserOS prefs API
+const mockBrowserOSPrefs = {
+  getPrefs: vi.fn(),
+  setPrefs: vi.fn()
 }
 
 // Mock the port
@@ -48,7 +47,7 @@ describe('SettingsHandler-unit-test', () => {
     vi.clearAllMocks()
     handler = new SettingsHandler()
     ;(globalThis as any).chrome = {
-      browserOS: mockBrowserOS
+      BrowserOS: mockBrowserOSPrefs
     }
   })
 
@@ -60,9 +59,9 @@ describe('SettingsHandler-unit-test', () => {
     expect(typeof handler.handleTestProvider).toBe('function')
   })
 
-  it('tests that handleGetPref calls chrome.browserOS.getPref correctly', async () => {
-    mockBrowserOS.getPref.mockImplementation((name, callback) => {
-      callback('test-value')
+  it('tests that handleGetPref calls chrome.BrowserOS.getPrefs correctly', async () => {
+    mockBrowserOSPrefs.getPrefs.mockImplementation((keys: string[], callback) => {
+      callback({ [keys[0]]: 'test-value' })
     })
 
     const message: PortMessage = {
@@ -74,7 +73,7 @@ describe('SettingsHandler-unit-test', () => {
     await handler.handleGetPref(message, mockPort as any)
 
     // Verify browserOS API was called
-    expect(mockBrowserOS.getPref).toHaveBeenCalledWith('test-pref', expect.any(Function))
+    expect(mockBrowserOSPrefs.getPrefs).toHaveBeenCalledWith(['test-pref'], expect.any(Function))
 
     // Verify response was sent
     expect(mockPort.postMessage).toHaveBeenCalledWith({
@@ -84,9 +83,9 @@ describe('SettingsHandler-unit-test', () => {
     })
   })
 
-  it('tests that handleSetPref calls chrome.browserOS.setPref correctly', async () => {
-    mockBrowserOS.setPref.mockImplementation((name, value, pageId, callback) => {
-      callback(true)
+  it('tests that handleSetPref calls chrome.BrowserOS.setPrefs correctly', async () => {
+    mockBrowserOSPrefs.setPrefs.mockImplementation((prefs: Record<string, unknown>, callback) => {
+      callback?.(true)
     })
 
     const message: PortMessage = {
@@ -98,12 +97,7 @@ describe('SettingsHandler-unit-test', () => {
     await handler.handleSetPref(message, mockPort as any)
 
     // Verify browserOS API was called
-    expect(mockBrowserOS.setPref).toHaveBeenCalledWith(
-      'test-pref',
-      'test-value',
-      '',
-      expect.any(Function)
-    )
+    expect(mockBrowserOSPrefs.setPrefs).toHaveBeenCalledWith({ 'test-pref': 'test-value' }, expect.any(Function))
 
     // Verify response was sent
     expect(mockPort.postMessage).toHaveBeenCalledWith({
@@ -114,7 +108,7 @@ describe('SettingsHandler-unit-test', () => {
   })
 
   it('tests that error handling works when chrome APIs throw', async () => {
-    mockBrowserOS.getPref.mockImplementation(() => {
+    mockBrowserOSPrefs.getPrefs.mockImplementation(() => {
       throw new Error('Chrome API error')
     })
 
@@ -235,3 +229,5 @@ describe('SettingsHandler-integration-test', () => {
     30000
   )
 })
+
+

@@ -6,40 +6,54 @@ export class SettingsHandler {
   async handleGetPref(message: PortMessage, port: chrome.runtime.Port): Promise<void> {
     const { name } = message.payload as { name: string }
 
-    // Try chrome.browserOS.getPref first (for BrowserOS browser)
-    if ((chrome as any)?.browserOS?.getPref) {
+    const browserOSPrefs = (chrome as any)?.BrowserOS
+    if (browserOSPrefs?.getPrefs) {
       try {
-        (chrome as any).browserOS.getPref(name, (pref: any) => {
-          if (chrome.runtime.lastError) {
-            Logging.log('SettingsHandler', `BrowserOS getPref error for ${name}: ${chrome.runtime.lastError.message}`, 'error')
+        browserOSPrefs.getPrefs([name], (prefs: Record<string, unknown>) => {
+          const error = chrome.runtime?.lastError
+          if (error) {
+            Logging.log('SettingsHandler', `BrowserOS getPrefs error for ${name}: ${error.message}`, 'error')
             port.postMessage({
               type: MessageType.ERROR,
-              payload: { error: `Failed to get preference: ${chrome.runtime.lastError.message}` },
+              payload: { error: `Failed to get preference: ${error.message}` },
               id: message.id
             })
-          } else {
-            port.postMessage({
-              type: MessageType.SETTINGS_GET_PREF_RESPONSE,
-              payload: { name, value: pref?.value || null },
-              id: message.id
-            })
+            return
           }
+
+          port.postMessage({
+            type: MessageType.SETTINGS_GET_PREF_RESPONSE,
+            payload: { name, value: prefs?.[name] ?? null },
+            id: message.id
+          })
         })
       } catch (error) {
-        Logging.log('SettingsHandler', `Error getting pref via browserOS ${name}: ${error}`, 'error')
+        Logging.log('SettingsHandler', `Error getting pref via BrowserOS ${name}: ${error}`, 'error')
         port.postMessage({
           type: MessageType.ERROR,
           payload: { error: `Failed to get preference: ${error}` },
           id: message.id
         })
       }
-    } else {
-      // Fallback to chrome.storage.local (for development/other browsers)
+      return
+    }
+
+    if (chrome.storage?.local) {
       try {
         chrome.storage.local.get(name, (result) => {
+          if (chrome.runtime.lastError) {
+            Logging.log('SettingsHandler', `Storage get error for ${name}: ${chrome.runtime.lastError.message}`, 'error')
+            port.postMessage({
+              type: MessageType.ERROR,
+              payload: { error: `Failed to get preference: ${chrome.runtime.lastError.message}` },
+              id: message.id
+            })
+            return
+          }
+
           port.postMessage({
             type: MessageType.SETTINGS_GET_PREF_RESPONSE,
-            payload: { name, value: result[name] || null },
+            payload: { name, value: result[name] ?? null },
             id: message.id
           })
         })
@@ -51,44 +65,67 @@ export class SettingsHandler {
           id: message.id
         })
       }
+      return
     }
+
+    Logging.log('SettingsHandler', `No storage mechanism available for preference ${name}`, 'error')
+    port.postMessage({
+      type: MessageType.ERROR,
+      payload: { error: 'Failed to get preference: no storage backend available' },
+      id: message.id
+    })
   }
 
   async handleSetPref(message: PortMessage, port: chrome.runtime.Port): Promise<void> {
     const { name, value } = message.payload as { name: string; value: string }
 
-    // Try chrome.browserOS.setPref first (for BrowserOS browser)
-    if ((chrome as any)?.browserOS?.setPref) {
+    const browserOSPrefs = (chrome as any)?.BrowserOS
+    if (browserOSPrefs?.setPrefs) {
       try {
-        (chrome as any).browserOS.setPref(name, value, undefined, (success: boolean) => {
-          if (!success) {
-            Logging.log('SettingsHandler', `BrowserOS setPref failed for ${name}`, 'error')
+        browserOSPrefs.setPrefs({ [name]: value }, (success?: boolean) => {
+          const error = chrome.runtime?.lastError
+          if (error) {
+            Logging.log('SettingsHandler', `BrowserOS setPrefs error for ${name}: ${error.message}`, 'error')
+            port.postMessage({
+              type: MessageType.SETTINGS_SET_PREF_RESPONSE,
+              payload: { name, success: false },
+              id: message.id
+            })
+            return
           }
+
+          const ok = success !== false
+          if (!ok) {
+            Logging.log('SettingsHandler', `BrowserOS setPrefs reported failure for ${name}`, 'error')
+          }
+
           port.postMessage({
             type: MessageType.SETTINGS_SET_PREF_RESPONSE,
-            payload: { name, success },
+            payload: { name, success: ok },
             id: message.id
           })
         })
       } catch (error) {
-        Logging.log('SettingsHandler', `Error setting pref via browserOS ${name}: ${error}`, 'error')
+        Logging.log('SettingsHandler', `Error setting pref via BrowserOS ${name}: ${error}`, 'error')
         port.postMessage({
           type: MessageType.ERROR,
           payload: { error: `Failed to set preference: ${error}` },
           id: message.id
         })
       }
-    } else {
-      // Fallback to chrome.storage.local (for development/other browsers)
+      return
+    }
+
+    if (chrome.storage?.local) {
       try {
         chrome.storage.local.set({ [name]: value }, () => {
-          const success = !chrome.runtime.lastError
-          if (!success) {
+          const ok = !chrome.runtime.lastError
+          if (!ok) {
             Logging.log('SettingsHandler', `Storage error for ${name}: ${chrome.runtime.lastError?.message}`, 'error')
           }
           port.postMessage({
             type: MessageType.SETTINGS_SET_PREF_RESPONSE,
-            payload: { name, success },
+            payload: { name, success: ok },
             id: message.id
           })
         })
@@ -100,7 +137,15 @@ export class SettingsHandler {
           id: message.id
         })
       }
+      return
     }
+
+    Logging.log('SettingsHandler', `No storage mechanism available to set preference ${name}`, 'error')
+    port.postMessage({
+      type: MessageType.ERROR,
+      payload: { error: 'Failed to set preference: no storage backend available' },
+      id: message.id
+    })
   }
 
   async handleGetAllPrefs(message: PortMessage, port: chrome.runtime.Port): Promise<void> {
@@ -813,3 +858,4 @@ export class SettingsHandler {
   }
 
 }
+
