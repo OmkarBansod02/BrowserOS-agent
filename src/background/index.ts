@@ -277,11 +277,6 @@ function registerHandlers(): void {
     (msg, port) => settingsHandler.handleTestProvider(msg, port)
   )
 
-  messageRouter.registerHandler(
-    MessageType.SETTINGS_BENCHMARK_PROVIDER,
-    (msg, port) => settingsHandler.handleBenchmarkProvider(msg, port)
-  )
-
   Logging.log('Background', 'All message handlers registered')
 }
 

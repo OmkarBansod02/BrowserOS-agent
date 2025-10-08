@@ -62,20 +62,6 @@ export const ConfiguredModelSchema = z.object({
   updatedAt: z.string().datetime()  // Last update timestamp
 })
 
-// Performance Score schema
-export const PerformanceScoreSchema = z.object({
-  modelId: z.string().uuid(),  // Reference to the model
-  latency: z.number().min(1).max(10),  // Latency score (1-10)
-  accuracy: z.number().min(1).max(10),  // Accuracy score (1-10)
-  navigation: z.number().min(1).max(10),  // Web navigation score (1-10)
-  overall: z.number().min(1).max(10),  // Overall score (1-10)
-  testedAt: z.string().datetime(),  // When the test was performed
-  testResults: z.object({
-    responseTime: z.number(),  // Response time in milliseconds
-    successRate: z.number(),  // Success rate percentage
-    errorRate: z.number()  // Error rate percentage
-  }).optional()
-})
 
 // Provider Template schema
 export const ProviderTemplateSchema = z.object({
@@ -97,18 +83,12 @@ export const TestResultSchema = z.object({
   error: z.string().optional(),
   responseTime: z.number().optional(),
   response: z.string().optional(),  // AI response message from test
-  timestamp: z.string(),
-  benchmark: z.object({
-    overallScore: z.number(),
-    scores: z.record(z.string(), z.number()),
-    summary: z.string()
-  }).optional()
+  timestamp: z.string()
 })
 
 // Infer TypeScript types from schemas
 export type ProviderType = z.infer<typeof ProviderTypeSchema>
 export type LLMProvider = z.infer<typeof LLMProviderSchema>
 export type ConfiguredModel = z.infer<typeof ConfiguredModelSchema>
-export type PerformanceScore = z.infer<typeof PerformanceScoreSchema>
 export type ProviderTemplate = z.infer<typeof ProviderTemplateSchema>
 export type TestResult = z.infer<typeof TestResultSchema>

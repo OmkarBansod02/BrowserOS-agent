@@ -1,21 +1,17 @@
 import React, { useState } from 'react'
-import { Edit2, Trash2, Play, Activity, ChevronDown, Check, X, AlertCircle, Loader2, Zap } from 'lucide-react'
+import { ChevronDown, Check, X, AlertCircle, Loader2, Trash2 } from 'lucide-react'
 import { LLMProvider, TestResult } from '../types/llm-settings'
 
 interface ConfiguredModelsListProps {
   providers: LLMProvider[]
   defaultProvider: string
   testResults: Record<string, TestResult>
-  benchmarkProgress?: Record<string, string>
   onSetDefault: (providerId: string) => void
   onTest: (providerId: string) => void
-  onBenchmark: (providerId: string) => void
   onEdit: (provider: LLMProvider) => void
   onDelete: (providerId: string) => void
   onClearTestResult?: (providerId: string) => void
 }
-
-const BENCHMARK_ENABLED = false
 
 const getProviderIcon = (type: string, name?: string) => {
   // BrowserOS built-in provider with larger size
@@ -87,10 +83,8 @@ export function ConfiguredModelsList({
   providers,
   defaultProvider,
   testResults,
-  benchmarkProgress = {},
   onSetDefault,
   onTest,
-  onBenchmark,
   onEdit,
   onDelete,
   onClearTestResult
@@ -199,11 +193,6 @@ export function ConfiguredModelsList({
   const renderStatusBadge = (result?: TestResult): JSX.Element | null => {
     if (!result) return null
 
-    const isBenchmark = result.benchmark !== undefined
-    if (isBenchmark && !BENCHMARK_ENABLED) {
-      return null
-    }
-
     if (result.status === 'loading') {
       return (
         <span className="mt-1 inline-flex items-center gap-1 text-[11px] text-muted-foreground">
@@ -213,7 +202,7 @@ export function ConfiguredModelsList({
       )
     }
 
-    if (result.status === 'success' && !result.benchmark) {
+    if (result.status === 'success') {
       return (
         <span className="mt-1 inline-flex items-center gap-1 text-[11px] font-medium text-green-600 dark:text-green-400">
           <Check className="w-3 h-3" />
@@ -234,41 +223,18 @@ export function ConfiguredModelsList({
     return null
   }
 
-  const renderTestResult = (result: TestResult, providerId: string, progress?: string) => {
+  const renderTestResult = (result: TestResult, providerId: string) => {
     if (!result) return null
 
     if (result.status === 'loading') {
-      // Check if it's a benchmark (has benchmark property even if empty)
-      const isBenchmark = result.benchmark !== undefined
-
-      if (isBenchmark && !BENCHMARK_ENABLED) {
-        return null
-      }
-
       return (
         <div className="space-y-3">
           <div className="flex items-center gap-2 text-sm">
             <Loader2 className="w-4 h-4 animate-spin text-primary" />
             <span className="font-medium text-foreground">
-              {isBenchmark ? 'Running Benchmark' : 'Testing Connection'}...
+              Testing Connection...
             </span>
           </div>
-
-          {/* Show progress for benchmark */}
-          {isBenchmark && progress && (
-            <div className="space-y-2">
-              <div className="text-xs text-muted-foreground bg-muted/50 rounded-lg p-3">
-                <div className="flex items-center gap-2 mb-2">
-                  <Zap className="w-3 h-3 text-primary" />
-                  <span className="font-medium">Current Task:</span>
-                </div>
-                <p className="ml-5">{progress}</p>
-              </div>
-              <div className="text-xs text-muted-foreground">
-                This comprehensive test takes 2-3 minutes to complete
-              </div>
-            </div>
-          )}
         </div>
       )
     }
@@ -315,116 +281,49 @@ export function ConfiguredModelsList({
     }
 
     if (result.status === 'success') {
-      const isBenchmark = !!(result.benchmark && result.benchmark.overallScore !== undefined)
-
-      if (isBenchmark && !BENCHMARK_ENABLED) {
-        return null
-      }
-
-      if (isBenchmark) {
-        // Benchmark success display
-        const score = result.benchmark!.overallScore
-        const scoreColor = score >= 8 ? 'text-green-600 dark:text-green-400' :
-                          score >= 6 ? 'text-yellow-600 dark:text-yellow-400' :
-                          'text-red-600 dark:text-red-400'
-        const scoreBg = score >= 8 ? 'bg-green-100 dark:bg-green-900/30' :
-                       score >= 6 ? 'bg-yellow-100 dark:bg-yellow-900/30' :
-                       'bg-red-100 dark:bg-red-900/30'
-
-        return (
-          <div className="space-y-4">
-            <div className="flex items-start gap-3">
-              <div className={`p-2 rounded-lg ${scoreBg}`}>
-                <Activity className={`w-4 h-4 ${scoreColor}`} />
-              </div>
-              <div className="flex-1">
-                <div className="flex items-center justify-between mb-3">
-                  <h4 className="text-sm font-semibold">Benchmark Complete</h4>
-                  <div className={`text-2xl font-bold ${scoreColor}`}>
-                    {score.toFixed(1)}/10
-                  </div>
-                </div>
-
-                {/* Score breakdown with better visuals */}
-                <div className="grid grid-cols-1 gap-2 p-3 bg-muted/30 rounded-lg">
-                  {Object.entries(result.benchmark!.scores).filter(([key]) => key !== 'overall').map(([key, score]) => {
-                    const scoreNum = typeof score === 'number' ? score : 0
-                    return (
-                      <div key={key} className="flex items-center gap-3">
-                        <span className="text-xs font-medium text-muted-foreground w-32">
-                          {key.replace(/([A-Z])/g, ' $1').trim()}
-                        </span>
-                        <div className="flex-1 flex items-center gap-2">
-                          <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
-                            <div
-                              className={`h-full transition-all duration-500 ${
-                                scoreNum >= 8 ? 'bg-green-500' :
-                                scoreNum >= 6 ? 'bg-yellow-500' :
-                                scoreNum >= 4 ? 'bg-orange-500' :
-                                'bg-red-500'
-                              }`}
-                              style={{ width: `${scoreNum * 10}%` }}
-                            />
-                          </div>
-                          <span className="text-xs font-semibold w-8 text-right">
-                            {scoreNum.toFixed(1)}
-                          </span>
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-
-              </div>
+      return (
+        <div className="relative p-4 bg-green-50 dark:bg-green-950/30 rounded-lg border border-green-200 dark:border-green-900/50">
+          <div className="flex items-start gap-3">
+            <div className="p-1.5 bg-green-100 dark:bg-green-900/30 rounded-full flex-shrink-0">
+              <Check className="w-4 h-4 text-green-600 dark:text-green-400" />
             </div>
-          </div>
-        )
-      } else {
-        // Simple test success display
-        return (
-          <div className="relative p-4 bg-green-50 dark:bg-green-950/30 rounded-lg border border-green-200 dark:border-green-900/50">
-            <div className="flex items-start gap-3">
-              <div className="p-1.5 bg-green-100 dark:bg-green-900/30 rounded-full flex-shrink-0">
-                <Check className="w-4 h-4 text-green-600 dark:text-green-400" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex-1 min-w-0 space-y-2">
-                    <h4 className="text-sm font-semibold text-green-900 dark:text-green-300">
-                      Connection Verified
-                    </h4>
-                    <p className="text-xs text-green-700 dark:text-green-400">
-                      Provider responded successfully in {result.responseTime}ms
-                    </p>
-                    {result.response && (
-                      <div className="p-2 bg-green-100/50 dark:bg-green-900/30 rounded border border-green-200 dark:border-green-800">
-                        <p className="text-[11px] font-medium text-green-900 dark:text-green-300 mb-1">
-                          AI Response:
-                        </p>
-                        <p className="text-xs text-green-800 dark:text-green-400 italic">
-                          "{result.response}"
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                  {onClearTestResult && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        onClearTestResult(providerId)
-                      }}
-                      className="p-1 hover:bg-green-200 dark:hover:bg-green-900/50 rounded transition-colors flex-shrink-0"
-                      aria-label="Dismiss result"
-                    >
-                      <X className="w-4 h-4 text-green-600 dark:text-green-400" />
-                    </button>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex-1 min-w-0 space-y-2">
+                  <h4 className="text-sm font-semibold text-green-900 dark:text-green-300">
+                    Connection Verified
+                  </h4>
+                  <p className="text-xs text-green-700 dark:text-green-400">
+                    Provider responded successfully in {result.responseTime}ms
+                  </p>
+                  {result.response && (
+                    <div className="p-2 bg-green-100/50 dark:bg-green-900/30 rounded border border-green-200 dark:border-green-800">
+                      <p className="text-[11px] font-medium text-green-900 dark:text-green-300 mb-1">
+                        AI Response:
+                      </p>
+                      <p className="text-xs text-green-800 dark:text-green-400 italic">
+                        "{result.response}"
+                      </p>
+                    </div>
                   )}
                 </div>
+                {onClearTestResult && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onClearTestResult(providerId)
+                    }}
+                    className="p-1 hover:bg-green-200 dark:hover:bg-green-900/50 rounded transition-colors flex-shrink-0"
+                    aria-label="Dismiss result"
+                  >
+                    <X className="w-4 h-4 text-green-600 dark:text-green-400" />
+                  </button>
+                )}
               </div>
             </div>
           </div>
-        )
-      }
+        </div>
+      )
     }
 
     return null
@@ -511,7 +410,7 @@ export function ConfiguredModelsList({
                         disabled={testResult?.status === 'loading'}
                         className="px-3 py-1.5 text-[12px] font-medium text-foreground bg-background hover:bg-accent border border-border rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                       >
-                        {testResult?.status === 'loading' && !testResult?.benchmark ? 'Testing...' : 'Test'}
+                        {testResult?.status === 'loading' ? 'Testing...' : 'Test'}
                       </button>
 
                       <button
@@ -539,19 +438,6 @@ export function ConfiguredModelsList({
                         </button>
                       )}
 
-                      {BENCHMARK_ENABLED && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            onBenchmark(provider.id)
-                          }}
-                          disabled={testResult?.status === 'loading'}
-                          className="px-3 py-1.5 text-[12px] font-medium text-foreground bg-background hover:bg-accent border border-border rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          {testResult?.status === 'loading' && testResult?.benchmark !== undefined ? 'Running...' : 'Benchmark'}
-                        </button>
-                      )}
-
                       <button
                         onClick={(e) => {
                           e.stopPropagation()
@@ -571,7 +457,7 @@ export function ConfiguredModelsList({
             {/* Expandable test results */}
             {isExpanded && testResult && (
               <div className="border-t border-border bg-muted/30 p-4">
-                {renderTestResult(testResult, provider.id, benchmarkProgress[provider.id])}
+                {renderTestResult(testResult, provider.id)}
               </div>
             )}
           </div>
