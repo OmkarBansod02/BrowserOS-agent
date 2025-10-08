@@ -71,6 +71,24 @@ export const Header = memo(function Header({ onReset, showReset, isProcessing, i
     window.open(GITHUB_REPO_URL, '_blank', 'noopener,noreferrer')
   }
 
+  const handleOpenOptions = async () => {
+    trackClick('open_options_page')
+    try {
+      // Try the standard API first
+      await chrome.runtime.openOptionsPage()
+    } catch (error) {
+      // Fallback: manually create tab with options page URL
+      // This handles cases where openOptionsPage() fails after browser restart
+      try {
+        await chrome.tabs.create({
+          url: chrome.runtime.getURL('browseros-settings.html')
+        })
+      } catch (fallbackError) {
+        console.error('Failed to open options page:', fallbackError)
+      }
+    }
+  }
+
   const handleMCPInstall = (serverId: string) => {
     trackClick(`mcp_install_${serverId}`)
     setShowMCPDropdown(false)
@@ -339,7 +357,7 @@ export const Header = memo(function Header({ onReset, showReset, isProcessing, i
 
           {/* AI Settings button - Before Settings */}
           <Button
-            onClick={() => chrome.runtime.openOptionsPage()}
+            onClick={handleOpenOptions}
             variant="ghost"
             size="sm"
             className="h-9 px-2 rounded-xl hover:bg-brand/10 hover:text-brand smooth-hover smooth-transform hover:scale-105 flex items-center gap-1.5 group"
