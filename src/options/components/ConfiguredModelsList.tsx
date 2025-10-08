@@ -96,6 +96,7 @@ export function ConfiguredModelsList({
   onClearTestResult
 }: ConfiguredModelsListProps) {
   const [expandedProvider, setExpandedProvider] = useState<string | null>(null)
+  const [autoExpandedResults, setAutoExpandedResults] = useState<Set<string>>(new Set())
 
   const toggleExpanded = (providerId: string) => {
     setExpandedProvider(expandedProvider === providerId ? null : providerId)
@@ -164,17 +165,36 @@ export function ConfiguredModelsList({
     return 'Review provider configuration and try again'
   }
 
-  // Auto-expand when test/benchmark starts or completes
+  // Auto-expand when test/benchmark starts or completes (only once per result)
   React.useEffect(() => {
     Object.entries(testResults).forEach(([providerId, result]) => {
       if (result && (result.status === 'loading' || result.status === 'success' || result.status === 'error')) {
-        // Auto-expand to show results
-        if (expandedProvider !== providerId) {
+        // Create a unique key for this test result based on providerId and timestamp
+        const resultKey = `${providerId}-${result.timestamp}`
+
+        // Only auto-expand if we haven't already auto-expanded this specific result
+        if (!autoExpandedResults.has(resultKey)) {
           setExpandedProvider(providerId)
+          setAutoExpandedResults(prev => new Set(prev).add(resultKey))
         }
       }
     })
   }, [testResults])
+
+  // Clean up tracking when results are cleared
+  React.useEffect(() => {
+    const currentProviderIds = new Set(Object.keys(testResults))
+    setAutoExpandedResults(prev => {
+      const updated = new Set<string>()
+      prev.forEach(key => {
+        const providerId = key.split('-')[0]
+        if (currentProviderIds.has(providerId)) {
+          updated.add(key)
+        }
+      })
+      return updated
+    })
+  }, [Object.keys(testResults).join(',')])
 
   const renderStatusBadge = (result?: TestResult): JSX.Element | null => {
     if (!result) return null
