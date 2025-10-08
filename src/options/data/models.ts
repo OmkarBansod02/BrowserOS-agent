@@ -55,11 +55,15 @@ export const MODELS_DATA: ModelsData = {
     { modelId: 'deepseek-ai/DeepSeek-R1-Distill-Qwen-32B-GGUF', contextLength: 64000 }
   ],
   ollama: [
+    { modelId: 'qwen3:4b', contextLength: 32768 },  
+    { modelId: 'qwen3:8b', contextLength: 32768 },
+    { modelId: 'qwen3:14b', contextLength: 32768 },
+    { modelId: 'qwen3-coder:30b', contextLength: 131072 },  
     { modelId: 'llama3.1:8b', contextLength: 131072 },
     { modelId: 'llama3.2:3b', contextLength: 131072 },
     { modelId: 'deepseek-r1:7b', contextLength: 64000 },
-    { modelId: 'qwen2.5:7b', contextLength: 32768 },
-    { modelId: 'qwen2.5-coder:7b', contextLength: 32768 },
+    { modelId: 'qwen2.5:7b', contextLength: 32768 },  
+    { modelId: 'qwen2.5-coder:7b', contextLength: 32768 },  
     { modelId: 'mistral:7b', contextLength: 32768 },
     { modelId: 'codellama:7b', contextLength: 16384 },
     { modelId: 'phi3:3.8b', contextLength: 131072 }
