@@ -19,87 +19,122 @@ export function useBrowserOSPrefs() {
   const [defaultProvider, setDefaultProviderState] = useState<string>('browseros')
   const [isLoading, setIsLoading] = useState(true)
   const [port, setPort] = useState<chrome.runtime.Port | null>(null)
+  const [isPortConnected, setIsPortConnected] = useState(false)
 
+  // Helper to check if port is connected and reconnect if needed
+  const ensurePortConnected = useCallback(() => {
+    if (!port || !isPortConnected) {
+      console.warn('[useBrowserOSPrefs] Port not connected, reconnecting...')
+      return null
+    }
+    return port
+  }, [port, isPortConnected])
 
   // Setup persistent port connection
   useEffect(() => {
-    const newPort = chrome.runtime.connect({ name: 'options' })
+    let currentPort: chrome.runtime.Port | null = null
+    let messageListener: ((msg: PortMessage) => void) | null = null
+    let disconnectListener: (() => void) | null = null
 
-    const listener = (msg: PortMessage) => {
-      // Handle provider config responses and broadcasts
-      if (msg.type === MessageType.WORKFLOW_STATUS) {
-        const payload = msg.payload as any
-        if (payload?.status === 'error') {
-          console.error('[useBrowserOSPrefs] Error from background:', payload.error)
+    const setupPort = () => {
+      try {
+        currentPort = chrome.runtime.connect({ name: 'options' })
+        setIsPortConnected(true)
+
+        messageListener = (msg: PortMessage) => {
+          // Handle provider config responses and broadcasts
+          if (msg.type === MessageType.WORKFLOW_STATUS) {
+            const payload = msg.payload as any
+            if (payload?.status === 'error') {
+              console.error('[useBrowserOSPrefs] Error from background:', payload.error)
+            }
+            if (payload?.data?.providersConfig) {
+              const config = payload.data.providersConfig as BrowserOSProvidersConfig
+              // Ensure all providers have isDefault field (migration for old data)
+              const migratedProviders = config.providers.map(p => ({
+                ...p,
+                isDefault: p.isDefault !== undefined ? p.isDefault : (p.id === 'browseros')
+              }))
+              setProviders(migratedProviders)
+              setDefaultProviderState(config.defaultProviderId || 'browseros')
+              setIsLoading(false)
+            }
+          }
         }
-        if (payload?.data?.providersConfig) {
-          const config = payload.data.providersConfig as BrowserOSProvidersConfig
-          // Ensure all providers have isDefault field (migration for old data)
-          const migratedProviders = config.providers.map(p => ({
-            ...p,
-            isDefault: p.isDefault !== undefined ? p.isDefault : (p.id === 'browseros')
-          }))
-          setProviders(migratedProviders)
-          setDefaultProviderState(config.defaultProviderId || 'browseros')
-          setIsLoading(false)
+
+        disconnectListener = () => {
+          console.warn('[useBrowserOSPrefs] Port disconnected')
+          setIsPortConnected(false)
+          setPort(null)
         }
+
+        currentPort.onMessage.addListener(messageListener)
+        currentPort.onDisconnect.addListener(disconnectListener)
+        setPort(currentPort)
+
+        // Send initial request
+        const initialTimeout = setTimeout(() => {
+          if (currentPort) {
+            try {
+              currentPort.postMessage({
+                type: MessageType.GET_LLM_PROVIDERS,
+                payload: {},
+                id: `get-providers-${Date.now()}`
+              })
+            } catch (error) {
+              console.error('[useBrowserOSPrefs] Failed to send initial message:', error)
+            }
+          }
+        }, 100)
+
+        // Retry after delay
+        const retryTimeout = setTimeout(() => {
+          if (isLoading && currentPort) {
+            try {
+              currentPort.postMessage({
+                type: MessageType.GET_LLM_PROVIDERS,
+                payload: {},
+                id: `get-providers-retry-${Date.now()}`
+              })
+            } catch (error) {
+              // Silently fail
+            }
+          }
+        }, 500)
+
+        return () => {
+          clearTimeout(initialTimeout)
+          clearTimeout(retryTimeout)
+        }
+      } catch (error) {
+        console.error('[useBrowserOSPrefs] Failed to setup port:', error)
+        setIsPortConnected(false)
+        return () => {}
       }
     }
 
-    newPort.onMessage.addListener(listener)
-    setPort(newPort)
-
-    // Track if port is still connected
-    let isPortConnected = true
-    const handleDisconnect = () => {
-      isPortConnected = false
-    }
-    newPort.onDisconnect.addListener(handleDisconnect)
-
-    // Add delay to ensure port is ready before sending message
-    const initialTimeout = setTimeout(() => {
-      if (isPortConnected) {
-        try {
-          newPort.postMessage({
-            type: MessageType.GET_LLM_PROVIDERS,
-            payload: {},
-            id: `get-providers-${Date.now()}`
-          })
-        } catch (error) {
-          console.error('[useBrowserOSPrefs] Failed to send initial message:', error)
-        }
-      }
-    }, 100)
-
-    // Also request again after a bit more time in case first one fails
-    const retryTimeout = setTimeout(() => {
-      if (isLoading && isPortConnected) {
-        try {
-          newPort.postMessage({
-            type: MessageType.GET_LLM_PROVIDERS,
-            payload: {},
-            id: `get-providers-retry-${Date.now()}`
-          })
-        } catch (error) {
-          // Silently fail, port disconnected
-        }
-      }
-    }, 500)
+    const cleanup = setupPort()
 
     return () => {
-      isPortConnected = false
-      clearTimeout(initialTimeout)
-      clearTimeout(retryTimeout)
-      newPort.onMessage.removeListener(listener)
-      newPort.onDisconnect.removeListener(handleDisconnect)
-      newPort.disconnect()
+      cleanup?.()
+      if (currentPort) {
+        try {
+          if (messageListener) currentPort.onMessage.removeListener(messageListener)
+          if (disconnectListener) currentPort.onDisconnect.removeListener(disconnectListener)
+          currentPort.disconnect()
+        } catch (error) {
+          // Port already disconnected
+        }
+      }
+      setIsPortConnected(false)
       setPort(null)
     }
   }, [])
 
   const saveProvidersConfig = useCallback(async (updatedProviders: LLMProvider[], newDefaultId?: string) => {
-    if (!port) {
-      console.error('[useBrowserOSPrefs] Port not connected')
+    const connectedPort = ensurePortConnected()
+    if (!connectedPort) {
+      console.error('[useBrowserOSPrefs] Port not connected, cannot save providers')
       return false
     }
 
@@ -108,15 +143,20 @@ export function useBrowserOSPrefs() {
       providers: updatedProviders
     }
 
-    // Send via persistent port - broadcast will update state automatically
-    port.postMessage({
-      type: MessageType.SAVE_LLM_PROVIDERS,
-      payload: config,
-      id: `save-providers-${Date.now()}`
-    })
-
-    return true
-  }, [port, defaultProvider])
+    // Send via persistent port with error handling
+    try {
+      connectedPort.postMessage({
+        type: MessageType.SAVE_LLM_PROVIDERS,
+        payload: config,
+        id: `save-providers-${Date.now()}`
+      })
+      return true
+    } catch (error) {
+      console.error('[useBrowserOSPrefs] Failed to send save message:', error)
+      setIsPortConnected(false)
+      return false
+    }
+  }, [ensurePortConnected, defaultProvider])
 
   const setDefaultProvider = useCallback(async (providerId: string) => {
     setDefaultProviderState(providerId)
