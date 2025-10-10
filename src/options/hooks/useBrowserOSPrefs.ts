@@ -179,11 +179,17 @@ export function useBrowserOSPrefs() {
     }
     const updatedProviders = [...providers, newProvider]
     setProviders(updatedProviders)
-    await saveProvidersConfig(updatedProviders)
+    const success = await saveProvidersConfig(updatedProviders)
+    if (!success) {
+      // Revert local state if save failed
+      setProviders(providers)
+      throw new Error('Failed to save provider. Connection lost. Please refresh the page and try again.')
+    }
     return newProvider
   }, [providers, saveProvidersConfig])
 
   const updateProvider = useCallback(async (provider: LLMProvider) => {
+    const previousProviders = providers
     const updatedProvider = {
       ...provider,
       isDefault: provider.id === defaultProvider,
@@ -195,11 +201,18 @@ export function useBrowserOSPrefs() {
         : { ...p, isDefault: p.id === defaultProvider }
     )
     setProviders(updatedProviders)
-    await saveProvidersConfig(updatedProviders)
+    const success = await saveProvidersConfig(updatedProviders)
+    if (!success) {
+      // Revert local state if save failed
+      setProviders(previousProviders)
+      throw new Error('Failed to update provider. Connection lost. Please refresh the page and try again.')
+    }
     return updatedProvider
   }, [providers, defaultProvider, saveProvidersConfig])
 
   const deleteProvider = useCallback(async (providerId: string) => {
+    const previousProviders = providers
+    const previousDefaultId = defaultProvider
     const remainingProviders = providers.filter(p => p.id !== providerId)
 
     let nextDefaultId = defaultProvider
@@ -215,7 +228,13 @@ export function useBrowserOSPrefs() {
     }))
 
     setProviders(normalizedProviders)
-    await saveProvidersConfig(normalizedProviders, nextDefaultId)
+    const success = await saveProvidersConfig(normalizedProviders, nextDefaultId)
+    if (!success) {
+      // Revert local state if save failed
+      setProviders(previousProviders)
+      setDefaultProviderState(previousDefaultId)
+      throw new Error('Failed to delete provider. Connection lost. Please refresh the page and try again.')
+    }
   }, [providers, defaultProvider, saveProvidersConfig])
 
   return {
