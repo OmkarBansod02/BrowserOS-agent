@@ -4,6 +4,8 @@ import { MessageType } from '@/lib/types/messaging'
 import { PortMessage } from '@/lib/runtime/PortMessaging'
 import { BrowserOSProvidersConfig } from '@/lib/llm/settings/browserOSTypes'
 
+const HEARTBEAT_INTERVAL_MS = 20000  // Send heartbeat every 20 seconds to keep background alive
+
 const DEFAULT_BROWSEROS_PROVIDER: LLMProvider = {
   id: 'browseros',
   name: 'BrowserOS',
@@ -24,7 +26,7 @@ export function useBrowserOSPrefs() {
   // Helper to check if port is connected and reconnect if needed
   const ensurePortConnected = useCallback(() => {
     if (!port || !isPortConnected) {
-      console.warn('[useBrowserOSPrefs] Port not connected, reconnecting...')
+      console.warn('[useBrowserOSPrefs] Port not connected')
       return null
     }
     return port
@@ -35,10 +37,11 @@ export function useBrowserOSPrefs() {
     let currentPort: chrome.runtime.Port | null = null
     let messageListener: ((msg: PortMessage) => void) | null = null
     let disconnectListener: (() => void) | null = null
+    let heartbeatInterval: ReturnType<typeof setInterval> | null = null
 
     const setupPort = () => {
       try {
-        currentPort = chrome.runtime.connect({ name: 'options' })
+        currentPort = chrome.runtime.connect({ name: 'provider-settings' })
         setIsPortConnected(true)
 
         messageListener = (msg: PortMessage) => {
@@ -66,11 +69,36 @@ export function useBrowserOSPrefs() {
           console.warn('[useBrowserOSPrefs] Port disconnected')
           setIsPortConnected(false)
           setPort(null)
+
+          // Stop heartbeat on disconnect
+          if (heartbeatInterval) {
+            clearInterval(heartbeatInterval)
+            heartbeatInterval = null
+          }
         }
 
         currentPort.onMessage.addListener(messageListener)
         currentPort.onDisconnect.addListener(disconnectListener)
         setPort(currentPort)
+
+        // Start heartbeat to keep background service worker alive
+        heartbeatInterval = setInterval(() => {
+          if (currentPort) {
+            try {
+              currentPort.postMessage({
+                type: MessageType.HEARTBEAT,
+                payload: { timestamp: Date.now() },
+                id: `heartbeat-provider-settings-${Date.now()}`
+              })
+            } catch (error) {
+              console.warn('[useBrowserOSPrefs] Heartbeat failed, port likely disconnected')
+              if (heartbeatInterval) {
+                clearInterval(heartbeatInterval)
+                heartbeatInterval = null
+              }
+            }
+          }
+        }, HEARTBEAT_INTERVAL_MS)
 
         // Send initial request
         const initialTimeout = setTimeout(() => {
@@ -117,6 +145,13 @@ export function useBrowserOSPrefs() {
 
     return () => {
       cleanup?.()
+
+      // Stop heartbeat
+      if (heartbeatInterval) {
+        clearInterval(heartbeatInterval)
+        heartbeatInterval = null
+      }
+
       if (currentPort) {
         try {
           if (messageListener) currentPort.onMessage.removeListener(messageListener)
