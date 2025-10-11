@@ -3,19 +3,6 @@ import { MessageType } from '@/lib/types/messaging'
 import { Logging } from '@/lib/utils/Logging'
 
 export class SettingsHandler {
-  // Helper to safely post message to port
-  private safePostMessage(port: chrome.runtime.Port, message: any): void {
-    try {
-      if (port && typeof port.postMessage === 'function') {
-        port.postMessage(message)
-      } else {
-        Logging.log('SettingsHandler', 'Port is invalid, cannot send message', 'warning')
-      }
-    } catch (error) {
-      Logging.log('SettingsHandler', `Failed to send message: ${error}`, 'warning')
-    }
-  }
-
   async handleGetPref(message: PortMessage, port: chrome.runtime.Port): Promise<void> {
     const { name } = message.payload as { name: string }
 
@@ -26,7 +13,7 @@ export class SettingsHandler {
           const error = chrome.runtime?.lastError
           if (error) {
             Logging.log('SettingsHandler', `BrowserOS getPrefs error for ${name}: ${error.message}`, 'error')
-            this.safePostMessage(port, {
+            port.postMessage({
               type: MessageType.ERROR,
               payload: { error: `Failed to get preference: ${error.message}` },
               id: message.id
@@ -34,7 +21,7 @@ export class SettingsHandler {
             return
           }
 
-          this.safePostMessage(port, {
+          port.postMessage({
             type: MessageType.SETTINGS_GET_PREF_RESPONSE,
             payload: { name, value: prefs?.[name] ?? null },
             id: message.id
@@ -42,7 +29,7 @@ export class SettingsHandler {
         })
       } catch (error) {
         Logging.log('SettingsHandler', `Error getting pref via BrowserOS ${name}: ${error}`, 'error')
-        this.safePostMessage(port, {
+        port.postMessage({
           type: MessageType.ERROR,
           payload: { error: `Failed to get preference: ${error}` },
           id: message.id
@@ -56,7 +43,7 @@ export class SettingsHandler {
         chrome.storage.local.get(name, (result) => {
           if (chrome.runtime.lastError) {
             Logging.log('SettingsHandler', `Storage get error for ${name}: ${chrome.runtime.lastError.message}`, 'error')
-            this.safePostMessage(port, {
+            port.postMessage({
               type: MessageType.ERROR,
               payload: { error: `Failed to get preference: ${chrome.runtime.lastError.message}` },
               id: message.id
@@ -64,7 +51,7 @@ export class SettingsHandler {
             return
           }
 
-          this.safePostMessage(port, {
+          port.postMessage({
             type: MessageType.SETTINGS_GET_PREF_RESPONSE,
             payload: { name, value: result[name] ?? null },
             id: message.id
@@ -72,7 +59,7 @@ export class SettingsHandler {
         })
       } catch (error) {
         Logging.log('SettingsHandler', `Error getting pref from storage ${name}: ${error}`, 'error')
-        this.safePostMessage(port, {
+        port.postMessage({
           type: MessageType.ERROR,
           payload: { error: `Failed to get preference: ${error}` },
           id: message.id
@@ -82,7 +69,7 @@ export class SettingsHandler {
     }
 
     Logging.log('SettingsHandler', `No storage mechanism available for preference ${name}`, 'error')
-    this.safePostMessage(port, {
+    port.postMessage({
       type: MessageType.ERROR,
       payload: { error: 'Failed to get preference: no storage backend available' },
       id: message.id
@@ -99,7 +86,7 @@ export class SettingsHandler {
           const error = chrome.runtime?.lastError
           if (error) {
             Logging.log('SettingsHandler', `BrowserOS setPrefs error for ${name}: ${error.message}`, 'error')
-            this.safePostMessage(port, {
+            port.postMessage({
               type: MessageType.SETTINGS_SET_PREF_RESPONSE,
               payload: { name, success: false },
               id: message.id
@@ -112,7 +99,7 @@ export class SettingsHandler {
             Logging.log('SettingsHandler', `BrowserOS setPrefs reported failure for ${name}`, 'error')
           }
 
-          this.safePostMessage(port, {
+          port.postMessage({
             type: MessageType.SETTINGS_SET_PREF_RESPONSE,
             payload: { name, success: ok },
             id: message.id
@@ -120,7 +107,7 @@ export class SettingsHandler {
         })
       } catch (error) {
         Logging.log('SettingsHandler', `Error setting pref via BrowserOS ${name}: ${error}`, 'error')
-        this.safePostMessage(port, {
+        port.postMessage({
           type: MessageType.ERROR,
           payload: { error: `Failed to set preference: ${error}` },
           id: message.id
@@ -136,7 +123,7 @@ export class SettingsHandler {
           if (!ok) {
             Logging.log('SettingsHandler', `Storage error for ${name}: ${chrome.runtime.lastError?.message}`, 'error')
           }
-          this.safePostMessage(port, {
+          port.postMessage({
             type: MessageType.SETTINGS_SET_PREF_RESPONSE,
             payload: { name, success: ok },
             id: message.id
@@ -144,7 +131,7 @@ export class SettingsHandler {
         })
       } catch (error) {
         Logging.log('SettingsHandler', `Error setting pref in storage ${name}: ${error}`, 'error')
-        this.safePostMessage(port, {
+        port.postMessage({
           type: MessageType.ERROR,
           payload: { error: `Failed to set preference: ${error}` },
           id: message.id
@@ -154,7 +141,7 @@ export class SettingsHandler {
     }
 
     Logging.log('SettingsHandler', `No storage mechanism available to set preference ${name}`, 'error')
-    this.safePostMessage(port, {
+    port.postMessage({
       type: MessageType.ERROR,
       payload: { error: 'Failed to set preference: no storage backend available' },
       id: message.id
@@ -165,7 +152,7 @@ export class SettingsHandler {
     // ONLY use chrome.storage.local - we're an extension, not browser settings
     try {
       chrome.storage.local.get(null, (items) => {
-        this.safePostMessage(port, {
+        port.postMessage({
           type: MessageType.SETTINGS_GET_ALL_PREFS_RESPONSE,
           payload: { prefs: items },
           id: message.id
@@ -173,7 +160,7 @@ export class SettingsHandler {
       })
     } catch (error) {
       Logging.log('SettingsHandler', `Error getting all prefs from storage: ${error}`, 'error')
-      this.safePostMessage(port, {
+      port.postMessage({
         type: MessageType.ERROR,
         payload: { error: `Failed to get all preferences: ${error}` },
         id: message.id
@@ -298,7 +285,7 @@ export class SettingsHandler {
         const response = await llm.invoke([testMessage])
         const latency = performance.now() - startTime
 
-        this.safePostMessage(port, {
+        port.postMessage({
           type: MessageType.SETTINGS_TEST_PROVIDER_RESPONSE,
           payload: {
             success: true,
@@ -311,7 +298,7 @@ export class SettingsHandler {
       } catch (testError) {
         const latency = performance.now() - startTime
 
-        this.safePostMessage(port, {
+        port.postMessage({
           type: MessageType.SETTINGS_TEST_PROVIDER_RESPONSE,
           payload: {
             success: false,
@@ -324,7 +311,7 @@ export class SettingsHandler {
       }
     } catch (error) {
       Logging.log('SettingsHandler', `Error testing provider: ${error}`, 'error')
-      this.safePostMessage(port, {
+      port.postMessage({
         type: MessageType.ERROR,
         payload: { error: `Failed to test provider: ${error}` },
         id: message.id
