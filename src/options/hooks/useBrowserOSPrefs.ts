@@ -1,7 +1,7 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { LLMProvider } from '../types/llm-settings'
 import { MessageType } from '@/lib/types/messaging'
-import { PortMessage } from '@/lib/runtime/PortMessaging'
+import { PortMessaging, PortPrefix } from '@/lib/runtime/PortMessaging'
 import { BrowserOSProvidersConfig } from '@/lib/llm/settings/browserOSTypes'
 
 const DEFAULT_BROWSEROS_PROVIDER: LLMProvider = {
@@ -10,6 +10,7 @@ const DEFAULT_BROWSEROS_PROVIDER: LLMProvider = {
   type: 'browseros',
   isBuiltIn: true,
   isDefault: true,
+  systemPrompt: '',
   createdAt: new Date().toISOString(),
   updatedAt: new Date().toISOString()
 }
@@ -18,111 +19,113 @@ export function useBrowserOSPrefs() {
   const [providers, setProviders] = useState<LLMProvider[]>([DEFAULT_BROWSEROS_PROVIDER])
   const [defaultProvider, setDefaultProviderState] = useState<string>('browseros')
   const [isLoading, setIsLoading] = useState(true)
-  const [port, setPort] = useState<chrome.runtime.Port | null>(null)
-
+  const messagingRef = useRef<PortMessaging | null>(null)
 
   // Setup persistent port connection
   useEffect(() => {
-    const newPort = chrome.runtime.connect({ name: 'options' })
+    const messaging = PortMessaging.getInstance()
+    messagingRef.current = messaging
 
-    const listener = (msg: PortMessage) => {
-      // Handle provider config responses and broadcasts
-      if (msg.type === MessageType.WORKFLOW_STATUS) {
-        const payload = msg.payload as any
-        if (payload?.status === 'error') {
-          console.error('[useBrowserOSPrefs] Error from background:', payload.error)
-        }
-        if (payload?.data?.providersConfig) {
-          const config = payload.data.providersConfig as BrowserOSProvidersConfig
-          // Ensure all providers have isDefault field (migration for old data)
-          const migratedProviders = config.providers.map(p => ({
-            ...p,
-            isDefault: p.isDefault !== undefined ? p.isDefault : (p.id === 'browseros')
-          }))
-          setProviders(migratedProviders)
-          setDefaultProviderState(config.defaultProviderId || 'browseros')
-          setIsLoading(false)
-        }
+    const handleWorkflowStatus = (payload: any) => {
+      if (payload?.status === 'error') {
+        console.error('[useBrowserOSPrefs] Error from background:', payload.error)
+      }
+
+      if (payload?.data?.providersConfig) {
+        const config = payload.data.providersConfig as BrowserOSProvidersConfig
+        const migratedProviders = config.providers.map(p => ({
+          ...p,
+          isDefault: p.isDefault !== undefined ? p.isDefault : (p.id === 'browseros'),
+          systemPrompt: typeof p.systemPrompt === 'string' ? p.systemPrompt : ''
+        }))
+        setProviders(migratedProviders)
+        setDefaultProviderState(config.defaultProviderId || 'browseros')
+        setIsLoading(false)
       }
     }
 
-    newPort.onMessage.addListener(listener)
-    setPort(newPort)
+    messaging.addMessageListener<any>(MessageType.WORKFLOW_STATUS, handleWorkflowStatus)
 
-    // Track if port is still connected
-    let isPortConnected = true
-    const handleDisconnect = () => {
-      isPortConnected = false
+    let connected = messaging.isConnected()
+    if (!connected) {
+      connected = messaging.connect(PortPrefix.OPTIONS, true)
+      if (!connected) {
+        console.error('[useBrowserOSPrefs] Failed to connect to background port')
+        setIsLoading(false)
+      }
     }
-    newPort.onDisconnect.addListener(handleDisconnect)
 
     // Add delay to ensure port is ready before sending message
     const initialTimeout = setTimeout(() => {
-      if (isPortConnected) {
-        try {
-          newPort.postMessage({
-            type: MessageType.GET_LLM_PROVIDERS,
-            payload: {},
-            id: `get-providers-${Date.now()}`
-          })
-        } catch (error) {
-          console.error('[useBrowserOSPrefs] Failed to send initial message:', error)
-        }
+      if (messaging.isConnected()) {
+        messaging.sendMessage(
+          MessageType.GET_LLM_PROVIDERS,
+          {},
+          `get-providers-${Date.now()}`
+        )
       }
     }, 100)
 
     // Also request again after a bit more time in case first one fails
     const retryTimeout = setTimeout(() => {
-      if (isLoading && isPortConnected) {
-        try {
-          newPort.postMessage({
-            type: MessageType.GET_LLM_PROVIDERS,
-            payload: {},
-            id: `get-providers-retry-${Date.now()}`
-          })
-        } catch (error) {
-          // Silently fail, port disconnected
-        }
+      if (messaging.isConnected()) {
+        messaging.sendMessage(
+          MessageType.GET_LLM_PROVIDERS,
+          {},
+          `get-providers-retry-${Date.now()}`
+        )
       }
     }, 500)
 
     return () => {
-      isPortConnected = false
       clearTimeout(initialTimeout)
       clearTimeout(retryTimeout)
-      newPort.onMessage.removeListener(listener)
-      newPort.onDisconnect.removeListener(handleDisconnect)
-      newPort.disconnect()
-      setPort(null)
+      messaging.removeMessageListener(MessageType.WORKFLOW_STATUS, handleWorkflowStatus)
+      if (messaging.isConnected()) {
+        messaging.disconnect()
+      }
+      messagingRef.current = null
     }
   }, [])
 
   const saveProvidersConfig = useCallback(async (updatedProviders: LLMProvider[], newDefaultId?: string) => {
-    if (!port) {
-      console.error('[useBrowserOSPrefs] Port not connected')
+    const messaging = messagingRef.current
+    if (!messaging) {
+      console.error('[useBrowserOSPrefs] Messaging not initialized')
       return false
     }
 
+    const normalizedProviders = updatedProviders.map(provider => ({
+      ...provider,
+      systemPrompt: typeof provider.systemPrompt === 'string' ? provider.systemPrompt : ''
+    }))
+
     const config: BrowserOSProvidersConfig = {
       defaultProviderId: newDefaultId || defaultProvider,
-      providers: updatedProviders
+      providers: normalizedProviders
     }
 
     // Send via persistent port - broadcast will update state automatically
-    port.postMessage({
-      type: MessageType.SAVE_LLM_PROVIDERS,
-      payload: config,
-      id: `save-providers-${Date.now()}`
-    })
+    const sent = messaging.sendMessage(
+      MessageType.SAVE_LLM_PROVIDERS,
+      config,
+      `save-providers-${Date.now()}`
+    )
+
+    if (!sent) {
+      console.error('[useBrowserOSPrefs] Failed to send providers config')
+      return false
+    }
 
     return true
-  }, [port, defaultProvider])
+  }, [defaultProvider])
 
   const setDefaultProvider = useCallback(async (providerId: string) => {
     setDefaultProviderState(providerId)
     const normalizedProviders = providers.map(provider => ({
       ...provider,
-      isDefault: provider.id === providerId
+      isDefault: provider.id === providerId,
+      systemPrompt: typeof provider.systemPrompt === 'string' ? provider.systemPrompt : ''
     }))
     setProviders(normalizedProviders)
     await saveProvidersConfig(normalizedProviders, providerId)
@@ -134,12 +137,17 @@ export function useBrowserOSPrefs() {
       id: provider.id || crypto.randomUUID(),
       isDefault: false,  // Ensure isDefault is always set
       isBuiltIn: provider.isBuiltIn || false,
+      systemPrompt: typeof provider.systemPrompt === 'string' ? provider.systemPrompt : '',
       createdAt: provider.createdAt || new Date().toISOString(),
       updatedAt: new Date().toISOString()
     }
     const updatedProviders = [...providers, newProvider]
-    setProviders(updatedProviders)
-    await saveProvidersConfig(updatedProviders)
+    const normalizedProviders = updatedProviders.map(p => ({
+      ...p,
+      systemPrompt: typeof p.systemPrompt === 'string' ? p.systemPrompt : ''
+    }))
+    setProviders(normalizedProviders)
+    await saveProvidersConfig(normalizedProviders)
     return newProvider
   }, [providers, saveProvidersConfig])
 
@@ -147,6 +155,7 @@ export function useBrowserOSPrefs() {
     const updatedProvider = {
       ...provider,
       isDefault: provider.id === defaultProvider,
+      systemPrompt: typeof provider.systemPrompt === 'string' ? provider.systemPrompt : '',
       updatedAt: new Date().toISOString()
     }
     const updatedProviders = providers.map(p =>
@@ -154,8 +163,12 @@ export function useBrowserOSPrefs() {
         ? updatedProvider
         : { ...p, isDefault: p.id === defaultProvider }
     )
-    setProviders(updatedProviders)
-    await saveProvidersConfig(updatedProviders)
+    const normalizedProviders = updatedProviders.map(p => ({
+      ...p,
+      systemPrompt: typeof p.systemPrompt === 'string' ? p.systemPrompt : ''
+    }))
+    setProviders(normalizedProviders)
+    await saveProvidersConfig(normalizedProviders)
     return updatedProvider
   }, [providers, defaultProvider, saveProvidersConfig])
 
@@ -171,7 +184,8 @@ export function useBrowserOSPrefs() {
 
     const normalizedProviders = remainingProviders.map(p => ({
       ...p,
-      isDefault: p.id === nextDefaultId
+      isDefault: p.id === nextDefaultId,
+      systemPrompt: typeof p.systemPrompt === 'string' ? p.systemPrompt : ''
     }))
 
     setProviders(normalizedProviders)
