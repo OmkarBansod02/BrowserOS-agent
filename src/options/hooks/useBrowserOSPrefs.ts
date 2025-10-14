@@ -21,7 +21,7 @@ export function useBrowserOSPrefs() {
   const [isLoading, setIsLoading] = useState(true)
   const messagingRef = useRef<PortMessaging | null>(null)
 
-  // Setup persistent port connection
+  // Setup persistent port connection with auto-reconnect
   useEffect(() => {
     const messaging = PortMessaging.getInstance()
     messagingRef.current = messaging
@@ -33,6 +33,7 @@ export function useBrowserOSPrefs() {
 
       if (payload?.data?.providersConfig) {
         const config = payload.data.providersConfig as BrowserOSProvidersConfig
+        // Ensure all providers have isDefault field and systemPrompt migration
         const migratedProviders = config.providers.map(p => ({
           ...p,
           isDefault: p.isDefault !== undefined ? p.isDefault : (p.id === 'browseros'),
@@ -46,6 +47,7 @@ export function useBrowserOSPrefs() {
 
     messaging.addMessageListener<any>(MessageType.WORKFLOW_STATUS, handleWorkflowStatus)
 
+    // Connect with auto-reconnect enabled for reliability
     let connected = messaging.isConnected()
     if (!connected) {
       connected = messaging.connect(PortPrefix.OPTIONS, true)
@@ -66,9 +68,9 @@ export function useBrowserOSPrefs() {
       }
     }, 100)
 
-    // Also request again after a bit more time in case first one fails
+    // Retry after a bit more time in case first one fails
     const retryTimeout = setTimeout(() => {
-      if (messaging.isConnected()) {
+      if (isLoading && messaging.isConnected()) {
         messaging.sendMessage(
           MessageType.GET_LLM_PROVIDERS,
           {},
@@ -90,8 +92,8 @@ export function useBrowserOSPrefs() {
 
   const saveProvidersConfig = useCallback(async (updatedProviders: LLMProvider[], newDefaultId?: string) => {
     const messaging = messagingRef.current
-    if (!messaging) {
-      console.error('[useBrowserOSPrefs] Messaging not initialized')
+    if (!messaging || !messaging.isConnected()) {
+      console.error('[useBrowserOSPrefs] Messaging not connected, cannot save providers')
       return false
     }
 
@@ -141,38 +143,64 @@ export function useBrowserOSPrefs() {
       createdAt: provider.createdAt || new Date().toISOString(),
       updatedAt: new Date().toISOString()
     }
+
     const updatedProviders = [...providers, newProvider]
     const normalizedProviders = updatedProviders.map(p => ({
       ...p,
       systemPrompt: typeof p.systemPrompt === 'string' ? p.systemPrompt : ''
     }))
+
+    // Optimistically update state
     setProviders(normalizedProviders)
-    await saveProvidersConfig(normalizedProviders)
+
+    // Attempt to save
+    const success = await saveProvidersConfig(normalizedProviders)
+    if (!success) {
+      // Revert local state if save failed
+      setProviders(providers)
+      throw new Error('Failed to save provider. Connection lost. Please refresh the page and try again.')
+    }
+
     return newProvider
   }, [providers, saveProvidersConfig])
 
   const updateProvider = useCallback(async (provider: LLMProvider) => {
+    const previousProviders = providers
     const updatedProvider = {
       ...provider,
       isDefault: provider.id === defaultProvider,
       systemPrompt: typeof provider.systemPrompt === 'string' ? provider.systemPrompt : '',
       updatedAt: new Date().toISOString()
     }
+
     const updatedProviders = providers.map(p =>
       p.id === provider.id
         ? updatedProvider
         : { ...p, isDefault: p.id === defaultProvider }
     )
+
     const normalizedProviders = updatedProviders.map(p => ({
       ...p,
       systemPrompt: typeof p.systemPrompt === 'string' ? p.systemPrompt : ''
     }))
+
+    // Optimistically update state
     setProviders(normalizedProviders)
-    await saveProvidersConfig(normalizedProviders)
+
+    // Attempt to save
+    const success = await saveProvidersConfig(normalizedProviders)
+    if (!success) {
+      // Revert local state if save failed
+      setProviders(previousProviders)
+      throw new Error('Failed to update provider. Connection lost. Please refresh the page and try again.')
+    }
+
     return updatedProvider
   }, [providers, defaultProvider, saveProvidersConfig])
 
   const deleteProvider = useCallback(async (providerId: string) => {
+    const previousProviders = providers
+    const previousDefaultId = defaultProvider
     const remainingProviders = providers.filter(p => p.id !== providerId)
 
     let nextDefaultId = defaultProvider
@@ -188,8 +216,17 @@ export function useBrowserOSPrefs() {
       systemPrompt: typeof p.systemPrompt === 'string' ? p.systemPrompt : ''
     }))
 
+    // Optimistically update state
     setProviders(normalizedProviders)
-    await saveProvidersConfig(normalizedProviders, nextDefaultId)
+
+    // Attempt to save
+    const success = await saveProvidersConfig(normalizedProviders, nextDefaultId)
+    if (!success) {
+      // Revert local state if save failed
+      setProviders(previousProviders)
+      setDefaultProviderState(previousDefaultId)
+      throw new Error('Failed to delete provider. Connection lost. Please refresh the page and try again.')
+    }
   }, [providers, defaultProvider, saveProvidersConfig])
 
   return {
