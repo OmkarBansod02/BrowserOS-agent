@@ -9,7 +9,7 @@ import {
   createDefaultBrowserOSProvider,
   createDefaultProvidersConfig
 } from './browserOSTypes'
-import { setCachedDefaultProvider } from './customSystemPrompt'
+import { setCachedDefaultProvider, clearCustomSystemPromptCache } from './customSystemPrompt'
 
 // Type definitions for chrome.browserOS API (callback-based)
 declare global {
