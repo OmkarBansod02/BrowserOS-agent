@@ -34,8 +34,9 @@ export function BrowserOSPromptEditor({ provider, onSave }: BrowserOSPromptEdito
       // Allow editing immediately for brand new provider setups with no saved prompt
       setIsEditing(nextValue.length === 0)
     } else if (systemPromptChanged) {
-      // After saving, lock editing until user opts back in
-      setIsEditing(false)
+      // After saving, lock editing UNLESS the prompt is now empty (user clicked reset)
+      // Keep user in edit mode when prompt is empty so they can immediately add new content
+      setIsEditing(nextValue.length === 0)
     }
 
     previousProviderIdRef.current = providerId
@@ -66,10 +67,23 @@ export function BrowserOSPromptEditor({ provider, onSave }: BrowserOSPromptEdito
     }
   }
 
-  const handleReset = () => {
+  const handleReset = async () => {
     if (isSaving || !isEditing) return
-    setPromptValue('')
+    setIsSaving(true)
     setErrorMessage(null)
+    try {
+      // Save the empty prompt to storage so it persists across refreshes
+      await onSave('')
+      setPromptValue('')
+      // Keep user in edit mode after reset so they can add new content without clicking "Edit prompt"
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to reset prompt'
+      setErrorMessage(message)
+      // Revert to the previous value on error
+      setPromptValue(provider?.systemPrompt ?? '')
+    } finally {
+      setIsSaving(false)
+    }
   }
 
   const handleEnterEditMode = () => {
