@@ -1,7 +1,16 @@
 /**
  * HTML report template utilities
- * Simple, clean design matching BrowserOS aesthetic
+ * Modular, flexible design supporting LLM customization
  */
+
+// Data visualization types
+export type DataVisualization = 'table' | 'cards' | 'comparison-matrix' | 'list' | 'auto'
+
+// Custom section positioning
+export type SectionPosition = 'before-metrics' | 'after-metrics' | 'after-timeline' | 'after-actions' | 'after-results' | 'before-footer'
+
+// Report types for preset templates
+export type ReportType = 'default' | 'comparison' | 'research' | 'extraction' | 'analysis'
 
 export interface ReportData {
   taskDescription: string  // The original task
@@ -9,14 +18,35 @@ export interface ReportData {
   actionsPerformed: string[]  // List of actions taken
   dataExtracted?: Record<string, any>  // Structured data collected
   findings?: string  // Key insights or summary
-  additionalSections?: ReportSection[]  // Custom sections added by LLM
+  additionalSections?: ReportSection[]  // Custom sections added by LLM (legacy)
   executionDetails?: ExecutionDetail[]  // Detailed execution timeline
   metrics?: ExecutionMetrics  // Performance metrics
+
+  // New: Enhanced customization options
+  customSections?: CustomSection[]  // Custom sections with positioning
+  layoutPreferences?: LayoutPreferences  // Layout customization
+  customStyles?: string  // Custom CSS to inject
+  reportType?: ReportType  // Preset template type
 }
 
 export interface ReportSection {
   title: string  // Section heading
   content: string  // HTML content for the section
+}
+
+export interface CustomSection {
+  position: SectionPosition  // Where to insert this section
+  title: string  // Section heading
+  content: string  // HTML content (can include custom markup)
+  priority?: number  // Order priority if multiple sections at same position (higher = first)
+}
+
+export interface LayoutPreferences {
+  dataVisualization?: DataVisualization  // How to display extracted data
+  showTimeline?: boolean  // Whether to show execution timeline
+  highlightMetrics?: boolean  // Emphasize performance metrics
+  compactMode?: boolean  // Use more compact spacing
+  sectionsToHide?: ('metrics' | 'timeline' | 'actions' | 'findings')[]  // Sections to skip
 }
 
 export interface ExecutionDetail {
@@ -38,7 +68,7 @@ export interface ExecutionMetrics {
   pagesVisited: number  // Number of pages navigated
 }
 
-// Minimal CSS - matches BrowserOS clean aesthetic
+// Professional report CSS - clean, modern design
 const BASE_CSS = `
   * {
     margin: 0;
@@ -48,53 +78,97 @@ const BASE_CSS = `
 
   body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-    line-height: 1.6;
-    color: #111827;
-    background: #ffffff;
-    padding: 2rem;
-    max-width: 900px;
+    line-height: 1.7;
+    color: #1f2937;
+    background: #f9fafb;
+    padding: 0;
+    margin: 0;
+  }
+
+  .report-container {
+    max-width: 1000px;
     margin: 0 auto;
+    background: #ffffff;
+    min-height: 100vh;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  }
+
+  .report-header {
+    background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%);
+    color: white;
+    padding: 3rem 3rem 2rem 3rem;
+    border-bottom: 4px solid #1e3a8a;
   }
 
   h1 {
-    font-size: 1.875rem;
+    font-size: 2.25rem;
     font-weight: 700;
-    margin-bottom: 0.5rem;
-    color: #111827;
+    margin-bottom: 0.75rem;
+    color: white;
+    letter-spacing: -0.025em;
+  }
+
+  .subtitle {
+    font-size: 1rem;
+    color: rgba(255, 255, 255, 0.9);
+    margin-bottom: 0;
+    font-weight: 400;
+  }
+
+  .report-content {
+    padding: 3rem;
   }
 
   h2 {
+    font-size: 1.5rem;
+    font-weight: 700;
+    margin-top: 3rem;
+    margin-bottom: 1.25rem;
+    color: #111827;
+    padding-bottom: 0.75rem;
+    border-bottom: 2px solid #e5e7eb;
+    letter-spacing: -0.025em;
+  }
+
+  h2:first-child {
+    margin-top: 0;
+  }
+
+  h3 {
     font-size: 1.125rem;
     font-weight: 600;
     margin-top: 2rem;
     margin-bottom: 1rem;
-    color: #111827;
-    border-bottom: 1px solid #e5e7eb;
-    padding-bottom: 0.5rem;
-  }
-
-  .subtitle {
-    font-size: 0.875rem;
-    color: #6b7280;
-    margin-bottom: 2rem;
+    color: #374151;
   }
 
   .task-box {
-    background: #f9fafb;
-    padding: 1rem;
-    border-radius: 0.375rem;
-    border-left: 3px solid #2563eb;
-    margin-bottom: 1.5rem;
+    background: #f0f9ff;
+    padding: 1.5rem;
+    border-radius: 0.5rem;
+    border-left: 4px solid #3b82f6;
+    margin-bottom: 2rem;
+    font-size: 1.05rem;
+    line-height: 1.8;
+  }
+
+  .section-content {
+    margin-bottom: 2rem;
   }
 
   ul {
     list-style: none;
     padding: 0;
+    background: #fafafa;
+    border-radius: 0.5rem;
+    padding: 1.5rem;
   }
 
   li {
-    padding: 0.5rem 0;
-    border-bottom: 1px solid #f3f4f6;
+    padding: 0.75rem 0;
+    border-bottom: 1px solid #e5e7eb;
+    font-size: 0.95rem;
+    line-height: 1.6;
   }
 
   li:last-child {
@@ -102,68 +176,91 @@ const BASE_CSS = `
   }
 
   li:before {
-    content: "•";
-    color: #2563eb;
+    content: "▸";
+    color: #3b82f6;
     font-weight: bold;
     display: inline-block;
-    width: 1em;
+    width: 1.5em;
     margin-right: 0.5rem;
   }
 
   table {
     width: 100%;
-    border-collapse: collapse;
-    margin: 1rem 0;
-    border: 1px solid #e5e7eb;
-    border-radius: 0.375rem;
+    border-collapse: separate;
+    border-spacing: 0;
+    margin: 1.5rem 0;
+    border: 1px solid #d1d5db;
+    border-radius: 0.5rem;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
   }
 
   th, td {
-    padding: 0.75rem;
+    padding: 1rem 1.25rem;
     text-align: left;
-    border: 1px solid #e5e7eb;
+    border-bottom: 1px solid #e5e7eb;
   }
 
   th {
-    background: #f9fafb;
+    background: linear-gradient(180deg, #f9fafb 0%, #f3f4f6 100%);
     font-weight: 600;
-    font-size: 0.875rem;
+    font-size: 0.9rem;
     color: #111827;
+    text-transform: uppercase;
+    letter-spacing: 0.025em;
+    border-bottom: 2px solid #d1d5db;
   }
 
   td {
-    font-size: 0.875rem;
+    font-size: 0.95rem;
     color: #374151;
+    background: white;
   }
 
-  tr:hover {
+  tr:hover td {
     background: #f9fafb;
   }
 
+  tr:last-child td {
+    border-bottom: none;
+  }
+
   .summary-box {
-    background: #f0fdf4;
-    border: 1px solid #bbf7d0;
-    border-radius: 0.375rem;
-    padding: 1rem;
-    margin-top: 1rem;
+    background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
+    border: 2px solid #86efac;
+    border-radius: 0.5rem;
+    padding: 1.5rem;
+    margin: 2rem 0;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
   }
 
   .summary-box strong {
-    color: #166534;
+    color: #065f46;
+    font-size: 1.1rem;
+    display: block;
+    margin-bottom: 0.5rem;
+  }
+
+  .summary-box p {
+    color: #047857;
+    line-height: 1.7;
+    margin-top: 0.5rem;
   }
 
   .footer {
-    margin-top: 3rem;
-    padding-top: 1.5rem;
-    border-top: 1px solid #e5e7eb;
+    background: #f9fafb;
+    margin-top: 0;
+    padding: 2rem 3rem;
+    border-top: 2px solid #e5e7eb;
     text-align: center;
-    font-size: 0.75rem;
+    font-size: 0.875rem;
     color: #6b7280;
   }
 
   .footer a {
-    color: #2563eb;
+    color: #3b82f6;
     text-decoration: none;
+    font-weight: 500;
   }
 
   .footer a:hover {
@@ -173,16 +270,16 @@ const BASE_CSS = `
   .execution-timeline {
     background: #fafafa;
     border: 1px solid #e5e7eb;
-    border-radius: 0.375rem;
-    padding: 1rem;
-    margin-top: 1rem;
+    border-radius: 0.5rem;
+    padding: 1.5rem;
+    margin: 1.5rem 0;
   }
 
   .timeline-item {
     display: flex;
-    gap: 1rem;
-    padding: 0.75rem 0;
-    border-bottom: 1px solid #f3f4f6;
+    gap: 1.25rem;
+    padding: 1rem 0;
+    border-bottom: 1px solid #e5e7eb;
   }
 
   .timeline-item:last-child {
@@ -190,9 +287,10 @@ const BASE_CSS = `
   }
 
   .timeline-time {
-    font-size: 0.75rem;
+    font-size: 0.8rem;
     color: #6b7280;
-    min-width: 80px;
+    min-width: 90px;
+    font-weight: 500;
   }
 
   .timeline-content {
@@ -200,83 +298,181 @@ const BASE_CSS = `
   }
 
   .timeline-tool {
-    font-family: monospace;
+    font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, monospace;
     font-size: 0.875rem;
-    background: #e5e7eb;
-    padding: 0.125rem 0.375rem;
+    background: #dbeafe;
+    color: #1e40af;
+    padding: 0.25rem 0.5rem;
     border-radius: 0.25rem;
     display: inline-block;
     margin-right: 0.5rem;
+    font-weight: 500;
   }
 
   .timeline-status {
-    padding: 0.125rem 0.5rem;
-    border-radius: 0.25rem;
+    padding: 0.25rem 0.625rem;
+    border-radius: 0.375rem;
     font-size: 0.75rem;
     font-weight: 600;
     display: inline-block;
+    text-transform: uppercase;
+    letter-spacing: 0.025em;
   }
 
   .status-success {
     background: #d1fae5;
     color: #065f46;
+    border: 1px solid #86efac;
   }
 
   .status-failed {
     background: #fee2e2;
     color: #991b1b;
+    border: 1px solid #fca5a5;
   }
 
   .status-retry {
     background: #fef3c7;
     color: #92400e;
+    border: 1px solid #fcd34d;
   }
 
   .metrics-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-    gap: 1rem;
-    margin-top: 1rem;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 1.25rem;
+    margin: 1.5rem 0;
   }
 
   .metric-card {
-    background: #f9fafb;
-    padding: 0.75rem;
-    border-radius: 0.375rem;
+    background: linear-gradient(135deg, #f9fafb 0%, #ffffff 100%);
+    padding: 1.5rem;
+    border-radius: 0.5rem;
     text-align: center;
+    border: 1px solid #e5e7eb;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    transition: transform 0.2s, box-shadow 0.2s;
+  }
+
+  .metric-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
   }
 
   .metric-value {
-    font-size: 1.5rem;
+    font-size: 2rem;
     font-weight: 700;
-    color: #111827;
+    color: #1e40af;
+    margin-bottom: 0.5rem;
   }
 
   .metric-label {
-    font-size: 0.75rem;
+    font-size: 0.8rem;
     color: #6b7280;
     text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-weight: 600;
   }
 
   .tool-params {
-    font-size: 0.75rem;
+    font-size: 0.8rem;
     color: #6b7280;
-    margin-top: 0.25rem;
-    font-family: monospace;
+    margin-top: 0.5rem;
+    font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, monospace;
+    background: #f9fafb;
+    padding: 0.5rem;
+    border-radius: 0.25rem;
   }
 
   .error-message {
     color: #dc2626;
-    font-size: 0.75rem;
-    margin-top: 0.25rem;
+    font-size: 0.8rem;
+    margin-top: 0.5rem;
+    padding: 0.5rem;
+    background: #fee2e2;
+    border-left: 3px solid #dc2626;
+    border-radius: 0.25rem;
+  }
+
+  .data-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 1.25rem;
+    margin: 1.5rem 0;
+  }
+
+  .data-card {
+    background: #fafafa;
+    border: 1px solid #e5e7eb;
+    border-radius: 0.5rem;
+    padding: 1.25rem;
+    transition: transform 0.2s, box-shadow 0.2s;
+  }
+
+  .data-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+  }
+
+  .data-card-title {
+    font-weight: 600;
+    font-size: 0.875rem;
+    color: #374151;
+    text-transform: uppercase;
+    letter-spacing: 0.025em;
+    margin-bottom: 0.75rem;
+  }
+
+  .data-card-value {
+    font-size: 1.125rem;
+    color: #111827;
+    line-height: 1.6;
+  }
+
+  pre {
+    background: #1f2937;
+    color: #f3f4f6;
+    padding: 1rem;
+    border-radius: 0.375rem;
+    overflow-x: auto;
+    font-size: 0.875rem;
+    line-height: 1.5;
   }
 
   @media print {
     body {
       padding: 0;
+      background: white;
+    }
+    .report-container {
+      box-shadow: none;
+    }
+    .metric-card:hover {
+      transform: none;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
     }
   }
 `;
+
+/**
+ * Get custom sections at a specific position
+ */
+function getCustomSectionsAt(sections: CustomSection[] | undefined, position: SectionPosition): string {
+  if (!sections || sections.length === 0) return '';
+
+  const sectionsAtPosition = sections
+    .filter(s => s.position === position)
+    .sort((a, b) => (b.priority || 0) - (a.priority || 0));
+
+  if (sectionsAtPosition.length === 0) return '';
+
+  return sectionsAtPosition.map(section => `
+    <h2>${escapeHtml(section.title)}</h2>
+    <div class="section-content">
+      ${section.content}
+    </div>
+  `).join('\n');
+}
 
 /**
  * Generate complete HTML report from data
@@ -290,11 +486,22 @@ export function generateReport(data: ReportData): string {
     findings,
     additionalSections,
     executionDetails,
-    metrics
+    metrics,
+    customSections,
+    layoutPreferences,
+    customStyles,
+    reportType
   } = data;
 
+  // Check layout preferences
+  const layout = layoutPreferences || {};
+  const shouldShowMetrics = !layout.sectionsToHide?.includes('metrics');
+  const shouldShowTimeline = layout.showTimeline !== false && !layout.sectionsToHide?.includes('timeline');
+  const shouldShowActions = !layout.sectionsToHide?.includes('actions');
+  const shouldShowFindings = !layout.sectionsToHide?.includes('findings');
+
   // Build metrics section
-  const metricsHtml = metrics ? generateMetricsSection(metrics) : '';
+  const metricsHtml = metrics && shouldShowMetrics ? generateMetricsSection(metrics, layout.highlightMetrics) : '';
 
   // Build execution timeline
   const timelineHtml = executionDetails && executionDetails.length > 0
@@ -337,31 +544,52 @@ export function generateReport(data: ReportData): string {
   <style>${BASE_CSS}</style>
 </head>
 <body>
-  <h1>Task Report</h1>
-  <div class="subtitle">${timestamp}</div>
+  <div class="report-container">
+    <div class="report-header">
+      <h1>Task Execution Report</h1>
+      <div class="subtitle">Generated on ${timestamp}</div>
+    </div>
 
-  <h2>Task</h2>
-  <div class="task-box">${escapeHtml(taskDescription)}</div>
+    <div class="report-content">
+      <h2>Task Description</h2>
+      <div class="task-box">${escapeHtml(taskDescription)}</div>
 
-  ${metricsHtml}
+      ${metricsHtml}
 
-  ${timelineHtml ? `
-    <h2>Execution Timeline</h2>
-    ${timelineHtml}
-  ` : ''}
+      ${timelineHtml ? `
+        <h2>Execution Timeline</h2>
+        <div class="section-content">
+          ${timelineHtml}
+        </div>
+      ` : ''}
 
-  <h2>Actions Summary</h2>
-  ${actionsHtml}
+      <h2>Actions Performed</h2>
+      <div class="section-content">
+        ${actionsHtml}
+      </div>
 
-  ${dataHtml ? `<h2>Results</h2>${dataHtml}` : ''}
-  ${noDataMessage}
+      ${dataHtml ? `
+        <h2>Data Extracted</h2>
+        <div class="section-content">
+          ${dataHtml}
+        </div>
+      ` : ''}
+      ${noDataMessage ? `<div class="section-content">${noDataMessage}</div>` : ''}
 
-  ${findingsHtml ? `<h2>Summary</h2>${findingsHtml}` : ''}
+      ${findingsHtml ? `
+        <h2>Key Findings</h2>
+        <div class="section-content">
+          ${findingsHtml}
+        </div>
+      ` : ''}
 
-  ${additionalHtml}
+      ${additionalHtml}
+    </div>
 
-  <div class="footer">
-    Generated by <a href="https://github.com/BrowserOS-Agent/browseros" target="_blank">BrowserOS Agent</a>
+    <div class="footer">
+      Generated by <a href="https://github.com/BrowserOS-Agent/browseros" target="_blank">BrowserOS Agent</a> •
+      Automated Web Intelligence Platform
+    </div>
   </div>
 </body>
 </html>`;
@@ -372,8 +600,8 @@ export function generateReport(data: ReportData): string {
  * Handles various data structures intelligently
  */
 function generateDataSection(data: Record<string, any>): string {
-  // Check if data is an array of objects (table-like)
-  if (Array.isArray(data) && data.length > 0 && typeof data[0] === 'object') {
+  // Check if data is an array (table-like) - handles both objects and primitives
+  if (Array.isArray(data) && data.length > 0) {
     return generateTableFromArray(data);
   }
 
@@ -383,7 +611,7 @@ function generateDataSection(data: Record<string, any>): string {
   // Pattern 1: Single array field (e.g., {items: [...]} or {products: [...]} or {comparison: [...]})
   if (keys.length === 1) {
     const firstKey = keys[0];
-    if (Array.isArray(data[firstKey]) && data[firstKey].length > 0 && typeof data[firstKey][0] === 'object') {
+    if (Array.isArray(data[firstKey]) && data[firstKey].length > 0) {
       return generateTableFromArray(data[firstKey]);
     }
   }
@@ -417,6 +645,29 @@ function generateDataSection(data: Record<string, any>): string {
 function generateTableFromArray(data: any[]): string {
   if (data.length === 0) return '<p style="color: var(--muted);">No data available.</p>';
 
+  // Check if array contains primitive values (strings, numbers, booleans) vs objects
+  const firstItem = data[0];
+  const isPrimitive = typeof firstItem !== 'object' || firstItem === null;
+
+  // Handle arrays of primitive values (strings, numbers, etc.)
+  if (isPrimitive) {
+    const rows = data.map((item, index) => {
+      return `<tr><td>${index + 1}</td><td>${escapeHtml(String(item))}</td></tr>`;
+    }).join('\n');
+
+    return `
+      <table class="data-table">
+        <thead>
+          <tr><th>#</th><th>Value</th></tr>
+        </thead>
+        <tbody>
+          ${rows}
+        </tbody>
+      </table>
+    `;
+  }
+
+  // Handle arrays of objects (existing logic)
   const keys = Object.keys(data[0]);
   const headers = keys.map(key => `<th>${escapeHtml(key)}</th>`).join('\n');
   const rows = data.map(item => {

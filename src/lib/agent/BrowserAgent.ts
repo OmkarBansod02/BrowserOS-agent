@@ -403,9 +403,13 @@ export class BrowserAgent {
         ...this.executionContext.getExecutionMetrics(),
         endTime: Date.now(),
       });
+
+      // Auto-generate report if task completed successfully
+      await this._maybeGenerateReport();
+
       this._logMetrics();
       this._cleanup();
-      
+
       // Ensure glow animation is stopped at the end of execution
       try {
         // Get all active glow tabs from the service
@@ -421,6 +425,10 @@ export class BrowserAgent {
 
   private async _executePredefined(task: string, plan: any): Promise<void> {
     this.executionContext.setCurrentTask(task);
+
+    // Set task description for execution tracker
+    const tracker = this.executionContext.getExecutionTracker();
+    tracker.setTaskDescription(task);
 
     // Convert predefined steps to TODO markdown
     const todoMarkdown = plan.steps.map((step: string) => `- [ ] ${step}`).join('\n');
@@ -499,6 +507,12 @@ export class BrowserAgent {
         "info"
       );
 
+      // Track high-level actions in execution tracker
+      const tracker = this.executionContext.getExecutionTracker();
+      for (const action of plan.proposedActions) {
+        tracker.addAction(action);
+      }
+
       // This will be handled in _runExecutor with fresh message manager
 
       // Execute the actions
@@ -535,6 +549,10 @@ export class BrowserAgent {
   private async _executeDynamic(task: string): Promise<void> {
     // Set current task in context
     this.executionContext.setCurrentTask(task);
+
+    // Set task description for execution tracker
+    const tracker = this.executionContext.getExecutionTracker();
+    tracker.setTaskDescription(task);
 
     // Validate LLM is initialized with tools bound
     if (!this.executorLlmWithTools) {
@@ -609,6 +627,12 @@ export class BrowserAgent {
         `Executing ${plan.proposedActions.length} actions from plan`,
         "info",
       );
+
+      // Track high-level actions in execution tracker
+      const tracker = this.executionContext.getExecutionTracker();
+      for (const action of plan.proposedActions) {
+        tracker.addAction(action);
+      }
 
       // This will be handled in _runExecutor with fresh message manager
 
@@ -1106,6 +1130,11 @@ ${fullHistory}
       // Start glow animation for visual tools
       await this._maybeStartGlowAnimation(toolName);
 
+      // Start tracking this tool execution
+      const startTime = Date.now();
+      const tracker = this.executionContext.getExecutionTracker();
+      const toolTracking = tracker.trackToolExecution(toolName, args, startTime);
+
       const tool = this.toolManager.get(toolName);
 
       let toolResult: string;
@@ -1118,6 +1147,9 @@ ${fullHistory}
         });
 
         this._emitDevModeDebug("Error", errorMsg);
+
+        // Track as failed
+        toolTracking.complete('failed', errorMsg);
       } else {
         try {
           // Execute tool (wrap for evals2 metrics if enabled)
@@ -1127,6 +1159,23 @@ ${fullHistory}
             toolFunc = wrapped.func;
           }
           toolResult = await toolFunc(args);
+
+          // Track as successful
+          const parsedResult = jsonParseToolOutput(toolResult);
+          if (parsedResult.ok) {
+            toolTracking.complete('success', undefined, parsedResult.output);
+
+            // Track special data extractions
+            if (toolName === 'extract' && parsedResult.output) {
+              tracker.addExtractedData(
+                args.url || 'current_page',
+                parsedResult.output,
+                'web_extraction'
+              );
+            }
+          } else {
+            toolTracking.complete('failed', parsedResult.error, parsedResult.output);
+          }
 
         } catch (error) {
           // Even on execution error, we must add a tool result
@@ -1138,6 +1187,9 @@ ${fullHistory}
 
           // Increment error metric
           this.executionContext.incrementMetric("errors");
+
+          // Track as failed
+          toolTracking.complete('failed', errorMsg);
 
           Logging.log(
             "BrowserAgent",
@@ -1287,6 +1339,97 @@ ${fullHistory}
       // Log but don't fail if we can't manage glow
       console.error(`Could not manage glow for tool ${toolName}: ${error}`);
       return false;
+    }
+  }
+
+  /**
+   * Automatically generate report if conditions are met
+   */
+  private async _maybeGenerateReport(): Promise<void> {
+    try {
+      const tracker = this.executionContext.getExecutionTracker();
+
+      // Finalize metrics
+      tracker.finalize();
+
+      // Get report data
+      const reportData = tracker.getReportData();
+
+      // Check if we should generate a report
+      // Generate report if:
+      // 1. We have tool executions
+      // 2. We have data extracted OR significant actions performed
+      const shouldGenerateReport =
+        reportData.executionDetails.length > 0 &&
+        (reportData.dataExtracted || reportData.actionsPerformed.length > 3);
+
+      if (!shouldGenerateReport) {
+        Logging.log(
+          "BrowserAgent",
+          "Skipping report generation - minimal execution activity",
+          "info"
+        );
+        return;
+      }
+
+      // Get report tool
+      const reportTool = this.toolManager.get('report');
+      if (!reportTool) {
+        Logging.log(
+          "BrowserAgent",
+          "Report tool not available - skipping report generation",
+          "warning"
+        );
+        return;
+      }
+
+      Logging.log(
+        "BrowserAgent",
+        "Auto-generating execution report",
+        "info"
+      );
+
+      // Prepare report input
+      const reportInput = {
+        taskDescription: reportData.taskDescription,
+        actionsPerformed: reportData.actionsPerformed,
+        dataExtracted: reportData.dataExtracted,
+        findings: reportData.findings,
+        executionDetails: reportData.executionDetails.map(detail => ({
+          timestamp: detail.timestamp,
+          action: `Executed ${detail.tool} tool`,
+          tool: detail.tool,
+          parameters: detail.parameters,
+          result: detail.result,
+          duration: `${detail.duration}ms`,
+          error: detail.error,
+          retryCount: detail.retryCount
+        })),
+        metrics: {
+          totalDuration: reportData.metrics.totalDuration || '0s',
+          toolsUsed: reportData.metrics.toolsUsed,
+          successRate: reportData.metrics.successRate || '0%',
+          retries: reportData.metrics.retryCount,
+          pagesVisited: reportData.metrics.pagesVisited
+        }
+      };
+
+      // Generate the report
+      await reportTool.func(reportInput);
+
+      Logging.log(
+        "BrowserAgent",
+        "Report generated successfully",
+        "info"
+      );
+
+    } catch (error) {
+      // Don't fail execution if report generation fails
+      Logging.log(
+        "BrowserAgent",
+        `Failed to generate report: ${error}`,
+        "error"
+      );
     }
   }
 
