@@ -2,24 +2,56 @@ import { DynamicStructuredTool } from "@langchain/core/tools";
 import { z } from "zod";
 import { ExecutionContext } from "@/lib/runtime/ExecutionContext";
 import { PubSubChannel } from "@/lib/pubsub/PubSubChannel";
-import { generateReport, ReportData, ReportSection, ExecutionDetail, ExecutionMetrics } from "@/lib/utils/reportTemplate";
+import {
+  generateReport,
+  ReportData,
+  ReportSection,
+  ExecutionDetail,
+  ExecutionMetrics,
+  ReportComponent,
+} from "@/lib/utils/reportTemplate";
 import { Logging } from "@/lib/utils/Logging";
+
+// Component schema for flexible report building
+const ReportComponentSchema = z.object({
+  type: z.enum(['summary', 'metrics', 'timeline', 'actions', 'data-table', 'data-cards', 'findings', 'custom'])
+    .describe("Component type determines how content is rendered"),
+  title: z.string().optional()
+    .describe("Optional section title (H2 heading)"),
+  content: z.any()
+    .describe("Component data - structure varies by type (e.g., array for data-table, string for summary)"),
+  order: z.number().optional()
+    .describe("Display order - lower numbers appear first (default: order in array)"),
+  style: z.enum(['default', 'compact', 'highlighted']).optional()
+    .describe("Style variant for the component")
+});
 
 const ReportInputSchema = z.object({
   taskDescription: z
     .string()
     .describe("Description of the task that was executed"),
+
+  // Component-based structure (NEW - LLM builds report from components)
+  components: z
+    .array(ReportComponentSchema)
+    .min(1)  // Gemini compatibility fix - forces inline schema instead of $ref
+    .optional()
+    .describe("Build report from components - each component renders a section. Use this for full control over report structure."),
+
+  // Legacy fields (backward compatibility - still supported)
   actionsPerformed: z
     .array(z.string())
-    .describe("List of actions taken during execution"),
-  dataExtracted: z
-    .record(z.any())
+    .min(1)  // Gemini compatibility fix
     .optional()
-    .describe("Structured data extracted or collected (as JSON object)"),
+    .describe("List of actions taken during execution (legacy)"),
+  dataExtracted: z
+    .any()  // Simplified for Gemini - accepts any JSON-serializable data
+    .optional()
+    .describe("Structured data extracted or collected (legacy) - can be object, array, or any JSON value"),
   findings: z
     .string()
     .optional()
-    .describe("Summary of key findings or insights"),
+    .describe("Summary of key findings or insights (legacy)"),
   additionalSections: z
     .array(
       z.object({
@@ -27,8 +59,9 @@ const ReportInputSchema = z.object({
         content: z.string().describe("HTML content for the section"),
       })
     )
+    .min(1)  // Gemini compatibility fix
     .optional()
-    .describe("Additional custom sections to include in the report"),
+    .describe("Additional custom sections (legacy)"),
   executionDetails: z
     .array(
       z.object({
@@ -42,8 +75,9 @@ const ReportInputSchema = z.object({
         retryCount: z.number().optional().describe("Number of retries"),
       })
     )
+    .min(1)  // Gemini compatibility fix
     .optional()
-    .describe("Detailed execution timeline showing what happened under the hood"),
+    .describe("Detailed execution timeline (legacy)"),
   metrics: z
     .object({
       totalDuration: z.string().describe("Total execution time"),
@@ -53,7 +87,7 @@ const ReportInputSchema = z.object({
       pagesVisited: z.number().describe("Number of pages navigated"),
     })
     .optional()
-    .describe("Performance metrics for the execution"),
+    .describe("Performance metrics for the execution (legacy)"),
 });
 
 type ReportInput = z.infer<typeof ReportInputSchema>;
@@ -63,34 +97,55 @@ export function ReportTool(
 ): DynamicStructuredTool {
   return new DynamicStructuredTool({
     name: "report",
-    description: `Generate a comprehensive HTML report showing task execution details and data collected.
+    description: `Generate a clean HTML report documenting task execution, similar to Claude Code's README.md.
 
-This tool creates a detailed report similar to how Claude Code uses README.md, showing:
-- What the agent did (actions performed)
-- HOW it did it (execution timeline with tool calls)
-- Data extracted and findings
-- Performance metrics and any retries/errors
+**When to use:**
+- Task extracted structured data (comparisons, research, data collection)
+- User explicitly asks for a report
+- Task involved multiple steps worth documenting
 
-Use this tool to:
-- Document task execution with full transparency
-- Show detailed timeline of tool calls and parameters
-- Present extracted data in tables and visualizations
-- Provide metrics on performance and success rates
+**Two ways to build reports:**
 
-The report includes:
-1. Performance Metrics - Duration, tools used, success rate
-2. Execution Timeline - Step-by-step breakdown with timestamps
-3. Actions Summary - High-level actions taken
-4. Results - Data extracted in tables/cards
-5. Summary - Key findings and insights
+1. **Component-based (Flexible)** - Build custom report structure:
+   components: [
+     { type: 'summary', content: 'Brief task summary' },
+     { type: 'metrics', content: { totalDuration, toolsUsed, successRate, retries, pagesVisited } },
+     { type: 'timeline', content: [{ timestamp, action, tool, result, duration }] },
+     { type: 'data-table', title: 'Results', content: [{ col1, col2, ... }] },
+     { type: 'findings', content: 'Key takeaway or insight' }
+   ]
 
-Example: For "Compare iPhone prices", the report will show:
-- Metrics: 45s duration, 12 tools used, 91% success rate
-- Timeline: Each navigation, extraction, retry with timestamps
-- Data: Price comparison table
-- Findings: "Walmart has lowest price at $528"
+2. **Legacy (Simple)** - Use pre-structured fields:
+   actionsPerformed: ['Action 1', 'Action 2'],
+   dataExtracted: { ... },
+   findings: 'Summary',
+   executionDetails: [...],
+   metrics: { ... }
 
-The report opens automatically in a new browser tab.`,
+**Component types:**
+- summary: Text summary box
+- metrics: Performance metrics grid
+- timeline: Execution timeline with tool calls
+- actions: Bulleted action list
+- data-table: Tabular data display
+- data-cards: Key-value pair cards
+- findings: Key insights box
+- custom: Custom HTML content
+
+**Example (component-based):**
+report({
+  taskDescription: "Compare iPhone prices",
+  components: [
+    { type: 'metrics', content: { totalDuration: '45s', toolsUsed: 12, successRate: '91%', retries: 1, pagesVisited: 3 } },
+    { type: 'data-table', title: 'Price Comparison', content: [
+      { store: 'Amazon', price: '$799' },
+      { store: 'Walmart', price: '$749' }
+    ]},
+    { type: 'findings', content: 'Walmart has the lowest price at $749' }
+  ]
+})
+
+Report opens in a new browser tab.`,
     schema: ReportInputSchema,
     func: async (args: ReportInput) => {
       try {
@@ -98,7 +153,7 @@ The report opens automatically in a new browser tab.`,
 
         // Emit thinking message
         context.getPubSub().publishMessage(
-          PubSubChannel.createMessage("📊 Generating report...", "thinking")
+          PubSubChannel.createMessage("Generating report...", "thinking")
         );
 
         // Get current timestamp
@@ -114,8 +169,10 @@ The report opens automatically in a new browser tab.`,
         const reportData: ReportData = {
           taskDescription: args.taskDescription,
           timestamp,
+          components: args.components as ReportComponent[] | undefined,
+          // Legacy fields for backward compatibility
           actionsPerformed: args.actionsPerformed,
-          dataExtracted: args.dataExtracted,
+          dataExtracted: args.dataExtracted as ReportData["dataExtracted"],
           findings: args.findings,
           additionalSections: args.additionalSections as ReportSection[] | undefined,
           executionDetails: args.executionDetails as ExecutionDetail[] | undefined,
@@ -153,10 +210,7 @@ The report opens automatically in a new browser tab.`,
 
         // Emit success message
         context.getPubSub().publishMessage(
-          PubSubChannel.createMessage(
-            "✅ Report generated and opened in new tab",
-            "thinking"
-          )
+          PubSubChannel.createMessage("Report generated and opened in a new tab", "thinking")
         );
 
         return JSON.stringify({
@@ -183,3 +237,6 @@ The report opens automatically in a new browser tab.`,
     },
   });
 }
+
+
+

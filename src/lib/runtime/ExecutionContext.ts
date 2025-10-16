@@ -7,7 +7,6 @@ import { TodoStore } from '@/lib/runtime/TodoStore'
 import { KlavisAPIManager } from '@/lib/mcp/KlavisAPIManager'
 import { PubSubChannel } from '@/lib/pubsub/PubSubChannel'
 import { HumanInputResponse } from '@/lib/pubsub/types'
-import { ExecutionTracker } from '@/lib/runtime/ExecutionTracker'
 import {
   HumanMessage,
   AIMessage,
@@ -87,7 +86,6 @@ export class ExecutionContext {
     endTime: 0,
     toolFrequency: new Map<string, number>(),
   };
-  private _executionTracker: ExecutionTracker  // Comprehensive execution tracking for reports
 
   // Tool metrics Map for evals2 lightweight tracking
   toolMetrics: Map<string, {
@@ -123,9 +121,6 @@ export class ExecutionContext {
     // Store limited context mode and max tokens
     this._limitedContextMode = validatedOptions.limitedContextMode;
     this._maxTokens = validatedOptions.maxTokens;
-
-    // Initialize execution tracker for report generation
-    this._executionTracker = new ExecutionTracker();
   }
 
   /**
@@ -264,8 +259,6 @@ export class ExecutionContext {
       endTime: 0,
       toolFrequency: new Map<string, number>(),
     };
-    // Reset execution tracker
-    this._executionTracker = new ExecutionTracker();
   }
 
   /**
@@ -324,14 +317,6 @@ export class ExecutionContext {
    */
   public getKlavisAPIManager(): KlavisAPIManager {
     return KlavisAPIManager.getInstance();
-  }
-
-  /**
-   * Get ExecutionTracker for report generation
-   * @returns The ExecutionTracker instance
-   */
-  public getExecutionTracker(): ExecutionTracker {
-    return this._executionTracker;
   }
 
   /**
