@@ -5,6 +5,7 @@ import { ProviderTemplates } from './components/ProviderTemplates'
 import { ConfiguredModelsList } from './components/ConfiguredModelsList'
 import { AddProviderModal } from './components/AddProviderModal'
 import { MCPSection } from './components/MCPSection'
+import { SearchProvidersSection } from './components/SearchProvidersSection'
 import { useBrowserOSPrefs } from './hooks/useBrowserOSPrefs'
 import { useOptionsStore } from './stores/optionsStore'
 import { useSettingsStore } from '@/sidepanel/stores/settingsStore'
@@ -140,6 +141,10 @@ export function OptionsNew() {
 
         {activeSection === 'mcp' && (
           <MCPSection />
+        )}
+
+        {activeSection === 'search-providers' && (
+          <SearchProvidersSection />
         )}
       </div>
 

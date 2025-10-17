@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { useSettingsStore } from '@/sidepanel/stores/settingsStore'
 import {
-  Bot, Settings, Menu, X, Moon, Sun, Cloud, Server
+  Bot, Settings, Menu, X, Moon, Sun, Cloud, Server, Search
 } from 'lucide-react'
 
 interface SidebarItem {
@@ -13,7 +13,8 @@ interface SidebarItem {
 
 const sidebarItems: SidebarItem[] = [
   { id: 'browseros-ai', label: 'BrowserOS AI', icon: Bot },
-  { id: 'mcp', label: 'MCP', icon: Server }
+  { id: 'mcp', label: 'MCP', icon: Server },
+  { id: 'search-providers', label: 'Search Providers', icon: Search }
 ]
 
 interface SettingsLayoutProps {
