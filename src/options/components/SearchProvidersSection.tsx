@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { GripVertical, X, Plus, Trash2, Search } from 'lucide-react'
+import { GripVertical, X, Plus, Trash2, ScanSearch } from 'lucide-react'
 import { useProviderStore, type Provider } from '@/newtab/stores/providerStore'
 
 function ensureProtocol(url: string) {
@@ -249,7 +249,7 @@ export function SearchProvidersSection() {
       <div className="flex items-start gap-4 mb-6">
         {/* Search Icon Logo */}
         <div className="w-12 h-12 rounded-full bg-brand flex items-center justify-center flex-shrink-0 shadow-md">
-          <Search className="w-6 h-6 text-white" strokeWidth={2} />
+          <ScanSearch className="w-6 h-6 text-white" strokeWidth={2} />
         </div>
 
         {/* Header Text */}
