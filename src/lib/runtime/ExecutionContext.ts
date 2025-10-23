@@ -34,7 +34,7 @@ export type WSAgentConfig = z.infer<typeof WSAgentConfigSchema>
 
 export const WS_AGENT_CONFIG: WSAgentConfig = {
   url: 'ws://localhost:9200',
-  eventGapTimeout: 60000,  // 60 seconds - client-side safety net
+  eventGapTimeout: 180000,  // 180 seconds - client-side safety net
   enableScreenshots: false,
   enableFallback: true
 }
