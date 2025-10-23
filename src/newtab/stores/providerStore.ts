@@ -85,7 +85,8 @@ const DEFAULT_PROVIDERS: Provider[] = [
     openIn: 'newTab',
     autoSubmit: true,
     submitKey: 'Enter',
-    focusBeforeSubmit: true
+    focusBeforeSubmit: true,
+    iconUrl: 'https://duckduckgo.com/favicon.ico'
   },
   {
     id: 'perplexity',
