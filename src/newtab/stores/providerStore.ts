@@ -74,6 +74,54 @@ const DEFAULT_PROVIDERS: Provider[] = [
     submitKey: 'Enter',
     focusBeforeSubmit: true,
     iconUrl: '/assets/new_tab_search/google.svg'
+  },
+  {
+    id: 'duckduckgo-ai',
+    name: 'DuckDuckGo AI',
+    category: 'llm',
+    actionType: 'url',
+    urlPattern: 'https://duck.ai',
+    available: true,
+    openIn: 'newTab',
+    autoSubmit: true,
+    submitKey: 'Enter',
+    focusBeforeSubmit: true
+  },
+  {
+    id: 'perplexity',
+    name: 'Perplexity',
+    category: 'llm',
+    actionType: 'url',
+    urlPattern: 'https://www.perplexity.ai/search/?q=%s',
+    available: true,
+    openIn: 'newTab',
+    autoSubmit: true,
+    submitKey: 'Enter',
+    focusBeforeSubmit: true
+  },
+  {
+    id: 'deepseek',
+    name: 'Deepseek',
+    category: 'llm',
+    actionType: 'url',
+    urlPattern: 'https://chat.deepseek.com/',
+    available: true,
+    openIn: 'newTab',
+    autoSubmit: true,
+    submitKey: 'Enter',
+    focusBeforeSubmit: true
+  },
+  {
+    id: 'gemini',
+    name: 'Gemini',
+    category: 'llm',
+    actionType: 'url',
+    urlPattern: 'https://gemini.google.com/app',
+    available: true,
+    openIn: 'newTab',
+    autoSubmit: true,
+    submitKey: 'Enter',
+    focusBeforeSubmit: true
   }
 ]
 
@@ -121,7 +169,7 @@ function normalizeProviderOrders(state: ProviderOrderState) {
 
   allProviders.forEach(provider => {
     if (!uniqueEnabled.includes(provider.id) && !uniqueDisabled.includes(provider.id)) {
-      uniqueEnabled.push(provider.id)
+      uniqueDisabled.push(provider.id)
     }
   })
 
@@ -284,8 +332,8 @@ export const useProviderStore = create<ProviderState & ProviderActions>()(
       customProviders: [],
       selectedProviderId: 'browseros-agent',
       isDropdownOpen: false,
-      enabledProviderIds: DEFAULT_PROVIDERS.map(provider => provider.id),
-      disabledProviderIds: [],
+      enabledProviderIds: ['browseros-agent', 'chatgpt', 'claude', 'google'],
+      disabledProviderIds: ['duckduckgo-ai', 'perplexity', 'deepseek', 'gemini'],
       hasLegacySynced: false,
 
       selectProvider: id => {
