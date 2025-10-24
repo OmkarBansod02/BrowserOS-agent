@@ -8,7 +8,7 @@ export function StepThree() {
   const exampleQueries = [
     {
       id: 'chat-mode',
-      title: 'Summarize Any Page',
+      title: 'Summarize Any web Page',
       description: 'Extract today\'s news from Google News',
       query: 'summarize today\'s news',
       url: 'https://news.google.com',
