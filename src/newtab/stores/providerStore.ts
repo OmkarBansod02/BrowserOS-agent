@@ -51,9 +51,12 @@ const DEFAULT_PROVIDERS: Provider[] = [
     name: 'Claude',
     category: 'llm',
     actionType: 'url',
-    urlPattern: 'https://claude.ai/new?q=%s',
+    urlPattern: 'https://claude.ai/new',
     available: true,
     openIn: 'newTab',
+    autoSubmit: true,
+    submitKey: 'Enter',
+    focusBeforeSubmit: true,
     iconUrl: '/assets/new_tab_search/claude.svg'
   },
   {
@@ -65,6 +68,55 @@ const DEFAULT_PROVIDERS: Provider[] = [
     available: true,
     openIn: 'newTab',
     iconUrl: '/assets/new_tab_search/google.svg'
+  },
+  {
+    id: 'duckduckgo-ai',
+    name: 'DuckDuckGo AI',
+    category: 'llm',
+    actionType: 'url',
+    urlPattern: 'https://duck.ai',
+    available: true,
+    openIn: 'newTab',
+    autoSubmit: true,
+    submitKey: 'Enter',
+    focusBeforeSubmit: true,
+    iconUrl: 'https://duckduckgo.com/favicon.ico'
+  },
+  {
+    id: 'perplexity',
+    name: 'Perplexity',
+    category: 'llm',
+    actionType: 'url',
+    urlPattern: 'https://www.perplexity.ai/search/?q=%s',
+    available: true,
+    openIn: 'newTab',
+    autoSubmit: true,
+    submitKey: 'Enter',
+    focusBeforeSubmit: true
+  },
+  {
+    id: 'deepseek',
+    name: 'Deepseek',
+    category: 'llm',
+    actionType: 'url',
+    urlPattern: 'https://chat.deepseek.com/',
+    available: true,
+    openIn: 'newTab',
+    autoSubmit: true,
+    submitKey: 'Enter',
+    focusBeforeSubmit: true
+  },
+  {
+    id: 'gemini',
+    name: 'Gemini',
+    category: 'llm',
+    actionType: 'url',
+    urlPattern: 'https://gemini.google.com/app',
+    available: true,
+    openIn: 'newTab',
+    autoSubmit: true,
+    submitKey: 'Enter',
+    focusBeforeSubmit: true
   }
 ]
 
@@ -112,7 +164,7 @@ function normalizeProviderOrders(state: ProviderOrderState) {
 
   allProviders.forEach(provider => {
     if (!uniqueEnabled.includes(provider.id) && !uniqueDisabled.includes(provider.id)) {
-      uniqueEnabled.push(provider.id)
+      uniqueDisabled.push(provider.id)
     }
   })
 
@@ -275,8 +327,8 @@ export const useProviderStore = create<ProviderState & ProviderActions>()(
       customProviders: [],
       selectedProviderId: 'browseros-agent',
       isDropdownOpen: false,
-      enabledProviderIds: DEFAULT_PROVIDERS.map(provider => provider.id),
-      disabledProviderIds: [],
+      enabledProviderIds: ['browseros-agent', 'chatgpt', 'claude', 'google'],
+      disabledProviderIds: ['duckduckgo-ai', 'perplexity', 'deepseek', 'gemini'],
       hasLegacySynced: false,
 
       selectProvider: id => {
@@ -685,11 +737,30 @@ export const useProviderStore = create<ProviderState & ProviderActions>()(
     }),
     {
       name: 'browseros-providers',
-      version: 2,
+      version: 3,
       migrate: (persistedState, version) => {
         if (!persistedState) return persistedState
-        if (version >= 2) return persistedState
+        if (version >= 3) return persistedState
 
+        // Migrate v2 → v3: Add new providers to disabled list
+        if (version === 2) {
+          const state = persistedState as ProviderState
+          const newProviderIds = ['duckduckgo-ai', 'perplexity', 'deepseek', 'gemini']
+
+          return {
+            ...state,
+            providers: DEFAULT_PROVIDERS,
+            disabledProviderIds: [
+              ...state.disabledProviderIds,
+              ...newProviderIds.filter(id =>
+                !state.enabledProviderIds.includes(id) &&
+                !state.disabledProviderIds.includes(id)
+              )
+            ]
+          }
+        }
+
+        // Migrate v0/v1 → v3: Legacy migration with normalization
         const legacyState = persistedState as Partial<ProviderState>
         const customProviders = legacyState.customProviders || []
 
