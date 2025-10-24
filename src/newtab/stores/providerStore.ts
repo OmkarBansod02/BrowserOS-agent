@@ -51,9 +51,12 @@ const DEFAULT_PROVIDERS: Provider[] = [
     name: 'Claude',
     category: 'llm',
     actionType: 'url',
-    urlPattern: 'https://claude.ai/new?q=%s',
+    urlPattern: 'https://claude.ai/new',
     available: true,
     openIn: 'newTab',
+    autoSubmit: true,
+    submitKey: 'Enter',
+    focusBeforeSubmit: true,
     iconUrl: '/assets/new_tab_search/claude.svg'
   },
   {
