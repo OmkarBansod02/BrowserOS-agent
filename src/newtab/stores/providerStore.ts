@@ -734,11 +734,30 @@ export const useProviderStore = create<ProviderState & ProviderActions>()(
     }),
     {
       name: 'browseros-providers',
-      version: 2,
+      version: 3,
       migrate: (persistedState, version) => {
         if (!persistedState) return persistedState
-        if (version >= 2) return persistedState
+        if (version >= 3) return persistedState
 
+        // Migrate v2 → v3: Add new providers to disabled list
+        if (version === 2) {
+          const state = persistedState as ProviderState
+          const newProviderIds = ['duckduckgo-ai', 'perplexity', 'deepseek', 'gemini']
+
+          return {
+            ...state,
+            providers: DEFAULT_PROVIDERS,
+            disabledProviderIds: [
+              ...state.disabledProviderIds,
+              ...newProviderIds.filter(id =>
+                !state.enabledProviderIds.includes(id) &&
+                !state.disabledProviderIds.includes(id)
+              )
+            ]
+          }
+        }
+
+        // Migrate v0/v1 → v3: Legacy migration with normalization
         const legacyState = persistedState as Partial<ProviderState>
         const customProviders = legacyState.customProviders || []
 
