@@ -24,8 +24,8 @@ export const ProviderSchema = z.object({
 
 export type Provider = z.infer<typeof ProviderSchema>
 
-const CHAT_PROVIDER_READY_TIMEOUT_MS = 8000
-const CHAT_PROVIDER_POST_LOAD_DELAY_MS = 400
+const CHAT_PROVIDER_READY_TIMEOUT_MS = 3000
+const CHAT_PROVIDER_POST_LOAD_DELAY_MS = 200
 
 const DEFAULT_PROVIDERS: Provider[] = [
   {
@@ -41,12 +41,9 @@ const DEFAULT_PROVIDERS: Provider[] = [
     name: 'ChatGPT',
     category: 'llm',
     actionType: 'url',
-    urlPattern: 'https://chatgpt.com',
+    urlPattern: 'https://chatgpt.com/?q=%s',
     available: true,
     openIn: 'newTab',
-    autoSubmit: true,
-    submitKey: 'Enter',
-    focusBeforeSubmit: true,
     iconUrl: '/assets/new_tab_search/openai.svg'
   },
   {
@@ -54,12 +51,9 @@ const DEFAULT_PROVIDERS: Provider[] = [
     name: 'Claude',
     category: 'llm',
     actionType: 'url',
-    urlPattern: 'https://claude.ai/new',
+    urlPattern: 'https://claude.ai/new?q=%s',
     available: true,
     openIn: 'newTab',
-    autoSubmit: true,
-    submitKey: 'Enter',
-    focusBeforeSubmit: true,
     iconUrl: '/assets/new_tab_search/claude.svg'
   },
   {
@@ -67,12 +61,9 @@ const DEFAULT_PROVIDERS: Provider[] = [
     name: 'Google',
     category: 'search',
     actionType: 'url',
-    urlPattern: 'https://www.google.com',
+    urlPattern: 'https://www.google.com/search?q=%s',
     available: true,
     openIn: 'newTab',
-    autoSubmit: true,
-    submitKey: 'Enter',
-    focusBeforeSubmit: true,
     iconUrl: '/assets/new_tab_search/google.svg'
   },
   {
@@ -613,7 +604,7 @@ export const useProviderStore = create<ProviderState & ProviderActions>()(
               }
             }
 
-            const needsDomWork = Boolean(tabId != null && (!hasPlaceholder || provider.autoSubmit))
+            const needsDomWork = Boolean(tabId != null && !hasPlaceholder)
             let queryInjected = false
 
             if (needsDomWork && tabId != null) {
@@ -648,8 +639,8 @@ export const useProviderStore = create<ProviderState & ProviderActions>()(
                 queryInjected = await injectQuery();
 
                 if (!queryInjected) {
-                  for (let attempt = 0; attempt < 5 && !queryInjected; attempt++) {
-                    await new Promise(resolve => setTimeout(resolve, 400));
+                  for (let attempt = 0; attempt < 2 && !queryInjected; attempt++) {
+                    await new Promise(resolve => setTimeout(resolve, 200));
                     queryInjected = await injectQuery();
                   }
                 }
