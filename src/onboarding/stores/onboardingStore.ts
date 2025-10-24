@@ -1,9 +1,9 @@
 import { create } from 'zustand'
 
-const TOTAL_STEPS = 5  // Welcome, Step 1, Step 2, Step 3, Video, Completion
+const TOTAL_STEPS = 9  // Welcome, Step 1, Step 2, Step 3, Video, Completion, Split-View, Agent Mode, Teach Mode, Quick Search
 
 interface OnboardingState {
-  currentStep: number  // 0 = welcome, 1-3 = steps, 4 = video, 5 = completion
+  currentStep: number  // 0 = welcome, 1-3 = steps, 4 = video, 5 = completion, 6-9 = features
   videoSkipped: boolean
   completedSteps: Set<number>
 
@@ -12,6 +12,7 @@ interface OnboardingState {
   previousStep: () => void
   goToStep: (step: number) => void
   skipVideo: () => void
+  skipFeatures: () => void
   completeOnboarding: () => Promise<void>
 
   // State checks
@@ -53,6 +54,11 @@ export const useOnboardingStore = create<OnboardingState>((set, get) => ({
   skipVideo: () => {
     set({ videoSkipped: true })
     get().nextStep()
+  },
+
+  skipFeatures: () => {
+    // Skip from completion screen to the end and complete onboarding
+    get().completeOnboarding()
   },
 
   completeOnboarding: async () => {

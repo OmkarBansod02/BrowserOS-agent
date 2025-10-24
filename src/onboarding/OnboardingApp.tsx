@@ -8,6 +8,10 @@ import { StepTwo } from './components/StepTwo'
 import { StepThree } from './components/StepThree'
 import { VideoStep } from './components/VideoStep'
 import { CompletionScreen } from './components/CompletionScreen'
+import { FeatureAgentMode } from './components/features/FeatureAgentMode'
+import { FeatureSplitView } from './components/features/FeatureSplitView'
+import { FeatureTeachMode } from './components/features/FeatureTeachMode'
+import { FeatureQuickSearch } from './components/features/FeatureQuickSearch'
 import './styles.css'
 
 export function OnboardingApp() {
@@ -37,6 +41,14 @@ export function OnboardingApp() {
         return <VideoStep />
       case 5:
         return <CompletionScreen />
+      case 6:
+        return <FeatureSplitView />
+      case 7:
+        return <FeatureAgentMode />
+      case 8:
+        return <FeatureTeachMode />
+      case 9:
+        return <FeatureQuickSearch />
       default:
         return <WelcomeStep />
     }

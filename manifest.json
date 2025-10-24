@@ -25,7 +25,7 @@
     "<all_urls>"
   ],
   "content_security_policy": {
-    "extension_pages": "script-src 'self'; media-src 'self' blob: data: mediastream:; object-src 'self'; connect-src *"
+    "extension_pages": "script-src 'self'; frame-src https://www.youtube.com https://www.youtube-nocookie.com; media-src 'self' blob: data: mediastream:; object-src 'self'; connect-src *"
   },
   "background": {
     "service_worker": "background.js"

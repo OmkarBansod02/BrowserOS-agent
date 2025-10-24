@@ -1,112 +1,36 @@
-import React, { useEffect } from 'react'
+import React from 'react'
 import { useOnboardingStore } from '../stores/onboardingStore'
+import { NavigationControls } from './ui/NavigationControls'
 
 export function CompletionScreen() {
-  const { completeOnboarding } = useOnboardingStore()
-
-  // Mark onboarding as completed when this screen is shown
-  useEffect(() => {
-    completeOnboarding()
-  }, [completeOnboarding])
-
-  const handleOpenSidePanel = async () => {
-    try {
-      // Get the current tab
-      const [currentTab] = await chrome.tabs.query({ active: true, currentWindow: true })
-
-      // Close any open import settings tabs to prevent switching to them
-      const allTabs = await chrome.tabs.query({ currentWindow: true })
-      const importSettingsTabs = allTabs.filter(tab =>
-        tab.url?.includes('chrome://settings/importData') && tab.id !== currentTab?.id
-      )
-
-      // Close import settings tabs
-      for (const tab of importSettingsTabs) {
-        if (tab.id) {
-          await chrome.tabs.remove(tab.id)
-        }
-      }
-
-      // Open the side panel
-      if (currentTab?.id) {
-        await chrome.sidePanel.open({ tabId: currentTab.id })
-      }
-
-      // Redirect to newtab instead of closing the window
-      setTimeout(() => {
-        const newtabUrl = chrome.runtime.getURL('newtab.html')
-        window.location.href = newtabUrl
-      }, 500)
-    } catch (error) {
-      console.error('Failed to open side panel:', error)
-      // Fallback: redirect to newtab
-      const newtabUrl = chrome.runtime.getURL('newtab.html')
-      window.location.href = newtabUrl
-    }
-  }
-
-  const handleOpenSettings = () => {
-    chrome.tabs.create({ url: 'chrome://settings/browseros' })
-  }
+  const { nextStep, previousStep } = useOnboardingStore()
 
   return (
-    <div className="flex flex-col items-center justify-center text-center space-y-8">
+    <div className="flex flex-col space-y-8 max-w-5xl mx-auto px-4">
       {/* Success animation */}
-      <div className="relative">
-        <div className="absolute inset-0 bg-brand/20 blur-3xl animate-pulse" />
-        <img
-          src="/assets/new_tab_search/browseros.svg"
-          alt="BrowserOS"
-          className="relative w-32 h-32 object-contain drop-shadow-2xl"
-        />
+      <div className="relative flex justify-center pt-16">
+        <div className="relative">
+          <div className="absolute inset-0 bg-brand/20 blur-3xl animate-pulse" />
+          <img
+            src="/assets/new_tab_search/browseros.svg"
+            alt="BrowserOS"
+            className="relative w-32 h-32 object-contain drop-shadow-2xl"
+          />
+        </div>
       </div>
 
       {/* Heading */}
-      <div className="space-y-4">
+      <div className="text-center space-y-4">
         <h1 className="text-4xl sm:text-5xl font-bold">
-          You're All Set! 🎉
+          Setup Complete! 🎉
         </h1>
         <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-          Thank you for downloading BrowserOS! Join our{' '}
-          <a
-            href="https://discord.gg/browseros"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="font-semibold underline hover:text-brand"
-          >
-            Discord
-          </a>{' '}
-          or{' '}
-          <a
-            href="https://dub.sh/browserOS-slack"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="font-semibold underline hover:text-sky-500"
-          >
-            Slack
-          </a>{' '}
-          community to provide feedback and suggest new features!
+          Your setup is complete! Explore powerful features or start using BrowserOS now.
         </p>
       </div>
 
-      {/* Actions */}
-      <div className="flex flex-col sm:flex-row gap-4 pt-4">
-        <button
-          onClick={handleOpenSidePanel}
-          className="px-10 py-4 bg-gradient-to-r from-brand to-orange-500 hover:from-brand/90 hover:to-orange-500/90 text-white font-bold rounded-xl transition-all duration-300 shadow-lg shadow-brand/25 hover:shadow-xl hover:shadow-brand/40 hover:scale-105 active:scale-95"
-        >
-          Open BrowserOS agent
-        </button>
-        <button
-          onClick={handleOpenSettings}
-          className="px-10 py-4 bg-secondary hover:bg-secondary/80 text-secondary-foreground font-bold rounded-xl transition-all duration-300 border-2 border-border hover:scale-105 active:scale-95"
-        >
-          Go to BrowserOS settings
-        </button>
-      </div>
-
       {/* Quick links */}
-      <div className="pt-8 max-w-2xl mx-auto w-full">
+      <div className="max-w-2xl mx-auto w-full">
         <div className="bg-card border border-border rounded-lg p-6 space-y-4">
           <h3 className="text-lg font-semibold flex items-center gap-2">
             <svg
@@ -122,7 +46,7 @@ export function CompletionScreen() {
                 d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"
               />
             </svg>
-            Helpful Resources
+            Join our community and help us improve BrowserOS!
           </h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <a
@@ -139,8 +63,8 @@ export function CompletionScreen() {
                 <path d="M20.317 4.492c-1.53-.69-3.17-1.2-4.885-1.49a.075.075 0 0 0-.079.036c-.21.369-.444.85-.608 1.23a18.566 18.566 0 0 0-5.487 0 12.36 12.36 0 0 0-.617-1.23A.077.077 0 0 0 8.562 3c-1.714.29-3.354.8-4.885 1.491a.07.07 0 0 0-.032.027C.533 9.093-.32 13.555.099 17.961a.08.08 0 0 0 .031.055 20.03 20.03 0 0 0 5.993 2.98.078.078 0 0 0 .084-.026 13.83 13.83 0 0 0 1.226-1.963.074.074 0 0 0-.041-.104 13.201 13.201 0 0 1-1.872-.878.075.075 0 0 1-.008-.125c.126-.093.252-.19.372-.287a.075.075 0 0 1 .078-.01c3.927 1.764 8.18 1.764 12.061 0a.075.075 0 0 1 .079.009c.12.098.245.195.372.288a.075.075 0 0 1-.006.125c-.598.344-1.22.635-1.873.877a.075.075 0 0 0-.041.105c.36.687.772 1.341 1.225 1.962a.077.077 0 0 0 .084.028 19.963 19.963 0 0 0 6.002-2.981.076.076 0 0 0 .032-.054c.5-5.094-.838-9.52-3.549-13.442a.06.06 0 0 0-.031-.028zM8.02 15.278c-1.182 0-2.157-1.069-2.157-2.38 0-1.312.956-2.38 2.157-2.38 1.21 0 2.176 1.077 2.157 2.38 0 1.312-.956 2.38-2.157 2.38zm7.975 0c-1.183 0-2.157-1.069-2.157-2.38 0-1.312.955-2.38 2.157-2.38 1.21 0 2.176 1.077 2.157 2.38 0 1.312-.946 2.38-2.157 2.38z" />
               </svg>
               <div className="text-left">
-                <p className="text-sm font-medium">Discord</p>
-                <p className="text-xs text-muted-foreground">Join our community</p>
+                <p className="text-sm font-medium">Join Discord</p>
+                <p className="text-xs text-muted-foreground">To suggest features / provide feedback</p>
               </div>
             </a>
 
@@ -158,8 +82,8 @@ export function CompletionScreen() {
                 <path d="M5.042 15.165a2.528 2.528 0 0 1-2.52 2.523A2.528 2.528 0 0 1 0 15.165a2.527 2.527 0 0 1 2.522-2.52h2.52v2.52zM6.313 15.165a2.527 2.527 0 0 1 2.521-2.52 2.527 2.527 0 0 1 2.521 2.52v6.313A2.528 2.528 0 0 1 8.834 24a2.528 2.528 0 0 1-2.521-2.522v-6.313zM8.834 5.042a2.528 2.528 0 0 1-2.521-2.52A2.528 2.528 0 0 1 8.834 0a2.528 2.528 0 0 1 2.521 2.522v2.52H8.834zM8.834 6.313a2.528 2.528 0 0 1 2.521 2.521 2.528 2.528 0 0 1-2.521 2.521H2.522A2.528 2.528 0 0 1 0 8.834a2.528 2.528 0 0 1 2.522-2.521h6.312zM18.956 8.834a2.528 2.528 0 0 1 2.522-2.521A2.528 2.528 0 0 1 24 8.834a2.528 2.528 0 0 1-2.522 2.521h-2.522V8.834zM17.688 8.834a2.528 2.528 0 0 1-2.523 2.521 2.527 2.527 0 0 1-2.52-2.521V2.522A2.527 2.527 0 0 1 15.165 0a2.528 2.528 0 0 1 2.523 2.522v6.312zM15.165 18.956a2.528 2.528 0 0 1 2.523 2.522A2.528 2.528 0 0 1 15.165 24a2.527 2.527 0 0 1-2.52-2.522v-2.522h2.52zM15.165 17.688a2.527 2.527 0 0 1-2.52-2.523 2.526 2.526 0 0 1 2.52-2.52h6.313A2.527 2.527 0 0 1 24 15.165a2.528 2.528 0 0 1-2.522 2.523h-6.313z" />
               </svg>
               <div className="text-left">
-                <p className="text-sm font-medium">Slack</p>
-                <p className="text-xs text-muted-foreground">Join our workspace</p>
+                <p className="text-sm font-medium">Join Slack</p>
+                <p className="text-xs text-muted-foreground">To suggest features / provide feedback</p>
               </div>
             </a>
 
@@ -209,6 +133,13 @@ export function CompletionScreen() {
           </div>
         </div>
       </div>
+
+      <NavigationControls
+        onPrevious={previousStep}
+        onNext={nextStep}
+        nextLabel="Explore Features"
+        nextButtonPrimary={true}
+      />
     </div>
   )
 }

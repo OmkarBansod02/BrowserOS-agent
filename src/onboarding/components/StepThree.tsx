@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import { useOnboardingStore } from '../stores/onboardingStore'
+import { NavigationControls } from './ui/NavigationControls'
 
 export function StepThree() {
   const { nextStep, previousStep } = useOnboardingStore()
@@ -208,16 +209,40 @@ export function StepThree() {
                 disabled={isExecuting}
                 className={`group relative flex flex-col bg-gradient-to-br ${example.bgGradient} border-2 border-border/60 ${example.hoverBorder} rounded-xl p-5 text-left transition-all duration-300 hover:shadow-xl hover:shadow-brand/10 hover:-translate-y-1 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:translate-y-0`}
               >
-                {/* Icon & Title */}
-                <div className="flex items-start gap-3 mb-3">
-                  <div className={`flex-shrink-0 w-10 h-10 rounded-lg bg-gradient-to-br ${example.gradient} flex items-center justify-center text-white shadow-md group-hover:scale-110 transition-transform duration-300`}>
-                    {example.icon}
+                {/* Icon, Title & Calls to action */}
+                <div className="flex items-start justify-between gap-3 mb-3">
+                  <div className="flex items-start gap-3 flex-1 min-w-0">
+                    <div className={`flex-shrink-0 w-10 h-10 rounded-lg bg-gradient-to-br ${example.gradient} flex items-center justify-center text-white shadow-md group-hover:scale-110 transition-transform duration-300`}>
+                      {example.icon}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h4 className="font-bold text-base mb-1 leading-tight">{example.title}</h4>
+                      <p className="text-xs text-muted-foreground leading-relaxed">
+                        {example.description}
+                      </p>
+                    </div>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <h4 className="font-bold text-base mb-1 leading-tight">{example.title}</h4>
-                    <p className="text-xs text-muted-foreground leading-relaxed">
-                      {example.description}
-                    </p>
+                  <div className="flex-shrink-0 self-start">
+                    {isExecuting ? (
+                      <div className="flex items-center gap-2 px-3 py-1.5 bg-brand/20 text-brand rounded-full text-xs font-semibold border border-brand/40">
+                        <svg className="w-3.5 h-3.5 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                          />
+                        </svg>
+                        Opening...
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-1.5 px-2.5 py-1 bg-background/80 border border-border/50 rounded-full text-xs font-semibold text-muted-foreground group-hover:text-brand group-hover:border-brand/40 group-hover:bg-brand/10 transition-all duration-200">
+                        Try it
+                        <svg className="w-3 h-3 transition-transform duration-300 group-hover:translate-x-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                        </svg>
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -229,94 +254,13 @@ export function StepThree() {
                     </p>
                   </div>
                 </div>
-
-                {/* Try it / Loading Indicator */}
-                <div className="absolute top-3 right-3">
-                  {isExecuting ? (
-                    <div className="flex items-center gap-2 px-3 py-1.5 bg-brand/20 text-brand rounded-full text-xs font-semibold border border-brand/40">
-                      <svg className="w-3.5 h-3.5 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                        />
-                      </svg>
-                      Opening...
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-1.5 px-2.5 py-1 bg-background/80 border border-border/50 rounded-full text-xs font-semibold text-muted-foreground group-hover:text-brand group-hover:border-brand/40 group-hover:bg-brand/10 transition-all duration-200">
-                      Try it
-                      <svg className="w-3 h-3 transition-transform duration-300 group-hover:translate-x-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
-                      </svg>
-                    </div>
-                  )}
-                </div>
               </button>
             )
           })}
         </div>
       </div>
 
-      {/* Additional Features Section */}
-      <div className="space-y-4">
-        <div className="flex items-center justify-center gap-2">
-          <span className="text-xl">✨</span>
-          <h3 className="text-2xl font-bold">More Features!</h3>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {exampleQueries.filter(ex => !ex.clickable).map(example => (
-            <div
-              key={example.id}
-              className="flex items-start gap-3 p-4 bg-card/95 border border-border/60 rounded-2xl shadow-sm transition-all duration-300 hover:border-brand/40 hover:shadow-lg hover:shadow-brand/10 hover:-translate-y-1"
-            >
-              <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-gradient-to-br from-brand/15 to-orange-500/15 border border-brand/20 text-brand flex items-center justify-center">
-                {example.icon}
-              </div>
-              <div className="space-y-1.5">
-                <h4 className="font-semibold text-sm leading-snug text-foreground">
-                  {example.title}
-                </h4>
-                <p className="text-xs text-muted-foreground leading-relaxed">
-                  {example.description}
-                </p>
-                {example.query && (
-                  <p className="text-xs text-muted-foreground/80 italic">
-                    {example.id === 'teach-mode' || example.id === 'mcp-server' ? `Example: ${example.query}` : example.query}
-                  </p>
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Navigation - Glass morphism style */}
-      <div className="flex justify-between items-center pt-4">
-        <button
-          onClick={previousStep}
-          className="group flex items-center gap-2 px-8 py-3 backdrop-blur-md bg-orange-50/40 dark:bg-orange-950/40 border-2 border-orange-300/60 dark:border-orange-700/60 text-orange-600 dark:text-orange-400 font-bold rounded-xl transition-all duration-300 shadow-md shadow-orange-500/20 hover:bg-orange-100/50 dark:hover:bg-orange-900/50 hover:border-orange-400/70 dark:hover:border-orange-600/70 hover:shadow-lg hover:shadow-orange-500/30 hover:scale-105 active:scale-95"
-        >
-          <svg className="w-4 h-4 transition-transform duration-200 group-hover:-translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-          </svg>
-          Previous
-        </button>
-        <button
-          onClick={nextStep}
-          className="group relative px-10 py-4 backdrop-blur-md bg-orange-50/40 dark:bg-orange-950/40 border-2 border-orange-300/60 dark:border-orange-700/60 text-orange-600 dark:text-orange-400 font-bold rounded-xl transition-all duration-300 shadow-lg shadow-orange-500/20 hover:bg-orange-100/50 dark:hover:bg-orange-900/50 hover:border-orange-400/70 dark:hover:border-orange-600/70 hover:shadow-xl hover:shadow-orange-500/30 hover:scale-105 active:scale-95 overflow-hidden"
-        >
-          <span className="relative z-10 flex items-center gap-3">
-            Next
-            <svg className="w-5 h-5 transition-transform duration-300 group-hover:translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-            </svg>
-          </span>
-          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
-        </button>
-      </div>
+      <NavigationControls onPrevious={previousStep} onNext={nextStep} />
     </div>
   )
 }
