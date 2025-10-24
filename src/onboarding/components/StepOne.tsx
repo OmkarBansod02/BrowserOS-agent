@@ -1,5 +1,6 @@
 import React from 'react'
 import { useOnboardingStore } from '../stores/onboardingStore'
+import { NavigationControls } from './ui/NavigationControls'
 
 export function StepOne() {
   const { nextStep, previousStep } = useOnboardingStore()
@@ -16,7 +17,7 @@ export function StepOne() {
           Seamless Migration
         </h2>
         <p className="text-base sm:text-lg text-muted-foreground max-w-2xl mx-auto leading-relaxed">
-          Continue where you left off — bring your Chrome data to BrowserOS
+          Bring your data from Google Chrome or other browsers to BrowserOS!
         </p>
       </div>
 
@@ -74,7 +75,7 @@ export function StepOne() {
         <div className="text-center space-y-2 max-w-xl">
           <h3 className="text-xl font-bold">Ready to Import Your Data?</h3>
           <p className="text-sm text-muted-foreground leading-relaxed">
-            Import now or skip and do it later. Your Chrome bookmarks, history, and passwords can be transferred securely.
+            Import now or do it later. Your Chrome bookmarks, history, and passwords can be transferred securely.
           </p>
         </div>
 
@@ -95,31 +96,16 @@ export function StepOne() {
         </button>
 
         <p className="text-center text-xs text-muted-foreground">
-          💡 Access settings anytime: <code className="px-2 py-1 bg-background/90 border border-border/50 rounded font-mono text-xs">chrome://settings/importData</code>
+          💡 You can access import settings at: <code className="px-2 py-1 bg-background/90 border border-border/50 rounded font-mono text-xs">chrome://settings/importData</code>
         </p>
       </div>
 
-      {/* Navigation - Glass morphism style */}
-      <div className="flex justify-between items-center pt-4">
-        <button
-          onClick={previousStep}
-          className="group flex items-center gap-2 px-8 py-3 backdrop-blur-md bg-orange-50/40 dark:bg-orange-950/40 border-2 border-orange-300/60 dark:border-orange-700/60 text-orange-600 dark:text-orange-400 font-bold rounded-xl transition-all duration-300 shadow-md shadow-orange-500/20 hover:bg-orange-100/50 dark:hover:bg-orange-900/50 hover:border-orange-400/70 dark:hover:border-orange-600/70 hover:shadow-lg hover:shadow-orange-500/30 hover:scale-105 active:scale-95"
-        >
-          <svg className="w-4 h-4 transition-transform duration-200 group-hover:-translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-          </svg>
-          Previous
-        </button>
-        <button
-          onClick={nextStep}
-          className="group flex items-center gap-2 px-8 py-3 backdrop-blur-md bg-orange-50/40 dark:bg-orange-950/40 border-2 border-orange-300/60 dark:border-orange-700/60 text-orange-600 dark:text-orange-400 font-bold rounded-xl transition-all duration-300 shadow-md shadow-orange-500/20 hover:bg-orange-100/50 dark:hover:bg-orange-900/50 hover:border-orange-400/70 dark:hover:border-orange-600/70 hover:shadow-lg hover:shadow-orange-500/30 hover:scale-105 active:scale-95"
-        >
-          Next Step
-          <svg className="w-4 h-4 transition-transform duration-200 group-hover:translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-          </svg>
-        </button>
-      </div>
+      <NavigationControls
+        className="pt-4"
+        onPrevious={previousStep}
+        onNext={nextStep}
+        nextLabel="Next Step"
+      />
     </div>
   )
 }

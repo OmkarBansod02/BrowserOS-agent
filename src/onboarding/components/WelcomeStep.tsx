@@ -1,8 +1,9 @@
 import React from 'react'
 import { useOnboardingStore } from '../stores/onboardingStore'
+import { NavigationControls } from './ui/NavigationControls'
 
 export function WelcomeStep() {
-  const { skipVideo } = useOnboardingStore()
+  const { nextStep } = useOnboardingStore()
 
   return (
     <div className="flex flex-col items-center justify-center text-center space-y-10 max-w-5xl mx-auto px-4 py-8">
@@ -30,7 +31,7 @@ export function WelcomeStep() {
           The Open-Source Agentic Browser
         </p>
         <p className="text-sm sm:text-base text-muted-foreground/80 max-w-xl mx-auto leading-relaxed px-4">
-          Automate web tasks with AI-powered agents. Privacy-first, secure, and built for everyone.
+           BrowserOS turns your words into actions. Privacy-first alternative to ChatGPT Atlas, Perplexity Comet and Dia!
         </p>
       </div>
 
@@ -52,9 +53,9 @@ export function WelcomeStep() {
               />
             </svg>
           </div>
-          <h3 className="font-bold text-base">AI-Powered</h3>
+          <h3 className="font-bold text-base">AI-native Browser</h3>
           <p className="text-sm text-muted-foreground leading-relaxed">
-            Automate tasks with intelligent agents
+            Automate web tasks with intelligent agents
           </p>
         </div>
 
@@ -103,32 +104,12 @@ export function WelcomeStep() {
         </div>
       </div>
 
-      {/* Navigation button with glass morphism */}
-      <div className="pt-10">
-        <button
-          onClick={skipVideo}
-          className="group relative px-10 py-4 backdrop-blur-md bg-orange-50/40 dark:bg-orange-950/40 border-2 border-orange-300/60 dark:border-orange-700/60 text-orange-600 dark:text-orange-400 font-bold rounded-xl transition-all duration-300 shadow-lg shadow-orange-500/20 hover:bg-orange-100/50 dark:hover:bg-orange-900/50 hover:border-orange-400/70 dark:hover:border-orange-600/70 hover:shadow-xl hover:shadow-orange-500/30 hover:scale-105 active:scale-95 overflow-hidden"
-        >
-          <span className="relative z-10 flex items-center gap-2">
-            Get Started
-            <svg
-              className="w-5 h-5 transition-transform duration-300 group-hover:translate-x-1"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M13 7l5 5m0 0l-5 5m5-5H6"
-              />
-            </svg>
-          </span>
-          {/* Shine effect */}
-          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
-        </button>
-      </div>
+      {/* Navigation */}
+      <NavigationControls
+        onNext={nextStep}
+        nextLabel="Get Started"
+        className="pt-10"
+      />
     </div>
   )
 }
