@@ -371,67 +371,24 @@ async function toggleSidePanel(tabId: number): Promise<void> {
  * Handle extension installation
  */
 chrome.runtime.onInstalled.addListener(async (details) => {
-  console.log('[Onboarding] chrome.runtime.onInstalled fired', { reason: details.reason })
+  if (details.reason === 'install') {
+    try {
+      // First install - show onboarding
+      Logging.log('Background', 'First install - showing onboarding')
+      Logging.logMetric('onboarding_started', { trigger: 'install' })
 
-  try {
-    if (details.reason === 'install') {
-      // First install - always show onboarding
-      Logging.log('Background', 'Extension installed - showing onboarding')
-      Logging.logMetric('onboarding_started', {
-        trigger: 'install',
-        isDev: isDevelopmentMode()
-      })
+      const onboardingUrl = chrome.runtime.getURL('onboarding.html')
+      await chrome.tabs.create({ url: onboardingUrl })
+      await OnboardingStorage.markAsSeen()
 
-      await _openOnboardingTab()
-    } else if (details.reason === 'update') {
-      // Check if user has completed onboarding
-      const hasCompleted = await OnboardingStorage.hasCompleted()
-
-      console.log('[Onboarding] Update detected - completion status:', { hasCompleted })
-
-      // Only show onboarding if user hasn't completed it yet
-      // This handles cases where onboarding was dismissed or interrupted
-      if (!hasCompleted) {
-        Logging.log('Background', 'Extension updated - onboarding incomplete, showing again')
-        Logging.logMetric('onboarding_resumed', {
-          trigger: 'update',
-          isDev: isDevelopmentMode()
-        })
-
-        await _openOnboardingTab()
-      } else {
-        console.log('[Onboarding] Skipping - already completed')
-        Logging.log('Background', 'Extension updated - onboarding already completed')
-      }
+      console.log('[Onboarding] Shown and marked as seen')
+    } catch (error) {
+      console.error('[Onboarding] Error:', error)
+      Logging.log('Background', `Onboarding error: ${error}`, 'error')
     }
-  } catch (error) {
-    console.error('[Onboarding] Error during onboarding check:', error)
-    Logging.log('Background', `Onboarding error: ${error}`, 'error')
-
-    // On error, don't show onboarding to avoid disrupting user experience
-    // User can always access settings to re-trigger onboarding if needed
   }
+  // On update: do nothing (user has already seen it or can revisit from settings)
 })
-
-/**
- * Open onboarding tab
- */
-async function _openOnboardingTab(): Promise<void> {
-  try {
-    const onboardingUrl = chrome.runtime.getURL('onboarding.html')
-    console.log('[Onboarding] Opening URL:', onboardingUrl)
-
-    await chrome.tabs.create({ url: onboardingUrl })
-
-    // Update last seen timestamp
-    await OnboardingStorage.updateLastSeen()
-
-    console.log('[Onboarding] Tab created successfully')
-  } catch (error) {
-    console.error('[Onboarding] Failed to open tab:', error)
-    throw error
-  }
-}
 
 /**
  * Initialize the extension
