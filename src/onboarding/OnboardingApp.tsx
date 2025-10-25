@@ -15,8 +15,15 @@ import { FeatureQuickSearch } from './components/features/FeatureQuickSearch'
 import './styles.css'
 
 export function OnboardingApp() {
-  const { currentStep } = useOnboardingStore()
+  const { currentStep, initialize } = useOnboardingStore()
   const { theme } = useSettingsStore()
+
+  // Initialize onboarding store on mount
+  useEffect(() => {
+    initialize().catch((error) => {
+      console.error('[OnboardingApp] Failed to initialize:', error)
+    })
+  }, [initialize])
 
   // Apply theme on mount and when it changes
   useEffect(() => {

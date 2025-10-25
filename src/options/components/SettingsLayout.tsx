@@ -85,8 +85,9 @@ export function SettingsLayout({ children, activeSection: controlledSection, onS
 
   const handleRevisitOnboarding = async () => {
     try {
-      // Clear onboarding completion flag
-      await chrome.storage.local.remove('hasCompletedOnboarding')
+      // Reset onboarding state using centralized utility
+      const { OnboardingStorage } = await import('@/constants/storage')
+      await OnboardingStorage.reset()
 
       // Open onboarding page in a new tab
       const onboardingUrl = chrome.runtime.getURL('onboarding.html')

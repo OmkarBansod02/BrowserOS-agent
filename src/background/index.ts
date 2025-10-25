@@ -2,6 +2,7 @@ import { MessageType } from '@/lib/types/messaging'
 import { PortMessage } from '@/lib/runtime/PortMessaging'
 import { Logging } from '@/lib/utils/Logging'
 import { isDevelopmentMode } from '@/config'
+import { OnboardingStorage } from '@/constants/storage'
 
 // Import router and managers
 import { MessageRouter } from './router/MessageRouter'
@@ -372,43 +373,65 @@ async function toggleSidePanel(tabId: number): Promise<void> {
 chrome.runtime.onInstalled.addListener(async (details) => {
   console.log('[Onboarding] chrome.runtime.onInstalled fired', { reason: details.reason })
 
-  if (details.reason === 'install' || details.reason === 'update') {
-    Logging.log('Background', `Extension ${details.reason} - checking for first run`)
+  try {
+    if (details.reason === 'install') {
+      // First install - always show onboarding
+      Logging.log('Background', 'Extension installed - showing onboarding')
+      Logging.logMetric('onboarding_started', {
+        trigger: 'install',
+        isDev: isDevelopmentMode()
+      })
 
-    try {
-      // Check if onboarding has been completed
-      const result = await chrome.storage.local.get('hasCompletedOnboarding')
-      const hasCompletedOnboarding = result.hasCompletedOnboarding
+      await _openOnboardingTab()
+    } else if (details.reason === 'update') {
+      // Check if user has completed onboarding
+      const hasCompleted = await OnboardingStorage.hasCompleted()
 
-      console.log('[Onboarding] Storage check result:', { hasCompletedOnboarding })
+      console.log('[Onboarding] Update detected - completion status:', { hasCompleted })
 
-      // For testing: In development mode with update, always show onboarding to test
-      const shouldShowOnboarding = !hasCompletedOnboarding ||
-        (isDevelopmentMode() && details.reason === 'update')
-
-      if (shouldShowOnboarding) {
-        console.log('[Onboarding] Opening onboarding page')
-        Logging.log('Background', 'Opening onboarding page')
-        Logging.logMetric('onboarding_started', {
-          trigger: details.reason,
+      // Only show onboarding if user hasn't completed it yet
+      // This handles cases where onboarding was dismissed or interrupted
+      if (!hasCompleted) {
+        Logging.log('Background', 'Extension updated - onboarding incomplete, showing again')
+        Logging.logMetric('onboarding_resumed', {
+          trigger: 'update',
           isDev: isDevelopmentMode()
         })
 
-        // Open onboarding page in a new tab
-        const onboardingUrl = chrome.runtime.getURL('onboarding.html')
-        console.log('[Onboarding] URL:', onboardingUrl)
-
-        await chrome.tabs.create({ url: onboardingUrl })
-        console.log('[Onboarding] Tab created successfully')
+        await _openOnboardingTab()
       } else {
         console.log('[Onboarding] Skipping - already completed')
+        Logging.log('Background', 'Extension updated - onboarding already completed')
       }
-    } catch (error) {
-      console.error('[Onboarding] Error during onboarding check:', error)
-      Logging.log('Background', `Onboarding error: ${error}`, 'error')
     }
+  } catch (error) {
+    console.error('[Onboarding] Error during onboarding check:', error)
+    Logging.log('Background', `Onboarding error: ${error}`, 'error')
+
+    // On error, don't show onboarding to avoid disrupting user experience
+    // User can always access settings to re-trigger onboarding if needed
   }
 })
+
+/**
+ * Open onboarding tab
+ */
+async function _openOnboardingTab(): Promise<void> {
+  try {
+    const onboardingUrl = chrome.runtime.getURL('onboarding.html')
+    console.log('[Onboarding] Opening URL:', onboardingUrl)
+
+    await chrome.tabs.create({ url: onboardingUrl })
+
+    // Update last seen timestamp
+    await OnboardingStorage.updateLastSeen()
+
+    console.log('[Onboarding] Tab created successfully')
+  } catch (error) {
+    console.error('[Onboarding] Failed to open tab:', error)
+    throw error
+  }
+}
 
 /**
  * Initialize the extension
