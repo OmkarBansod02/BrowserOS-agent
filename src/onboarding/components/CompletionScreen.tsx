@@ -25,8 +25,7 @@ export function CompletionScreen() {
           Setup Complete! 🎉
         </h1>
         <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-          Your setup is complete! Explore powerful features or start using BrowserOS now.
-        </p>
+          Your setup is complete! You can start using BrowserOS or complete a quick tutorial on BrowserOS's features by clicking orange button (Explore Features) below.</p>
       </div>
 
       {/* Quick links */}

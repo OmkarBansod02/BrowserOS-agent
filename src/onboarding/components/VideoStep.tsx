@@ -22,13 +22,15 @@ export function VideoStep() {
         <div className="relative w-full rounded-2xl overflow-hidden shadow-2xl shadow-brand/20 border-2 border-border/50 bg-card">
           {/* 16:9 Aspect Ratio Container */}
           <div className="relative pb-[56.25%]">
-            <iframe
+            <video
               className="absolute top-0 left-0 w-full h-full"
-              src="https://www.youtube.com/embed/J-lFhTP-7is?autoplay=1&mute=1"
+              src="https://pub-80f8a01e6e8b4239ae53a7652ef85877.r2.dev/resources/animated-launch-vide.mp4"
               title="BrowserOS Launch Video"
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-              allowFullScreen
-              referrerPolicy="strict-origin-when-cross-origin"
+              autoPlay
+              muted
+              loop
+              playsInline
+              controls
             />
           </div>
         </div>

@@ -126,7 +126,7 @@ function OllamaSetupCommandField({ providerType }: { providerType: ProviderType 
 
       <p className="text-[11px] text-muted-foreground dark:text-[#9AA0A6] flex items-center gap-1.5">
         <BookOpen className="w-3 h-3" />
-        <span>Run this to start Ollama</span>
+        <span>Use above command to start Ollama</span>
         <span className="text-muted-foreground/40">•</span>
         <a
           href={config.docLink}
