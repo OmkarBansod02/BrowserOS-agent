@@ -2,6 +2,7 @@ import { MessageType } from '@/lib/types/messaging'
 import { PortMessage } from '@/lib/runtime/PortMessaging'
 import { Logging } from '@/lib/utils/Logging'
 import { isDevelopmentMode } from '@/config'
+import { OnboardingStorage } from '@/constants/storage'
 
 // Import router and managers
 import { MessageRouter } from './router/MessageRouter'
@@ -370,44 +371,23 @@ async function toggleSidePanel(tabId: number): Promise<void> {
  * Handle extension installation
  */
 chrome.runtime.onInstalled.addListener(async (details) => {
-  console.log('[Onboarding] chrome.runtime.onInstalled fired', { reason: details.reason })
-
-  if (details.reason === 'install' || details.reason === 'update') {
-    Logging.log('Background', `Extension ${details.reason} - checking for first run`)
-
+  if (details.reason === 'install') {
     try {
-      // Check if onboarding has been completed
-      const result = await chrome.storage.local.get('hasCompletedOnboarding')
-      const hasCompletedOnboarding = result.hasCompletedOnboarding
+      // First install - show onboarding
+      Logging.log('Background', 'First install - showing onboarding')
+      Logging.logMetric('onboarding_started', { trigger: 'install' })
 
-      console.log('[Onboarding] Storage check result:', { hasCompletedOnboarding })
+      const onboardingUrl = chrome.runtime.getURL('onboarding.html')
+      await chrome.tabs.create({ url: onboardingUrl })
+      await OnboardingStorage.markAsSeen()
 
-      // For testing: In development mode with update, always show onboarding to test
-      const shouldShowOnboarding = !hasCompletedOnboarding ||
-        (isDevelopmentMode() && details.reason === 'update')
-
-      if (shouldShowOnboarding) {
-        console.log('[Onboarding] Opening onboarding page')
-        Logging.log('Background', 'Opening onboarding page')
-        Logging.logMetric('onboarding_started', {
-          trigger: details.reason,
-          isDev: isDevelopmentMode()
-        })
-
-        // Open onboarding page in a new tab
-        const onboardingUrl = chrome.runtime.getURL('onboarding.html')
-        console.log('[Onboarding] URL:', onboardingUrl)
-
-        await chrome.tabs.create({ url: onboardingUrl })
-        console.log('[Onboarding] Tab created successfully')
-      } else {
-        console.log('[Onboarding] Skipping - already completed')
-      }
+      console.log('[Onboarding] Shown and marked as seen')
     } catch (error) {
-      console.error('[Onboarding] Error during onboarding check:', error)
+      console.error('[Onboarding] Error:', error)
       Logging.log('Background', `Onboarding error: ${error}`, 'error')
     }
   }
+  // On update: do nothing (user has already seen it or can revisit from settings)
 })
 
 /**

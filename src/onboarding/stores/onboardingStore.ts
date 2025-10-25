@@ -13,7 +13,6 @@ interface OnboardingState {
   goToStep: (step: number) => void
   skipVideo: () => void
   skipFeatures: () => void
-  completeOnboarding: () => Promise<void>
 
   // State checks
   canGoNext: () => boolean
@@ -57,23 +56,8 @@ export const useOnboardingStore = create<OnboardingState>((set, get) => ({
   },
 
   skipFeatures: () => {
-    // Skip from completion screen to the end and complete onboarding
-    get().completeOnboarding()
-  },
-
-  completeOnboarding: async () => {
-    // Mark onboarding as completed in chrome storage
-    await chrome.storage.local.set({ hasCompletedOnboarding: true })
-
-    // Mark all steps as completed
-    const allSteps = new Set<number>()
-    for (let i = 0; i <= TOTAL_STEPS; i++) {
-      allSteps.add(i)
-    }
-    set({
-      completedSteps: allSteps,
-      currentStep: TOTAL_STEPS
-    })
+    // Skip to end - user can close tab whenever they want
+    set({ currentStep: TOTAL_STEPS })
   },
 
   canGoNext: () => {

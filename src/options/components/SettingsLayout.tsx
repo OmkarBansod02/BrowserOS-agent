@@ -85,10 +85,7 @@ export function SettingsLayout({ children, activeSection: controlledSection, onS
 
   const handleRevisitOnboarding = async () => {
     try {
-      // Clear onboarding completion flag
-      await chrome.storage.local.remove('hasCompletedOnboarding')
-
-      // Open onboarding page in a new tab
+      // Just open onboarding - don't reset flag (user has already seen it)
       const onboardingUrl = chrome.runtime.getURL('onboarding.html')
       await chrome.tabs.create({ url: onboardingUrl })
     } catch (error) {
