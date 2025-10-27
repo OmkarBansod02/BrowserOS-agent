@@ -85,7 +85,7 @@ const PROVIDER_CONFIG: Record<string, {
   },
   openai_compatible: {
     docLink: 'https://docs.browseros.com/llm-setup-guide',
-    displayName: 'OpenAI Compatible'
+  
   }
 }
 
