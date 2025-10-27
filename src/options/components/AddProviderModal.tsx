@@ -479,10 +479,10 @@ export function AddProviderModal({ isOpen, onClose, onSave, editProvider }: AddP
             />
             <div className="space-y-0.5">
               <p className="text-[11px] text-muted-foreground dark:text-[#9AA0A6]">
-                Stored securely and never shared
+                Your API key is encrypted and stored locally
               </p>
               <APIKeyHelper providerType={providerType} />
-            </div>
+            </div> 
           </div>
 
           {/* Model Configuration Section */}
