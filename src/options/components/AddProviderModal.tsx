@@ -47,7 +47,6 @@ const DEFAULT_BASE_URLS: Record<ProviderType, string> = {
 // Provider-specific configuration
 const PROVIDER_CONFIG: Record<string, {
   apiKeyLink?: string
-  apiKeyPlaceholder?: string
   docLink: string
   setupCommand?: string
   setupNote?: string
@@ -61,31 +60,26 @@ const PROVIDER_CONFIG: Record<string, {
   },
   openai: {
     apiKeyLink: 'https://platform.openai.com/api-keys',
-    apiKeyPlaceholder: 'sk-...',
     docLink: 'https://docs.browseros.com/bring-your-own-keys/openai',
     displayName: 'OpenAI'
   },
   anthropic: {
     apiKeyLink: 'https://console.anthropic.com/settings/keys',
-    apiKeyPlaceholder: 'sk-ant-...',
     docLink: 'https://docs.browseros.com/bring-your-own-keys/claude',
     displayName: 'Claude'
   },
   google_gemini: {
     apiKeyLink: 'https://aistudio.google.com/app/apikey',
-    apiKeyPlaceholder: 'AI...',
     docLink: 'https://docs.browseros.com/bring-your-own-keys/gemini',
     displayName: 'Gemini'
   },
   openrouter: {
     apiKeyLink: 'https://openrouter.ai/keys',
-    apiKeyPlaceholder: 'sk-or-...',
     docLink: 'https://docs.browseros.com/bring-your-own-keys/openrouter',
     displayName: 'OpenRouter'
   },
   openai_compatible: {
-    docLink: 'https://docs.browseros.com/llm-setup-guide',
-  
+    docLink: 'https://docs.browseros.com/llm-setup-guide'
   }
 }
 
@@ -482,7 +476,7 @@ export function AddProviderModal({ isOpen, onClose, onSave, editProvider }: AddP
               type="password"
               value={apiKey}
               onChange={(e) => setApiKey(e.target.value)}
-              placeholder={PROVIDER_CONFIG[providerType]?.apiKeyPlaceholder || 'Enter your API key (optional for some providers)'}
+              placeholder="Enter your API key (optional for some providers)"
               className="w-full px-3 py-2 bg-background dark:bg-[#202124] border border-input dark:border-[#5F6368] rounded-lg text-foreground dark:text-white text-[13px] placeholder:text-muted-foreground dark:placeholder:text-[#9AA0A6] focus:outline-none focus:border-primary dark:focus:border-[#8AB4F8] transition-colors"
             />
             <div className="space-y-0.5">
