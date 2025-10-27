@@ -145,7 +145,7 @@ function OllamaSetupCommandField({ providerType }: { providerType: ProviderType 
 function APIKeyHelper({ providerType }: { providerType: ProviderType }) {
   const config = PROVIDER_CONFIG[providerType]
 
-  if (!config?.docLink) return null
+  if (!config?.docLink || providerType === 'ollama') return null
 
   const displayName = config.displayName || 'provider'
 
