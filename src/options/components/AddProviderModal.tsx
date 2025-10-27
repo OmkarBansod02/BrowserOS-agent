@@ -83,7 +83,7 @@ const PROVIDER_CONFIG: Record<string, {
   }
 }
 
-// Ollama Setup Command Field (looks like a regular form field)
+// Ollama Setup Command Field 
 function OllamaSetupCommandField({ providerType }: { providerType: ProviderType }) {
   const [copied, setCopied] = useState(false)
   const config = PROVIDER_CONFIG[providerType]
@@ -100,12 +100,11 @@ function OllamaSetupCommandField({ providerType }: { providerType: ProviderType 
 
   return (
     <div className="space-y-2">
-      {/* Label - looks like other form field labels */}
+     
       <label className="block text-[13px] font-normal text-foreground dark:text-[#E8EAED]">
         Setup Command <span className="text-red-500">*</span>
       </label>
 
-      {/* Command field - looks like a form input */}
       <div className="relative">
         <div className="w-full px-3 py-2 bg-muted/30 dark:bg-muted/20 border border-input dark:border-[#5F6368] rounded-lg flex items-center gap-2 pr-10">
           <code className="flex-1 font-mono text-[12px] text-foreground dark:text-white">
@@ -125,7 +124,6 @@ function OllamaSetupCommandField({ providerType }: { providerType: ProviderType 
         </button>
       </div>
 
-      {/* Helper text - matching other field helpers */}
       <p className="text-[11px] text-muted-foreground dark:text-[#9AA0A6] flex items-center gap-1.5">
         <BookOpen className="w-3 h-3" />
         <span>Run this to start Ollama</span>
@@ -143,7 +141,7 @@ function OllamaSetupCommandField({ providerType }: { providerType: ProviderType 
   )
 }
 
-// API Key Helper (minimal inline links - matches form aesthetic)
+// API Key Helper 
 function APIKeyHelper({ providerType }: { providerType: ProviderType }) {
   const config = PROVIDER_CONFIG[providerType]
 
