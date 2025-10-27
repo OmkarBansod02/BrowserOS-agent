@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { X } from 'lucide-react'
+import { X, Copy, CheckCircle2, AlertCircle, ExternalLink, BookOpen } from 'lucide-react'
 import { LLMProvider, ProviderType } from '../types/llm-settings'
 import { getModelsForProvider, getModelContextLength, ModelInfo } from '../data/models'
 
@@ -42,6 +42,140 @@ const DEFAULT_BASE_URLS: Record<ProviderType, string> = {
   openai_compatible: '',
   browseros: '',
   custom: ''
+}
+
+// Provider-specific configuration
+const PROVIDER_CONFIG: Record<string, {
+  apiKeyLink?: string
+  docLink: string
+  setupCommand?: string
+  setupNote?: string
+  displayName?: string
+}> = {
+  ollama: {
+    setupCommand: 'OLLAMA_ORIGINS="*" ollama serve',
+    setupNote: 'Required',
+    docLink: 'https://docs.browseros.com/local-LLMs/ollama',
+    displayName: 'Ollama'
+  },
+  openai: {
+    apiKeyLink: 'https://platform.openai.com/api-keys',
+    docLink: 'https://docs.browseros.com/bring-your-own-keys/openai',
+    displayName: 'OpenAI'
+  },
+  anthropic: {
+    apiKeyLink: 'https://console.anthropic.com/settings/keys',
+    docLink: 'https://docs.browseros.com/bring-your-own-keys/claude',
+    displayName: 'Claude'
+  },
+  google_gemini: {
+    apiKeyLink: 'https://aistudio.google.com/app/apikey',
+    docLink: 'https://docs.browseros.com/bring-your-own-keys/gemini',
+    displayName: 'Gemini'
+  },
+  openrouter: {
+    apiKeyLink: 'https://openrouter.ai/keys',
+    docLink: 'https://docs.browseros.com/bring-your-own-keys/openrouter',
+    displayName: 'OpenRouter'
+  },
+  openai_compatible: {
+    docLink: 'https://docs.browseros.com/llm-setup-guide'
+  }
+}
+
+// Ollama Setup Command Field 
+function OllamaSetupCommandField({ providerType }: { providerType: ProviderType }) {
+  const [copied, setCopied] = useState(false)
+  const config = PROVIDER_CONFIG[providerType]
+
+  if (!config?.setupCommand) return null
+
+  const handleCopy = async () => {
+    if (config.setupCommand) {
+      await navigator.clipboard.writeText(config.setupCommand)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    }
+  }
+
+  return (
+    <div className="space-y-2">
+     
+      <label className="block text-[13px] font-normal text-foreground dark:text-[#E8EAED]">
+        Setup Command <span className="text-red-500">*</span>
+      </label>
+
+      <div className="relative">
+        <div className="w-full px-3 py-2 bg-muted/30 dark:bg-muted/20 border border-input dark:border-[#5F6368] rounded-lg flex items-center gap-2 pr-10">
+          <code className="flex-1 font-mono text-[12px] text-foreground dark:text-white">
+            {config.setupCommand}
+          </code>
+        </div>
+        <button
+          onClick={handleCopy}
+          className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded hover:bg-muted/50 transition-colors"
+          title="Copy command"
+        >
+          {copied ? (
+            <CheckCircle2 className="w-4 h-4 text-green-600 dark:text-green-400" />
+          ) : (
+            <Copy className="w-4 h-4 text-muted-foreground hover:text-foreground transition-colors" />
+          )}
+        </button>
+      </div>
+
+      <p className="text-[11px] text-muted-foreground dark:text-[#9AA0A6] flex items-center gap-1.5">
+        <BookOpen className="w-3 h-3" />
+        <span>Run this to start Ollama</span>
+        <span className="text-muted-foreground/40">•</span>
+        <a
+          href={config.docLink}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-brand hover:text-brand/80 transition-colors font-medium underline decoration-brand/30 hover:decoration-brand/60"
+        >
+          Setup guide
+        </a>
+      </p>
+    </div>
+  )
+}
+
+// API Key Helper 
+function APIKeyHelper({ providerType }: { providerType: ProviderType }) {
+  const config = PROVIDER_CONFIG[providerType]
+
+  if (!config?.docLink || providerType === 'ollama') return null
+
+  const displayName = config.displayName || 'provider'
+
+  return (
+    <p className="text-[11px] text-muted-foreground dark:text-[#9AA0A6] flex items-center gap-1.5 flex-wrap">
+      <BookOpen className="w-3 h-3" />
+      <a
+        href={config.docLink}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="inline-flex items-center gap-1 text-brand hover:text-brand/80 transition-colors font-medium underline decoration-brand/30 hover:decoration-brand/60"
+      >
+        {displayName} setup guide
+      </a>
+      {config.apiKeyLink && (
+        <>
+          <span className="text-muted-foreground/40">•</span>
+          <a
+            href={config.apiKeyLink}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-0.5 hover:text-foreground dark:hover:text-white transition-colors"
+          >
+            Get key
+            <ExternalLink className="w-2.5 h-2.5" />
+          </a>
+        </>
+      )}
+    </p>
+  )
 }
 
 export function AddProviderModal({ isOpen, onClose, onSave, editProvider }: AddProviderModalProps) {
@@ -264,6 +398,9 @@ export function AddProviderModal({ isOpen, onClose, onSave, editProvider }: AddP
             </div>
           </div>
 
+          {/* Ollama Setup Command Field*/}
+          {providerType === 'ollama' && <OllamaSetupCommandField providerType={providerType} />}
+
           {/* Base URL and Model ID */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
@@ -340,9 +477,12 @@ export function AddProviderModal({ isOpen, onClose, onSave, editProvider }: AddP
               placeholder="Enter your API key (optional for some providers)"
               className="w-full px-3 py-2 bg-background dark:bg-[#202124] border border-input dark:border-[#5F6368] rounded-lg text-foreground dark:text-white text-[13px] placeholder:text-muted-foreground dark:placeholder:text-[#9AA0A6] focus:outline-none focus:border-primary dark:focus:border-[#8AB4F8] transition-colors"
             />
-            <p className="text-[11px] text-muted-foreground dark:text-[#9AA0A6]">
-              Your API key is encrypted and stored locally
-            </p>
+            <div className="space-y-0.5">
+              <p className="text-[11px] text-muted-foreground dark:text-[#9AA0A6]">
+                Your API key is encrypted and stored locally
+              </p>
+              <APIKeyHelper providerType={providerType} />
+            </div> 
           </div>
 
           {/* Model Configuration Section */}
@@ -407,7 +547,7 @@ export function AddProviderModal({ isOpen, onClose, onSave, editProvider }: AddP
           </button>
           <button
             onClick={handleSave}
-            className="px-4 py-2 text-[13px] font-medium text-white bg-primary dark:bg-[#8AB4F8] rounded-lg hover:bg-primary/90 dark:hover:bg-[#8AB4F8]/90 transition-colors disabled:opacity-50"
+            className="px-4 py-2 text-[13px] font-medium text-white bg-gradient-to-r from-brand to-orange-500 hover:from-brand/90 hover:to-orange-500/90 rounded-lg transition-all shadow-lg shadow-brand/25 hover:shadow-xl hover:shadow-brand/40 disabled:opacity-50"
             disabled={isSaving}
           >
             {isSaving ? 'Saving...' : 'Save'}
