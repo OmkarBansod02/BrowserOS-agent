@@ -291,7 +291,7 @@ function registerHandlers(): void {
  */
 function handlePortConnection(port: chrome.runtime.Port): void {
   const portId = portManager.registerPort(port)
-  
+
   // Handle sidepanel connections
   if (port.name === 'sidepanel') {
     isPanelOpen = true

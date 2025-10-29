@@ -5,30 +5,32 @@ import { Logging } from '@/lib/utils/Logging'
 export class SettingsHandler {
   async handleGetPref(message: PortMessage, port: chrome.runtime.Port): Promise<void> {
     const { name } = message.payload as { name: string }
+    const browserOS = (chrome as any)?.browserOS
 
-    const browserOSPrefs = (chrome as any)?.BrowserOS
-    if (browserOSPrefs?.getPrefs) {
+    if (browserOS?.getPref) {
       try {
-        browserOSPrefs.getPrefs([name], (prefs: Record<string, unknown>) => {
-          const error = chrome.runtime?.lastError
-          if (error) {
-            Logging.log('SettingsHandler', `BrowserOS getPrefs error for ${name}: ${error.message}`, 'error')
+        browserOS.getPref(name, (pref: any) => {
+          if (chrome.runtime?.lastError) {
+            Logging.log('SettingsHandler', `getPref error for ${name}: ${chrome.runtime.lastError.message}`, 'error')
             port.postMessage({
               type: MessageType.ERROR,
-              payload: { error: `Failed to get preference: ${error.message}` },
+              payload: { error: `Failed to get preference: ${chrome.runtime.lastError.message}` },
               id: message.id
             })
             return
           }
 
+          // Extract value from {key, type, value} response
+          const value = pref?.value ?? null
+
           port.postMessage({
             type: MessageType.SETTINGS_GET_PREF_RESPONSE,
-            payload: { name, value: prefs?.[name] ?? null },
+            payload: { name, value },
             id: message.id
           })
         })
       } catch (error) {
-        Logging.log('SettingsHandler', `Error getting pref via BrowserOS ${name}: ${error}`, 'error')
+        Logging.log('SettingsHandler', `Error getting pref ${name}: ${error}`, 'error')
         port.postMessage({
           type: MessageType.ERROR,
           payload: { error: `Failed to get preference: ${error}` },
@@ -38,6 +40,7 @@ export class SettingsHandler {
       return
     }
 
+    // Fallback to chrome.storage.local
     if (chrome.storage?.local) {
       try {
         chrome.storage.local.get(name, (result) => {
@@ -68,24 +71,25 @@ export class SettingsHandler {
       return
     }
 
-    Logging.log('SettingsHandler', `No storage mechanism available for preference ${name}`, 'error')
     port.postMessage({
       type: MessageType.ERROR,
-      payload: { error: 'Failed to get preference: no storage backend available' },
+      payload: { error: 'No storage backend available' },
       id: message.id
     })
   }
 
   async handleSetPref(message: PortMessage, port: chrome.runtime.Port): Promise<void> {
-    const { name, value } = message.payload as { name: string; value: string }
+    const { name, value } = message.payload as { name: string; value: unknown }
+    const browserOS = (chrome as any)?.browserOS
 
-    const browserOSPrefs = (chrome as any)?.BrowserOS
-    if (browserOSPrefs?.setPrefs) {
+    if (browserOS?.setPref) {
       try {
-        browserOSPrefs.setPrefs({ [name]: value }, (success?: boolean) => {
-          const error = chrome.runtime?.lastError
-          if (error) {
-            Logging.log('SettingsHandler', `BrowserOS setPrefs error for ${name}: ${error.message}`, 'error')
+        // BrowserOS expects JSON string for complex values
+        const stringValue = typeof value === 'string' ? value : JSON.stringify(value)
+
+        browserOS.setPref(name, stringValue, undefined, (success?: boolean) => {
+          if (chrome.runtime?.lastError) {
+            Logging.log('SettingsHandler', `setPref error for ${name}: ${chrome.runtime.lastError.message}`, 'error')
             port.postMessage({
               type: MessageType.SETTINGS_SET_PREF_RESPONSE,
               payload: { name, success: false },
@@ -95,9 +99,6 @@ export class SettingsHandler {
           }
 
           const ok = success !== false
-          if (!ok) {
-            Logging.log('SettingsHandler', `BrowserOS setPrefs reported failure for ${name}`, 'error')
-          }
 
           port.postMessage({
             type: MessageType.SETTINGS_SET_PREF_RESPONSE,
@@ -106,7 +107,7 @@ export class SettingsHandler {
           })
         })
       } catch (error) {
-        Logging.log('SettingsHandler', `Error setting pref via BrowserOS ${name}: ${error}`, 'error')
+        Logging.log('SettingsHandler', `Error setting pref ${name}: ${error}`, 'error')
         port.postMessage({
           type: MessageType.ERROR,
           payload: { error: `Failed to set preference: ${error}` },
@@ -116,6 +117,7 @@ export class SettingsHandler {
       return
     }
 
+    // Fallback to chrome.storage.local
     if (chrome.storage?.local) {
       try {
         chrome.storage.local.set({ [name]: value }, () => {
@@ -140,16 +142,14 @@ export class SettingsHandler {
       return
     }
 
-    Logging.log('SettingsHandler', `No storage mechanism available to set preference ${name}`, 'error')
     port.postMessage({
       type: MessageType.ERROR,
-      payload: { error: 'Failed to set preference: no storage backend available' },
+      payload: { error: 'No storage backend available' },
       id: message.id
     })
   }
 
   async handleGetAllPrefs(message: PortMessage, port: chrome.runtime.Port): Promise<void> {
-    // ONLY use chrome.storage.local - we're an extension, not browser settings
     try {
       chrome.storage.local.get(null, (items) => {
         port.postMessage({
@@ -159,7 +159,7 @@ export class SettingsHandler {
         })
       })
     } catch (error) {
-      Logging.log('SettingsHandler', `Error getting all prefs from storage: ${error}`, 'error')
+      Logging.log('SettingsHandler', `Error getting all prefs: ${error}`, 'error')
       port.postMessage({
         type: MessageType.ERROR,
         payload: { error: `Failed to get all preferences: ${error}` },
@@ -282,7 +282,6 @@ export class SettingsHandler {
             break
 
           case 'ollama':
-            // Replace localhost with 127.0.0.1 for better compatibility
             let baseUrl = provider.baseUrl || 'http://localhost:11434'
             if (baseUrl.includes('localhost')) {
               baseUrl = baseUrl.replace('localhost', '127.0.0.1')
@@ -382,6 +381,4 @@ export class SettingsHandler {
       })
     }
   }
-
 }
-

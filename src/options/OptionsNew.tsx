@@ -12,6 +12,7 @@ import { useOptionsStore } from './stores/optionsStore'
 import { useSettingsStore } from '@/sidepanel/stores/settingsStore'
 import { testLLMProvider } from './services/llm-test-service'
 import { LLMProvider, TestResult } from './types/llm-settings'
+import { ProvidersHubSection } from './components/ProvidersHubSection'
 import './styles.css'
 
 export function OptionsNew() {
@@ -21,7 +22,7 @@ export function OptionsNew() {
   // Get initial section from URL hash or default to 'browseros-ai'
   const getInitialSection = () => {
     const hash = window.location.hash.slice(1) // Remove '#'
-    const validSections = ['browseros-ai', 'mcp', 'search-providers', 'about']
+    const validSections = ['browseros-ai', 'providers-hub', 'mcp', 'search-providers', 'about']
     return validSections.includes(hash) ? hash : 'browseros-ai'
   }
 
@@ -167,6 +168,10 @@ export function OptionsNew() {
 
         {activeSection === 'mcp' && (
           <MCPSection />
+        )}
+
+        {activeSection === 'providers-hub' && (
+          <ProvidersHubSection />
         )}
 
         {activeSection === 'search-providers' && (

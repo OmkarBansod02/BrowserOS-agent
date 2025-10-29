@@ -73,7 +73,7 @@ export class BrowserOSAdapter {
             options,
             (snapshot: InteractiveSnapshot) => {
               if (chrome.runtime.lastError) {
-                reject(new Error(chrome.runtime.lastError.message));
+                reject(new Error(chrome.runtime.lastError?.message || 'Unknown error'));
               } else {
                 console.log(
                   `[BrowserOSAdapter] Retrieved snapshot with ${snapshot.elements.length} elements`,
@@ -87,7 +87,7 @@ export class BrowserOSAdapter {
             tabId,
             (snapshot: InteractiveSnapshot) => {
               if (chrome.runtime.lastError) {
-                reject(new Error(chrome.runtime.lastError.message));
+                reject(new Error(chrome.runtime.lastError?.message || 'Unknown error'));
               } else {
                 console.log(
                   `[BrowserOSAdapter] Retrieved snapshot with ${snapshot.elements.length} elements`,
@@ -118,7 +118,7 @@ export class BrowserOSAdapter {
       return new Promise<void>((resolve, reject) => {
         chrome.browserOS.click(tabId, nodeId, () => {
           if (chrome.runtime.lastError) {
-            reject(new Error(chrome.runtime.lastError.message));
+            reject(new Error(chrome.runtime.lastError?.message || 'Unknown error'));
           } else {
             resolve();
           }
@@ -144,7 +144,7 @@ export class BrowserOSAdapter {
       return new Promise<void>((resolve, reject) => {
         chrome.browserOS.inputText(tabId, nodeId, text, () => {
           if (chrome.runtime.lastError) {
-            reject(new Error(chrome.runtime.lastError.message));
+            reject(new Error(chrome.runtime.lastError?.message || 'Unknown error'));
           } else {
             resolve();
           }
@@ -170,7 +170,7 @@ export class BrowserOSAdapter {
       return new Promise<void>((resolve, reject) => {
         chrome.browserOS.clear(tabId, nodeId, () => {
           if (chrome.runtime.lastError) {
-            reject(new Error(chrome.runtime.lastError.message));
+            reject(new Error(chrome.runtime.lastError?.message || 'Unknown error'));
           } else {
             resolve();
           }
@@ -196,7 +196,7 @@ export class BrowserOSAdapter {
       return new Promise<boolean>((resolve, reject) => {
         chrome.browserOS.scrollToNode(tabId, nodeId, (scrolled: boolean) => {
           if (chrome.runtime.lastError) {
-            reject(new Error(chrome.runtime.lastError.message));
+            reject(new Error(chrome.runtime.lastError?.message || 'Unknown error'));
           } else {
             resolve(scrolled);
           }
@@ -222,7 +222,7 @@ export class BrowserOSAdapter {
       return new Promise<void>((resolve, reject) => {
         chrome.browserOS.sendKeys(tabId, keys, () => {
           if (chrome.runtime.lastError) {
-            reject(new Error(chrome.runtime.lastError.message));
+            reject(new Error(chrome.runtime.lastError?.message || 'Unknown error'));
           } else {
             resolve();
           }
@@ -248,7 +248,7 @@ export class BrowserOSAdapter {
       return new Promise<PageLoadStatus>((resolve, reject) => {
         chrome.browserOS.getPageLoadStatus(tabId, (status: PageLoadStatus) => {
           if (chrome.runtime.lastError) {
-            reject(new Error(chrome.runtime.lastError.message));
+            reject(new Error(chrome.runtime.lastError?.message || 'Unknown error'));
           } else {
             resolve(status);
           }
@@ -281,7 +281,7 @@ export class BrowserOSAdapter {
             tabId,
             (tree: chrome.browserOS.AccessibilityTree) => {
               if (chrome.runtime.lastError) {
-                reject(new Error(chrome.runtime.lastError.message));
+                reject(new Error(chrome.runtime.lastError?.message || 'Unknown error'));
               } else {
                 resolve(tree);
               }
@@ -333,7 +333,7 @@ export class BrowserOSAdapter {
             height,
             (dataUrl: string) => {
               if (chrome.runtime.lastError) {
-                reject(new Error(chrome.runtime.lastError.message));
+                reject(new Error(chrome.runtime.lastError?.message || 'Unknown error'));
               } else {
                 console.log(
                   `[BrowserOSAdapter] Screenshot captured for tab ${tabId} (${width}x${height})${highlightDesc}`,
@@ -352,7 +352,7 @@ export class BrowserOSAdapter {
               showHighlights,
               (dataUrl: string) => {
                 if (chrome.runtime.lastError) {
-                  reject(new Error(chrome.runtime.lastError.message));
+                  reject(new Error(chrome.runtime.lastError?.message || 'Unknown error'));
                 } else {
                   console.log(
                     `[BrowserOSAdapter] Screenshot captured for tab ${tabId}${sizeDesc}${highlightDesc}`,
@@ -367,7 +367,7 @@ export class BrowserOSAdapter {
               pixelSize,
               (dataUrl: string) => {
                 if (chrome.runtime.lastError) {
-                  reject(new Error(chrome.runtime.lastError.message));
+                  reject(new Error(chrome.runtime.lastError?.message || 'Unknown error'));
                 } else {
                   console.log(
                     `[BrowserOSAdapter] Screenshot captured for tab ${tabId} (${size}: ${pixelSize}px)`,
@@ -381,7 +381,7 @@ export class BrowserOSAdapter {
           // Use the original API without size (backwards compatibility)
           chrome.browserOS.captureScreenshot(tabId, (dataUrl: string) => {
             if (chrome.runtime.lastError) {
-              reject(new Error(chrome.runtime.lastError.message));
+              reject(new Error(chrome.runtime.lastError?.message || 'Unknown error'));
             } else {
               console.log(
                 `[BrowserOSAdapter] Screenshot captured for tab ${tabId}`,
@@ -422,7 +422,7 @@ export class BrowserOSAdapter {
             options,
             (snapshot: Snapshot) => {
               if (chrome.runtime.lastError) {
-                reject(new Error(chrome.runtime.lastError.message));
+                reject(new Error(chrome.runtime.lastError?.message || 'Unknown error'));
               } else {
                 console.log(
                   `[BrowserOSAdapter] Retrieved ${type} snapshot with ${snapshot.sections.length} sections`,
@@ -434,7 +434,7 @@ export class BrowserOSAdapter {
         } else {
           chrome.browserOS.getSnapshot(tabId, type, (snapshot: Snapshot) => {
             if (chrome.runtime.lastError) {
-              reject(new Error(chrome.runtime.lastError.message));
+              reject(new Error(chrome.runtime.lastError?.message || 'Unknown error'));
             } else {
               console.log(
                 `[BrowserOSAdapter] Retrieved ${type} snapshot with ${snapshot.sections.length} sections`,
@@ -535,7 +535,7 @@ export class BrowserOSAdapter {
         ) {
           chrome.browserOS.getVersionNumber((version: string) => {
             if (chrome.runtime.lastError) {
-              reject(new Error(chrome.runtime.lastError.message));
+              reject(new Error(chrome.runtime.lastError?.message || 'Unknown error'));
             } else {
               console.log(`[BrowserOSAdapter] BrowserOS version: ${version}`);
               resolve(version);
@@ -578,7 +578,7 @@ export class BrowserOSAdapter {
           if (properties) {
             chrome.browserOS.logMetric(eventName, properties, () => {
               if (chrome.runtime.lastError) {
-                reject(new Error(chrome.runtime.lastError.message));
+                reject(new Error(chrome.runtime.lastError?.message || 'Unknown error'));
               } else {
                 console.log(`[BrowserOSAdapter] Metric logged: ${eventName}`);
                 resolve();
@@ -587,7 +587,7 @@ export class BrowserOSAdapter {
           } else {
             chrome.browserOS.logMetric(eventName, () => {
               if (chrome.runtime.lastError) {
-                reject(new Error(chrome.runtime.lastError.message));
+                reject(new Error(chrome.runtime.lastError?.message || 'Unknown error'));
               } else {
                 console.log(`[BrowserOSAdapter] Metric logged: ${eventName}`);
                 resolve();
@@ -630,7 +630,7 @@ export class BrowserOSAdapter {
         ) {
           chrome.browserOS.executeJavaScript(tabId, code, (result: any) => {
             if (chrome.runtime.lastError) {
-              reject(new Error(chrome.runtime.lastError.message));
+              reject(new Error(chrome.runtime.lastError?.message || 'Unknown error'));
             } else {
               console.log(
                 `[BrowserOSAdapter] JavaScript executed successfully in tab ${tabId}`,
@@ -672,7 +672,7 @@ export class BrowserOSAdapter {
         ) {
           chrome.browserOS.clickCoordinates(tabId, x, y, () => {
             if (chrome.runtime.lastError) {
-              reject(new Error(chrome.runtime.lastError.message));
+              reject(new Error(chrome.runtime.lastError?.message || 'Unknown error'));
             } else {
               console.log(
                 `[BrowserOSAdapter] Successfully clicked at (${x}, ${y}) in tab ${tabId}`,
@@ -720,7 +720,7 @@ export class BrowserOSAdapter {
         ) {
           chrome.browserOS.typeAtCoordinates(tabId, x, y, text, () => {
             if (chrome.runtime.lastError) {
-              reject(new Error(chrome.runtime.lastError.message));
+              reject(new Error(chrome.runtime.lastError?.message || 'Unknown error'));
             } else {
               console.log(
                 `[BrowserOSAdapter] Successfully typed "${text}" at (${x}, ${y}) in tab ${tabId}`,
@@ -753,13 +753,18 @@ export class BrowserOSAdapter {
     try {
       console.log(`[BrowserOSAdapter] Getting preference: ${name}`);
 
+      // Check if chrome.browserOS API is available
+      if (!chrome?.browserOS || typeof chrome.browserOS.getPref !== 'function') {
+        throw new Error('chrome.browserOS.getPref is not available');
+      }
+
       return new Promise<PrefObject>((resolve, reject) => {
         chrome.browserOS.getPref(name, (pref: PrefObject) => {
           if (chrome.runtime.lastError) {
-            reject(new Error(chrome.runtime.lastError.message));
+            reject(new Error(chrome.runtime.lastError?.message || 'Unknown error'));
           } else {
             console.log(
-              `[BrowserOSAdapter] Retrieved preference ${name}: ${JSON.stringify(pref)}`,
+              `[BrowserOSAdapter] Retrieved preference ${name}`,
             );
             resolve(pref);
           }
@@ -789,14 +794,19 @@ export class BrowserOSAdapter {
   ): Promise<boolean> {
     try {
       console.log(
-        `[BrowserOSAdapter] Setting preference ${name} to ${JSON.stringify(value)}`,
+        `[BrowserOSAdapter] Setting preference ${name}`,
       );
+
+      // Check if chrome.browserOS API is available
+      if (!chrome?.browserOS || typeof chrome.browserOS.setPref !== 'function') {
+        throw new Error('chrome.browserOS.setPref is not available');
+      }
 
       return new Promise<boolean>((resolve, reject) => {
         if (pageId !== undefined) {
           chrome.browserOS.setPref(name, value, pageId, (success: boolean) => {
             if (chrome.runtime.lastError) {
-              reject(new Error(chrome.runtime.lastError.message));
+              reject(new Error(chrome.runtime.lastError?.message || 'Unknown error'));
             } else {
               console.log(
                 `[BrowserOSAdapter] Successfully set preference ${name}`,
@@ -807,7 +817,7 @@ export class BrowserOSAdapter {
         } else {
           chrome.browserOS.setPref(name, value, (success: boolean) => {
             if (chrome.runtime.lastError) {
-              reject(new Error(chrome.runtime.lastError.message));
+              reject(new Error(chrome.runtime.lastError?.message || 'Unknown error'));
             } else {
               console.log(
                 `[BrowserOSAdapter] Successfully set preference ${name}`,
@@ -835,10 +845,15 @@ export class BrowserOSAdapter {
     try {
       console.log("[BrowserOSAdapter] Getting all preferences");
 
+      // Check if chrome.browserOS API is available
+      if (!chrome?.browserOS || typeof chrome.browserOS.getAllPrefs !== 'function') {
+        throw new Error('chrome.browserOS.getAllPrefs is not available');
+      }
+
       return new Promise<PrefObject[]>((resolve, reject) => {
         chrome.browserOS.getAllPrefs((prefs: PrefObject[]) => {
           if (chrome.runtime.lastError) {
-            reject(new Error(chrome.runtime.lastError.message));
+            reject(new Error(chrome.runtime.lastError?.message || 'Unknown error'));
           } else {
             console.log(
               `[BrowserOSAdapter] Retrieved ${prefs.length} preferences`,
