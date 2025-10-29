@@ -1,13 +1,17 @@
 import { useCallback, useEffect, useState } from 'react'
-import { MessageType } from '@/lib/types/messaging'
+import { getBrowserOSAdapter } from '@/lib/browser/BrowserOSAdapter'
 import {
   DEFAULT_THIRD_PARTY_CONFIG,
-  DEFAULT_THIRD_PARTY_PROVIDERS, 
+  DEFAULT_THIRD_PARTY_PROVIDERS,
   ThirdPartyLLMConfig,
   ThirdPartyLLMProvider
 } from '../types/third-party-llm'
 
 type ProviderInput = Pick<ThirdPartyLLMProvider, 'name' | 'url'>
+
+// BrowserOS preference keys for third-party LLM providers
+const PROVIDERS_PREF_KEY = 'browseros.third_party_llm.providers'
+const SELECTED_PROVIDER_PREF_KEY = 'browseros.third_party_llm.selected_provider'
 
 interface UseThirdPartyLLMProvidersResult {
   providers: ThirdPartyLLMProvider[]
@@ -23,23 +27,25 @@ interface UseThirdPartyLLMProvidersResult {
   refresh: () => Promise<void>
 }
 
-
-const PROVIDERS_PREF_KEY = 'browseros.custom_providers'
-
 function createHashId(name: string, url: string, index: number): string {
-  const normalized = `${name.trim().toLowerCase()}|${url.trim().toLowerCase()}`
-  if (normalized) {
-    let hash = 0
-    for (let i = 0; i < normalized.length; i++) {
-      hash = (hash * 31 + normalized.charCodeAt(i)) >>> 0
+  const trimmedName = name.trim()
+  const trimmedUrl = url.trim()
+
+  // Use fallback for empty or invalid inputs
+  if (!trimmedName || !trimmedUrl) {
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+      return crypto.randomUUID()
     }
-    return `providers-hub-${hash.toString(16)}-${index}`
+    return `providers-hub-${Date.now()}-${Math.random().toString(16).slice(2)}`
   }
 
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-    return crypto.randomUUID()
+  // Generate hash from valid inputs
+  const normalized = `${trimmedName.toLowerCase()}|${trimmedUrl.toLowerCase()}`
+  let hash = 0
+  for (let i = 0; i < normalized.length; i++) {
+    hash = (hash * 31 + normalized.charCodeAt(i)) >>> 0
   }
-  return `providers-hub-${Date.now()}-${Math.random().toString(16).slice(2)}`
+  return `providers-hub-${hash.toString(16)}-${index}`
 }
 
 function ensureProtocol(url: string): string {
@@ -85,238 +91,205 @@ function mapToProviderList(entries: Array<{ name?: unknown; url?: unknown }>): T
     .filter((provider): provider is ThirdPartyLLMProvider => Boolean(provider))
 }
 
-function coerceToProviders(raw: unknown): ThirdPartyLLMProvider[] {
-  if (typeof raw === 'string') {
-    try {
-      const parsed = JSON.parse(raw)
-      return coerceToProviders(parsed)
-    } catch {
-      return []
-    }
-  }
-
-  if (!Array.isArray(raw)) {
-    return []
-  }
-
-  return mapToProviderList(raw as Array<{ name?: unknown; url?: unknown }>)
-}
-
-function coerceToConfig(raw: unknown): ThirdPartyLLMConfig | null {
-  if (raw == null) return null
-  let value = raw
-  if (typeof raw === 'string') {
-    try {
-      value = JSON.parse(raw)
-    } catch {
+function parseProvidersValue(raw: unknown): Array<{ name: string; url: string }> | null {
+  try {
+    if (raw == null) {
       return null
     }
-  }
 
-  if (typeof value !== 'object' || value === null) {
-    return null
-  }
+    let data: unknown = raw
 
-  const providers = coerceToProviders((value as any).providers)
-  if (!providers.length) {
-    return null
-  }
-
-  const rawSelected = (value as any).selected_provider
-  let selected = 0
-  if (typeof rawSelected === 'number' && Number.isFinite(rawSelected)) {
-    selected = rawSelected
-  } else if (typeof rawSelected === 'string') {
-    const parsed = parseInt(rawSelected, 10)
-    if (!Number.isNaN(parsed)) {
-      selected = parsed
-    }
-  }
-
-  return {
-    providers: providers.map(provider => ({ name: provider.name, url: provider.url })),
-    selected_provider: selected
-  }
-}
-
-function sanitizeConfig(config: ThirdPartyLLMConfig | null): {
-  providers: ThirdPartyLLMProvider[]
-  selectedProviderId: string | null
-} {
-  const baseConfig = config ?? DEFAULT_THIRD_PARTY_CONFIG
-
-  const providers = mapToProviderList(baseConfig.providers)
-  const fallbackProviders = providers.length ? providers : mapToProviderList(DEFAULT_THIRD_PARTY_CONFIG.providers)
-  const safeProviders = fallbackProviders.length ? fallbackProviders : [
-    {
-      id: createHashId('BrowserOS', 'https://browseros.ai/', 0),
-      name: 'BrowserOS',
-      url: 'https://browseros.ai/',
-      isBuiltIn: true
-    }
-  ]
-
-  const selectedIndex = Math.min(
-    Math.max(0, baseConfig.selected_provider ?? 0),
-    safeProviders.length - 1
-  )
-
-  return {
-    providers: safeProviders,
-    selectedProviderId: safeProviders[selectedIndex]?.id ?? safeProviders[0]?.id ?? null
-  }
-}
-
-// Simple request/response helper that creates a new port for each request
-async function sendRequest<T>(
-  messageType: MessageType,
-  payload: unknown,
-  responseType: MessageType
-): Promise<T> {
-  return new Promise((resolve, reject) => {
-    const messageId = `${messageType}-${Date.now()}-${Math.random()}`
-    const port = chrome.runtime.connect({ name: 'providers-hub-request' })
-
-    const timeoutId = setTimeout(() => {
-      port.disconnect()
-      reject(new Error(`Request ${messageType} timed out after 10000ms`))
-    }, 10000)
-
-    const messageHandler = (msg: any) => {
-      if (msg.id === messageId && msg.type === responseType) {
-        clearTimeout(timeoutId)
-        port.disconnect()
-        resolve(msg.payload as T)
-      } else if (msg.id === messageId && msg.type === MessageType.ERROR) {
-        clearTimeout(timeoutId)
-        port.disconnect()
-        reject(new Error(msg.payload?.error || 'Request failed'))
+    if (typeof data === 'string') {
+      const trimmed = data.trim()
+      if (!trimmed) {
+        return null
+      }
+      try {
+        data = JSON.parse(trimmed)
+      } catch (e) {
+        console.error('[ProvidersHub] Failed to parse providers JSON string:', e)
+        return null
       }
     }
 
-    port.onMessage.addListener(messageHandler)
-    port.onDisconnect.addListener(() => {
-      clearTimeout(timeoutId)
-      // Port disconnected, but don't reject if we already resolved
-    })
+    if (Array.isArray(data)) {
+      const providers = data
+        .map(item => {
+          const name = typeof item?.name === 'string' ? item.name : ''
+          const url = typeof item?.url === 'string' ? item.url : ''
+          return name && url ? { name, url } : null
+        })
+        .filter((entry): entry is { name: string; url: string } => Boolean(entry))
 
-    port.postMessage({
-      type: messageType,
-      payload,
-      id: messageId
-    })
-  })
+      return providers.length > 0 ? providers : null
+    }
+
+    if (typeof data === 'object' && data !== null && Array.isArray((data as any).providers)) {
+      return parseProvidersValue((data as any).providers)
+    }
+
+    return null
+  } catch (error) {
+    console.error('[ProvidersHub] Error parsing providers value:', error)
+    return null
+  }
 }
 
-function getInitialProviders(): ThirdPartyLLMProvider[] {
-  return mapToProviderList(DEFAULT_THIRD_PARTY_CONFIG.providers)
+function buildConfigFromPrefs(providersValue: unknown, selectedValue: unknown): ThirdPartyLLMConfig | null {
+  const providers = parseProvidersValue(providersValue)
+  if (!providers) {
+    return null
+  }
+
+  let selectedProvider = 0
+
+  if (typeof selectedValue === 'number' && Number.isFinite(selectedValue)) {
+    selectedProvider = selectedValue
+  } else if (typeof selectedValue === 'string') {
+    const parsed = Number.parseInt(selectedValue, 10)
+    if (Number.isFinite(parsed)) {
+      selectedProvider = parsed
+    }
+  }
+
+  selectedProvider = Math.max(0, Math.min(selectedProvider, providers.length - 1))
+
+  return {
+    providers,
+    selected_provider: selectedProvider
+  }
 }
 
 export function useThirdPartyLLMProviders(): UseThirdPartyLLMProvidersResult {
-  const [providers, setProviders] = useState<ThirdPartyLLMProvider[]>(() => getInitialProviders())
-  const [selectedProviderId, setSelectedProviderId] = useState<string | null>(
-    () => getInitialProviders()[0]?.id ?? null
-  )
+  const [providers, setProviders] = useState<ThirdPartyLLMProvider[]>([])
+  const [selectedProviderId, setSelectedProviderId] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [isBrowserOS, setIsBrowserOS] = useState(false)
+  const [refreshCounter, setRefreshCounter] = useState(0)
 
-  const loadProviders = useCallback(async () => {
-    setIsLoading(true)
-    setError(null)
-
-    try {
-      const response = await sendRequest<{ name: string; value: unknown }>(
-        MessageType.SETTINGS_GET_PREF,
-        { name: PROVIDERS_PREF_KEY },
-        MessageType.SETTINGS_GET_PREF_RESPONSE
-      )
-
-      if (response?.value != null) {
-        // Browser stores simple array [{name, url}]
-        const loadedProviders = coerceToProviders(response.value)
-
-        setIsBrowserOS(true)
-        setProviders(loadedProviders)
-
-        // Load selected provider from localStorage (extension-only state)
-        const savedSelectedId = localStorage.getItem('providers-hub-selected')
-        setSelectedProviderId(savedSelectedId || (loadedProviders[0]?.id ?? null))
-
-        setIsLoading(false)
-        return
-      }
-
-      // No existing data - initialize with defaults
-      const defaultProvidersArray = DEFAULT_THIRD_PARTY_PROVIDERS.map(p => ({
-        name: p.name,
-        url: p.url
-      }))
-
-      const setResponse = await sendRequest<{ name: string; success: boolean }>(
-        MessageType.SETTINGS_SET_PREF,
-        { name: PROVIDERS_PREF_KEY, value: defaultProvidersArray },
-        MessageType.SETTINGS_SET_PREF_RESPONSE
-      )
-
-      if (setResponse?.success) {
-        setIsBrowserOS(true)
-        const defaultProviders = mapToProviderList(defaultProvidersArray)
-        setProviders(defaultProviders)
-        setSelectedProviderId(defaultProviders[0]?.id ?? null)
-      } else {
-        throw new Error('Failed to initialize')
-      }
-    } catch (err) {
-      // Fallback to demo mode
-      setIsBrowserOS(false)
-      const defaults = mapToProviderList(DEFAULT_THIRD_PARTY_PROVIDERS)
-      setProviders(defaults)
-      setSelectedProviderId(defaults[0]?.id ?? null)
-      setError('This feature requires BrowserOS browser. Showing demo providers.')
-    } finally {
-      setIsLoading(false)
-    }
-  }, [])
-
-  // Load providers on mount
+  // Load providers from BrowserOS preferences
   useEffect(() => {
+    let mounted = true
+
+    const loadProviders = async () => {
+      const adapter = getBrowserOSAdapter()
+
+      try {
+        const [providersPrefResult, selectedPrefResult] = await Promise.allSettled([
+          adapter.getPref(PROVIDERS_PREF_KEY),
+          adapter.getPref(SELECTED_PROVIDER_PREF_KEY)
+        ])
+
+        if (!mounted) return
+
+        const providersPref =
+          providersPrefResult.status === 'fulfilled' ? providersPrefResult.value : null
+        const selectedPref =
+          selectedPrefResult.status === 'fulfilled' ? selectedPrefResult.value : null
+
+        const config = buildConfigFromPrefs(providersPref?.value, selectedPref?.value)
+
+        if (config && config.providers.length > 0) {
+          const loadedProviders = mapToProviderList(config.providers)
+          const selectedIndex = Math.max(
+            0,
+            Math.min(config.selected_provider, loadedProviders.length - 1)
+          )
+
+          setProviders(loadedProviders)
+          setSelectedProviderId(loadedProviders[selectedIndex]?.id ?? null)
+          setIsBrowserOS(true)
+          setError(null)
+          setIsLoading(false)
+          return
+        }
+
+        if (providersPrefResult.status === 'fulfilled') {
+          const providersPayload = DEFAULT_THIRD_PARTY_CONFIG.providers.map(({ name, url }) => ({
+            name: name.trim(),
+            url: url.trim()
+          }))
+
+          const [providersSuccess, selectedSuccess] = await Promise.all([
+            adapter.setPref(PROVIDERS_PREF_KEY, providersPayload),
+            adapter.setPref(SELECTED_PROVIDER_PREF_KEY, DEFAULT_THIRD_PARTY_CONFIG.selected_provider)
+          ])
+
+          if (!mounted) return
+
+          if (providersSuccess && selectedSuccess) {
+            const defaultProviders = mapToProviderList(DEFAULT_THIRD_PARTY_CONFIG.providers)
+            const defaultSelectedIndex = Math.max(
+              0,
+              Math.min(
+                DEFAULT_THIRD_PARTY_CONFIG.selected_provider,
+                defaultProviders.length - 1
+              )
+            )
+            setProviders(defaultProviders)
+            setSelectedProviderId(defaultProviders[defaultSelectedIndex]?.id ?? null)
+            setIsBrowserOS(true)
+            setError(null)
+            return
+          }
+
+          throw new Error('Failed to persist default providers preferences')
+        }
+
+        throw new Error('BrowserOS providers preference unavailable')
+      } catch (err) {
+        console.error('[ProvidersHub] Error loading providers:', err)
+
+        if (!mounted) return
+
+        // Fallback to demo providers on error
+        const defaults = mapToProviderList(DEFAULT_THIRD_PARTY_PROVIDERS)
+        setProviders(defaults)
+        setSelectedProviderId(defaults[0]?.id ?? null)
+        setIsBrowserOS(false)
+        setError('This feature requires BrowserOS browser. Showing demo providers.')
+      } finally {
+        if (mounted) {
+          setIsLoading(false)
+        }
+      }
+    }
+
     loadProviders()
-  }, [loadProviders])
+
+    return () => {
+      mounted = false
+    }
+  }, [refreshCounter])
 
   const persistConfig = useCallback(
     async (updatedProviders: ThirdPartyLLMProvider[], selectedId: string | null) => {
-      if (!isBrowserOS) {
-        throw new Error('This feature requires BrowserOS browser')
-      }
+      const selectedIndex = updatedProviders.findIndex(p => p.id === selectedId)
+      const safeSelectedIndex = selectedIndex >= 0 ? selectedIndex : 0
 
-      // Browser expects simple array [{name, url}]
-      const simpleProvidersArray = updatedProviders.map(provider => ({
-        name: provider.name.trim(),
-        url: provider.url.trim()
+      const adapter = getBrowserOSAdapter()
+      const providersPayload = updatedProviders.map(p => ({
+        name: p.name.trim(),
+        url: p.url.trim()
       }))
 
-      // Save selected provider to localStorage (extension-only)
-      if (selectedId) {
-        localStorage.setItem('providers-hub-selected', selectedId)
-      }
-
       try {
-        const response = await sendRequest<{ name: string; success: boolean }>(
-          MessageType.SETTINGS_SET_PREF,
-          { name: PROVIDERS_PREF_KEY, value: simpleProvidersArray },
-          MessageType.SETTINGS_SET_PREF_RESPONSE
-        )
+        const [providersSuccess, selectedSuccess] = await Promise.all([
+          adapter.setPref(PROVIDERS_PREF_KEY, providersPayload),
+          adapter.setPref(SELECTED_PROVIDER_PREF_KEY, safeSelectedIndex)
+        ])
 
-        if (!response?.success) {
-          throw new Error('Failed to save providers to BrowserOS preferences')
+        if (!providersSuccess || !selectedSuccess) {
+          throw new Error('setPref returned false')
         }
       } catch (err) {
+        console.error('[ProvidersHub] Error persisting config:', err)
         throw err
       }
     },
-    [isBrowserOS]
+    []
   )
 
   const addProvider = useCallback(async (provider: ProviderInput) => {
@@ -487,8 +460,8 @@ export function useThirdPartyLLMProviders(): UseThirdPartyLLMProvidersResult {
   }, [persistConfig, providers, selectedProviderId, isBrowserOS])
 
   const refresh = useCallback(async () => {
-    await loadProviders()
-  }, [loadProviders])
+    setRefreshCounter(prev => prev + 1)
+  }, [])
 
   return {
     providers,

@@ -45,8 +45,29 @@ function ProviderRow({
 }) {
   const iconUrl = useMemo(() => getFaviconUrl(provider.url), [provider.url])
 
+  const handleRowClick = () => {
+    if (disabled || !isBrowserOS) return
+    if (!isDefault) {
+      onSetDefault(provider)
+    }
+  }
+
+  const handleRowKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault()
+      handleRowClick()
+    }
+  }
+
   return (
-    <div className="flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-6 p-4 rounded-xl border border-border bg-background/70 hover:bg-accent/40 transition-colors">
+    <div
+      role="radio"
+      aria-checked={isDefault}
+      tabIndex={disabled || !isBrowserOS ? -1 : 0}
+      onClick={handleRowClick}
+      onKeyDown={handleRowKeyDown}
+      className="flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-6 p-4 rounded-xl border border-border bg-background/70 hover:bg-accent/40 transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
+    >
       <div className="flex items-center gap-3 flex-1 min-w-0">
         <div className="w-12 h-12 rounded-xl bg-muted flex items-center justify-center overflow-hidden">
           {iconUrl ? (
@@ -75,7 +96,10 @@ function ProviderRow({
       </div>
 
       <div className="flex items-center gap-3">
-        <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer select-none">
+        <label
+          className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer select-none"
+          onClick={event => event.stopPropagation()}
+        >
           <input
             type="radio"
             name="providers-hub-default"
@@ -83,6 +107,7 @@ function ProviderRow({
             checked={isDefault}
             onChange={() => onSetDefault(provider)}
             disabled={disabled || !isBrowserOS}
+            onClick={event => event.stopPropagation()}
           />
           Use as default
         </label>
@@ -90,7 +115,10 @@ function ProviderRow({
           <button
             type="button"
             className="p-2 rounded-lg border border-input text-muted-foreground hover:text-brand hover:border-brand/70 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-            onClick={() => onEdit(provider)}
+            onClick={event => {
+              event.stopPropagation()
+              onEdit(provider)
+            }}
             disabled={disabled || !isBrowserOS}
             aria-label={`Edit ${provider.name}`}
           >
@@ -99,7 +127,10 @@ function ProviderRow({
           <button
             type="button"
             className="p-2 rounded-lg border border-input text-muted-foreground hover:text-destructive hover:border-destructive/70 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-            onClick={() => onDelete(provider)}
+            onClick={event => {
+              event.stopPropagation()
+              onDelete(provider)
+            }}
             disabled={disabled || !isBrowserOS}
             aria-label={`Remove ${provider.name}`}
           >
