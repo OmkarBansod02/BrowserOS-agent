@@ -171,6 +171,14 @@ export class Execution {
       executionContext.setSelectedTabIds(this.options.tabIds === null ? null : (this.options.tabIds || []));
       executionContext.startExecution(this.options.tabId || 0);
 
+      // Log execution start metric
+      await Logging.logMetric('execution.start', {
+        mode: this.options.mode,
+        source: metadata?.source || 'unknown',
+        maxTokens: modelCapabilities.maxTokens,
+        limitedContextMode: limitedContextMode
+      });
+
       // Evals2: start a session and attach parent span to context
       let parentSpanId: string | undefined;
       const evalsEventMgr = BraintrustEventManager.getInstance();
