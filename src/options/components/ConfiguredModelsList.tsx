@@ -360,7 +360,7 @@ export function ConfiguredModelsList({
                   name="default-provider"
                   checked={defaultProvider === provider.id}
                   onChange={() => onSetDefault(provider.id)}
-                  className="w-4 h-4 text-primary focus:ring-primary pointer-events-none"
+                  className="pointer-events-none"
                 />
 
                 {/* Provider info */}
