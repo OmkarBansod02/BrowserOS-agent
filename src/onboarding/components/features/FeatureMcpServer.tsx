@@ -49,7 +49,7 @@ export function FeatureMcpServer() {
           <div className="relative pb-[56.25%]">
             <video
               className="absolute top-0 left-0 w-full h-full"
-              src="/assets/MCP.mp4"
+              src="https://pub-80f8a01e6e8b4239ae53a7652ef85877.r2.dev/resources/browseros-as-mcp-server.mp4"
               title="BrowserOS MCP Server Demonstration"
               autoPlay
               muted
