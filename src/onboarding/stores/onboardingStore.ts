@@ -1,9 +1,9 @@
 import { create } from 'zustand'
 
-const TOTAL_STEPS = 9  // Welcome, Step 1, Step 2, Step 3, Video, Completion, Split-View, Agent Mode, Teach Mode, Quick Search
+const TOTAL_STEPS = 10  // Welcome, Step 1, Step 2, Step 3, Video, Completion, Split-View, Agent Mode, MCP Server, Teach Mode, Quick Search
 
 interface OnboardingState {
-  currentStep: number  // 0 = welcome, 1-3 = steps, 4 = video, 5 = completion, 6-9 = features
+  currentStep: number  // 0 = welcome, 1-3 = steps, 4 = video, 5 = completion, 6-10 = features
   videoSkipped: boolean
   completedSteps: Set<number>
 

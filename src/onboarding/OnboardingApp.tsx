@@ -10,6 +10,7 @@ import { VideoStep } from './components/VideoStep'
 import { CompletionScreen } from './components/CompletionScreen'
 import { FeatureAgentMode } from './components/features/FeatureAgentMode'
 import { FeatureSplitView } from './components/features/FeatureSplitView'
+import { FeatureMcpServer } from './components/features/FeatureMcpServer'
 import { FeatureTeachMode } from './components/features/FeatureTeachMode'
 import { FeatureQuickSearch } from './components/features/FeatureQuickSearch'
 import './styles.css'
@@ -46,8 +47,10 @@ export function OnboardingApp() {
       case 7:
         return <FeatureAgentMode />
       case 8:
-        return <FeatureTeachMode />
+        return <FeatureMcpServer />
       case 9:
+        return <FeatureTeachMode />
+      case 10:
         return <FeatureQuickSearch />
       default:
         return <WelcomeStep />

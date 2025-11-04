@@ -880,12 +880,68 @@ p, span, div, h1, h2, h3, h4, h5, h6, li, td, th, label, input, textarea, button
 }
 
 /* Normalize bullets in Extracted Items card: hide native summary marker */
-.extract-card details > summary::-webkit-details-marker { 
-  display: none; 
+.extract-card details > summary::-webkit-details-marker {
+  display: none;
 }
-.extract-card details > summary::marker { 
-  content: ''; 
+.extract-card details > summary::marker {
+  content: '';
 }
 .extract-card details > summary {
   list-style: none; /* Ensure no list marker across browsers */
+}
+
+/* Custom Radio Button Styling - Professional Clean Design */
+input[type="radio"] {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  width: 16px;
+  height: 16px;
+  min-width: 16px;
+  min-height: 16px;
+  border: 1.5px solid hsl(var(--border));
+  border-radius: 50%;
+  outline: none;
+  cursor: pointer;
+  position: relative;
+  background-color: hsl(var(--background));
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+input[type="radio"]:checked {
+  background-color: #16a34a;
+  border-color: #16a34a;
+}
+
+input[type="radio"]:checked::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background-color: #ffffff;
+}
+
+input[type="radio"]:hover:not(:disabled):not(:checked) {
+  border-color: #16a34a;
+}
+
+input[type="radio"]:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+}
+
+input[type="radio"]:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+/* Dark theme adjustments */
+.dark input[type="radio"]:checked,
+.gray input[type="radio"]:checked {
+  background-color: #16a34a;
+  border-color: #16a34a;
 }

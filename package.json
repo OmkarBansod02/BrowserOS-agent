@@ -1,7 +1,7 @@
 {
-  "name": "nxtscape-agent",
+  "name": "Agent",
   "version": "0.1.0",
-  "description": "nxtscape agent",
+  "description": "BrowserOS Agent",
   "main": "dist/background.js",
   "scripts": {
     "build": "npm run clean && cross-env NODE_ENV=production webpack --config webpack.config.js",
