@@ -103,7 +103,6 @@ function ProviderRow({
           <input
             type="radio"
             name="providers-hub-default"
-            className="h-4 w-4 text-brand focus:ring-brand"
             checked={isDefault}
             onChange={() => onSetDefault(provider)}
             disabled={disabled || !isBrowserOS}
