@@ -36,7 +36,6 @@ interface LogUtilityOptions {
 export class Logging {
   private static connectedPorts = new Map<string, chrome.runtime.Port>()
   private static debugMode = false
-  private static browserOSAdapter = getBrowserOSAdapter()
   private static posthogInitialized = false
   private static posthogApiKey = process.env.POSTHOG_API_KEY
   
@@ -182,7 +181,7 @@ export class Logging {
     }
     
     try {
-      await this.browserOSAdapter.logMetric(prefixedEventName, enhancedProperties)
+      await getBrowserOSAdapter().logMetric(prefixedEventName, enhancedProperties)
     } catch (error) {
       // BrowserOS failed, use PostHog fallback
       if (this.posthogApiKey && this.posthogInitialized) {
