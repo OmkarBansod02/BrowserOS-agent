@@ -50,7 +50,7 @@ const DEFAULT_DISPLAY_COUNT = 4 // Fixed number of examples to show
  * Displays a list of chat messages with auto-scroll and empty state
  */
 export function MessageList({ messages, isProcessing = false, onScrollStateChange, scrollToBottom: externalScrollToBottom, containerRef: externalContainerRef }: MessageListProps) {
-  const { containerRef: internalContainerRef, isUserScrolling, scrollToBottom } = useAutoScroll<HTMLDivElement>([messages], externalContainerRef)
+  const { containerRef: internalContainerRef, isUserScrolling, scrollToBottom } = useAutoScroll<HTMLDivElement>([messages], externalContainerRef, isProcessing)
   const { trackFeature } = useAnalytics()
   const { sendMessage } = useSidePanelPortMessaging()
   const { upsertMessage, setProcessing } = useChatStore()
