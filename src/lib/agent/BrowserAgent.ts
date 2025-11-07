@@ -304,11 +304,6 @@ export class BrowserAgent {
     // Populate tool descriptions after all tools are registered
     this.toolDescriptions = getToolDescriptions(this.executionContext.isLimitedContextMode());
 
-    // DEBUG: Log tool descriptions to verify YouTube tool is included
-    console.log('🔍 DEBUG: Tool descriptions length:', this.toolDescriptions?.length || 0);
-    console.log('🔍 DEBUG: YouTube tool in descriptions:', this.toolDescriptions?.includes('youtube_tool') ? 'YES' : 'NO');
-    console.log('🔍 DEBUG: First 500 chars of toolDescriptions:', this.toolDescriptions?.substring(0, 500));
-
     Logging.log(
       "BrowserAgent",
       `Registered ${this.toolManager.getAll().length} tools`,
@@ -742,13 +737,6 @@ export class BrowserAgent {
       // System prompt for planner
       const systemPrompt = generatePlannerPrompt(this.toolDescriptions || "");
 
-      // DEBUG: Log system prompt details
-      console.log('🎯 DEBUG: Planner system prompt length:', systemPrompt.length);
-      console.log('🎯 DEBUG: YouTube tool in planner prompt:', systemPrompt.includes('youtube_tool') ? 'YES' : 'NO');
-      console.log('🎯 DEBUG: MANDATORY rule in prompt:', systemPrompt.includes('MANDATORY for YouTube') ? 'YES' : 'NO');
-      console.log('🎯 DEBUG: Tool descriptions passed:', this.toolDescriptions ? 'EXISTS' : 'MISSING');
-      console.log('🎯 DEBUG: First 1000 chars of planner prompt:', systemPrompt.substring(0, 1000));
-
       const systemPromptTokens = TokenCounter.countMessage(new SystemMessage(systemPrompt));
       const fullHistoryTokens = TokenCounter.countMessage(new HumanMessage(fullHistory));
       Logging.log("BrowserAgent", `Full execution history tokens: ${fullHistoryTokens}`, "info");
@@ -854,11 +842,6 @@ ${fullHistory}
     actions: string[],
     plannerOutput: PlannerOutput | PredefinedPlannerOutput
   ): Promise<ExecutorResult> {
-    // DEBUG: Log what actions the planner proposed
-    console.log('🎭 DEBUG: Planner proposed actions:', actions);
-    console.log('🎭 DEBUG: Any action mentions youtube_tool:', actions.some(a => a.toLowerCase().includes('youtube')) ? 'YES' : 'NO');
-    console.log('🎭 DEBUG: Any action mentions extract:', actions.some(a => a.toLowerCase().includes('extract')) ? 'YES' : 'NO');
-
     // Use the current iteration message manager from execution context
     const executorMM = new MessageManager();
     const systemPrompt = generateExecutorPrompt(this._buildExecutionContext());
