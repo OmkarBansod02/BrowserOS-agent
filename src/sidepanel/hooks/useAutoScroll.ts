@@ -22,7 +22,8 @@ const AT_BOTTOM_THRESHOLD_PX = 4
  */
 export function useAutoScroll<T extends HTMLElement>(
   dependencies: unknown[] = [],
-  externalRef?: React.RefObject<T>
+  externalRef?: React.RefObject<T>,
+  isProcessing = false
 ) {
   // Use external container ref if provided, otherwise manage our own
   const internalRef = useRef<T>(null)
@@ -88,14 +89,17 @@ export function useAutoScroll<T extends HTMLElement>(
     // Auto-scroll only if feature enabled and pinned (user hasn't scrolled up)
     if (!autoScrollEnabled || !pinnedToBottomRef.current) return
 
+    // Use instant scroll during processing to prevent jitter
+    const scrollBehavior = isProcessing ? 'auto' : 'smooth'
+
     // Use requestAnimationFrame for smooth scrolling
     requestAnimationFrame(() => {
       container.scrollTo({
         top: container.scrollHeight,
-        behavior: 'smooth'
+        behavior: scrollBehavior
       })
     })
-  }, dependencies)
+  }, [...dependencies, isProcessing])
 
   // Memoize scrollToBottom function to prevent recreation
   const scrollToBottom = useCallback(() => {
