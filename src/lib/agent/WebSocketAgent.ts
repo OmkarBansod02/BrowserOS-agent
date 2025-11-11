@@ -323,7 +323,7 @@ ${formattedSteps}`;
     // Gather browser context and append
     const browserContext = await this._getBrowserContext();
     const tabInfoStr = browserContext && browserContext.url
-      ? `\n\nContext: Current user's open tab: Title: ${browserContext.title} URL: ${browserContext.url}`
+      ? `\n\nContext: Current user's active tab: Tab ID: ${browserContext.tabId}, Title: ${browserContext.title}, URL: ${browserContext.url}${browserContext.selectedTabIds?.length > 0 ? `, Selected Tabs: ${browserContext.selectedTabIds.join(', ')}` : ''}`
       : '';
 
     messageContent += tabInfoStr;
