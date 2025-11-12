@@ -257,7 +257,10 @@ export class SettingsHandler {
               openAIApiKey: provider.apiKey,
               modelName: modelId,
               temperature: (isGPT5Model || isO1Model) ? 1 : 0.7,
-              streaming: false
+              streaming: false,
+              configuration: {
+                baseURL: provider.baseUrl || 'https://api.openai.com/v1'
+              }
             }
 
             // GPT-5 models: no token limit (API schema unclear until official release)
@@ -280,7 +283,8 @@ export class SettingsHandler {
               modelName: provider.modelId || 'claude-3-5-sonnet-latest',
               temperature: 0.7,
               maxTokens: 100,
-              streaming: false
+              streaming: false,
+              anthropicApiUrl: provider.baseUrl || 'https://api.anthropic.com'
             })
             break
 
@@ -293,7 +297,8 @@ export class SettingsHandler {
               temperature: 0.7,
               maxOutputTokens: 100,
               apiKey: provider.apiKey,
-              convertSystemMessageToHumanContent: true
+              convertSystemMessageToHumanContent: true,
+              baseUrl: provider.baseUrl || 'https://generativelanguage.googleapis.com'
             })
             break
 
