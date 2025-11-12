@@ -594,7 +594,8 @@ export class LangChainProvider {
       temperature,
       maxOutputTokens: maxTokens,
       apiKey: provider.apiKey,
-      convertSystemMessageToHumanContent: true
+      convertSystemMessageToHumanContent: true,
+      baseUrl: provider.baseUrl || 'https://generativelanguage.googleapis.com'
     })
 
     return this._patchTokenCounting(model)
