@@ -12,7 +12,7 @@ import {
 import { Runnable } from "@langchain/core/runnables";
 import { BaseLanguageModelInput } from "@langchain/core/language_models/base";
 import { z } from "zod";
-import { getLLM } from "@/lib/llm/LangChainProvider";
+import { getLLM, getStructuredLLM } from "@/lib/llm/LangChainProvider";
 import BrowserPage from "@/lib/browser/BrowserPage";
 import { PubSub } from "@/lib/pubsub";
 import { PubSubChannel } from "@/lib/pubsub/PubSubChannel";
@@ -756,13 +756,12 @@ export class BrowserAgent {
 
       Logging.log("BrowserAgent", `Full execution history: ${fullHistory}`, "info");
 
-      // Get LLM with structured output
-      const llm = await getLLM({
+      // Get structured LLM configured for current provider
+      const structuredLLM = await getStructuredLLM(PlannerOutputSchema, {
         temperature: 0.2,
         maxTokens: 4096,
         intelligence: 'high'
       });
-      const structuredLLM = llm.withStructuredOutput(PlannerOutputSchema);
       const executionContext = `EXECUTION CONTEXT\n ${this.executionContext.isLimitedContextMode() ? this._buildExecutionContext() : ''}`;
 
       const userPrompt = `TASK: ${task}
@@ -1377,13 +1376,12 @@ ${fullHistory}
         fullHistory = summary.summary;
       }
 
-      // Get LLM with structured output
-      const llm = await getLLM({
+      // Get structured LLM configured for current provider
+      const structuredLLM = await getStructuredLLM(PredefinedPlannerOutputSchema, {
         temperature: 0.2,
         maxTokens: 4096,
         intelligence: 'high'
       });
-      const structuredLLM = llm.withStructuredOutput(PredefinedPlannerOutputSchema);
       const executionContext = `EXECUTION CONTEXT\n ${this.executionContext.isLimitedContextMode() ? this._buildExecutionContext() : ''}`;
 
       const userPrompt = `Current TODO List:
@@ -1531,13 +1529,12 @@ ${fullHistory}
         !/^[-*]\s*Proposed Actions[:]?/i.test(line.trim())
       )
       .join('\n')
-    // Get LLM with structured output
-    const llm = await getLLM({
+    // Get structured LLM configured for current provider
+    const structuredLLM = await getStructuredLLM(ExecutionHistorySummarySchema, {
       temperature: 0.2,
       maxTokens: 4096,
       intelligence: 'high'
     });
-    const structuredLLM = llm.withStructuredOutput(ExecutionHistorySummarySchema);
     const systemPrompt = generateExecutionHistorySummaryPrompt();
     const userPrompt = `Execution History: ${historyWithoutSections}`;
     const messages = [
