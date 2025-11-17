@@ -1,6 +1,7 @@
 # Dependencies
 accessibility-tree.txt
 
+.env.dev
 thoughts/
 
 node_modules/

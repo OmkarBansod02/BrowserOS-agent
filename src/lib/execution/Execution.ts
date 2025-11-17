@@ -223,7 +223,7 @@ export class Execution {
         // Check if BrowserOS provider is selected and websocket agent feature is enabled
         const providerType = await langChainProvider.getCurrentProviderType() || '';
         const featureFlags = getFeatureFlags();
-        const wsAgentEnabled = featureFlags.isEnabled('WEBSOCKET_AGENT');
+        const wsAgentEnabled = false; // featureFlags.isEnabled('WEBSOCKET_AGENT');
 
         if (providerType === 'browseros' && wsAgentEnabled) {
           // Use TeachWebSocketAgent for teach mode with BrowserOS provider
@@ -266,7 +266,7 @@ export class Execution {
         // Browse mode - check if BrowserOS mode is enabled and websocket agent feature is enabled
         const providerType = await langChainProvider.getCurrentProviderType() || '';
         const featureFlags = getFeatureFlags();
-        const wsAgentEnabled = featureFlags.isEnabled('WEBSOCKET_AGENT');
+        const wsAgentEnabled = false; // featureFlags.isEnabled('WEBSOCKET_AGENT');
 
         // Use WebSocketAgent only when BrowserOS provider is selected and feature is enabled
         if (providerType === 'browseros' && wsAgentEnabled) {
@@ -363,13 +363,13 @@ export class Execution {
             // Check if TeachWebSocketAgent was used
             const providerType = await langChainProvider.getCurrentProviderType() || '';
             const featureFlags = getFeatureFlags();
-            const wsAgentEnabled = featureFlags.isEnabled('WEBSOCKET_AGENT');
+            const wsAgentEnabled = false; // featureFlags.isEnabled('WEBSOCKET_AGENT');
             agentName = (providerType === 'browseros' && wsAgentEnabled) ? 'TeachWebSocketAgent' : 'TeachAgent';
           } else {
             // Browse mode - check which agent was used
             const providerType = await langChainProvider.getCurrentProviderType() || '';
             const featureFlags = getFeatureFlags();
-            const wsAgentEnabled = featureFlags.isEnabled('WEBSOCKET_AGENT');
+            const wsAgentEnabled = false; // featureFlags.isEnabled('WEBSOCKET_AGENT');
 
             if (providerType === 'browseros' && wsAgentEnabled) {
               agentName = 'WebSocketAgent';
