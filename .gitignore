@@ -1,5 +1,6 @@
 # Dependencies
 accessibility-tree.txt
+.env.dev
 
 .env.dev
 thoughts/
