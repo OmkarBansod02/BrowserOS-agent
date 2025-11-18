@@ -498,50 +498,42 @@ export class LangChainProvider {
     }
 
     let model: BaseChatModel
-    const isAnthropicProvider = selectedProvider.indexOf('claude') !== -1 ||
-                                selectedProvider.indexOf('anthropic') !== -1
 
-    if (isAnthropicProvider) {
-      model = new ChatAnthropic({
-        modelName: selectedProvider,
-        temperature,
-        maxTokens,
-        streaming,
-        anthropicApiKey: 'nokey',
-        anthropicApiUrl: proxyUrl
-      })
-    } else {
-      // For OpenAI and all other providers (openai/, gpt, etc.)
-      // Check if it's a reasoning model that needs special handling
-      const isReasoningModel = this._isReasoningModel(selectedProvider)
+    // OpenRouter (used by BrowserOS) provides OpenAI-compatible API
+    // Always use ChatOpenAI, even for Claude models
+    // ChatAnthropic would send Anthropic-specific parameters (system, thinking, top_k)
+    // that OpenRouter doesn't recognize
 
-      const config: any = {
-        modelName: selectedProvider,
-        temperature: isReasoningModel ? 1 : temperature,  // Reasoning models use temperature 1
-        streaming,
-        openAIApiKey: 'nokey',
-        configuration: {
-          baseURL: proxyUrl,
-          apiKey: 'nokey',
-          dangerouslyAllowBrowser: true
-        }
+    // Check if it's a reasoning model that needs special handling
+    const isReasoningModel = this._isReasoningModel(selectedProvider)
+
+    const config: any = {
+      modelName: selectedProvider,
+      temperature: isReasoningModel ? 1 : temperature,  // Reasoning models use temperature 1
+      topP: isReasoningModel ? undefined : 1,  // Reasoning models don't support topP
+      streaming,
+      openAIApiKey: 'nokey',
+      configuration: {
+        baseURL: proxyUrl,
+        apiKey: 'nokey',
+        dangerouslyAllowBrowser: true
       }
-
-      // For reasoning models, use appropriate token parameter
-      if (isReasoningModel && maxTokens) {
-        if (this._isO1StyleReasoningModel(selectedProvider)) {
-          config.modelKwargs = {
-            max_completion_tokens: maxTokens
-          }
-        } else if (this._isGPT5StyleReasoningModel(selectedProvider)) {
-          // GPT-5: No token limit until API schema is officially released
-        }
-      } else if (maxTokens) {
-        config.maxTokens = maxTokens
-      }
-
-      model = new ChatOpenAI(config)
     }
+
+    // For reasoning models, use appropriate token parameter
+    if (isReasoningModel && maxTokens) {
+      if (this._isO1StyleReasoningModel(selectedProvider)) {
+        config.modelKwargs = {
+          max_completion_tokens: maxTokens
+        }
+      } else if (this._isGPT5StyleReasoningModel(selectedProvider)) {
+        // GPT-5: No token limit until API schema is officially released
+      }
+    } else if (maxTokens) {
+      config.maxTokens = maxTokens
+    }
+
+    model = new ChatOpenAI(config)
 
     return this._patchTokenCounting(model)
   }
@@ -588,6 +580,7 @@ export class LangChainProvider {
       }
     } else {
       config.temperature = temperature
+      config.topP = 1
       if (maxTokens) {
         config.maxTokens = maxTokens
       }
@@ -615,6 +608,7 @@ export class LangChainProvider {
       temperature,
       maxTokens,
       streaming,
+      topP: 1,
       anthropicApiKey: provider.apiKey,
       anthropicApiUrl: provider.baseUrl || 'https://api.anthropic.com'
     })
