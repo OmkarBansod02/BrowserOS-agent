@@ -12,7 +12,7 @@ import {
 import { Runnable } from "@langchain/core/runnables";
 import { BaseLanguageModelInput } from "@langchain/core/language_models/base";
 import { z } from "zod";
-import { getLLM } from "@/lib/llm/LangChainProvider";
+import { getLLM, getStructuredLLM } from "@/lib/llm/LangChainProvider";
 import BrowserPage from "@/lib/browser/BrowserPage";
 import { PubSub } from "@/lib/pubsub";
 import { PubSubChannel } from "@/lib/pubsub/PubSubChannel";
@@ -542,12 +542,11 @@ export class TeachAgent {
 
       Logging.log("TeachAgent", `Full execution history: ${fullHistory}`, "info");
 
-      // Get LLM with structured output
-      const llm = await getLLM({
+      // Get structured LLM configured for current provider
+      const structuredLLM = await getStructuredLLM(PlannerOutputSchema, {
         temperature: 0.2,
         maxTokens: 4096,
       });
-      const structuredLLM = llm.withStructuredOutput(PlannerOutputSchema);
 
       const userPrompt = `TASK: ${workflow.metadata.goal}
 
@@ -1157,12 +1156,11 @@ ${fullHistory}
 
   private async summarizeExecutionHistory(history: string): Promise<ExecutionHistorySummary> {
 
-    // Get LLM with structured output
-    const llm = await getLLM({
+    // Get structured LLM configured for current provider
+    const structuredLLM = await getStructuredLLM(ExecutionHistorySummarySchema, {
       temperature: 0.2,
       maxTokens: 4096,
     });
-    const structuredLLM = llm.withStructuredOutput(ExecutionHistorySummarySchema);
     const systemPrompt = generateExecutionHistorySummaryPrompt();
     const userPrompt = `Execution History: ${history}`;
     const messages = [
