@@ -191,9 +191,9 @@ export class LangChainProvider {
     const provider = await LLMSettingsReader.read()
     const llm = await this.getLLM(options)
 
-    // OpenRouter needs special handling for structured outputs
-    if (provider.type === 'openrouter') {
-      // Use json_schema method for OpenRouter to properly pass response_format
+    // OpenRouter and BrowserOS (which uses OpenRouter) need special handling
+    if (provider.type === 'openrouter' || provider.type === 'browseros') {
+      // Use json_schema method to properly pass response_format
       // This ensures OpenRouter routes to providers that support structured outputs
       try {
         return llm.withStructuredOutput(schema, {
@@ -204,7 +204,7 @@ export class LangChainProvider {
       } catch (error) {
         // Fallback to default if json_schema method not supported
         Logging.log('LangChainProvider',
-          'OpenRouter json_schema method failed, falling back to default',
+          `${provider.type} json_schema method failed, falling back to default`,
           'warning')
         return llm.withStructuredOutput(schema)
       }
@@ -217,11 +217,6 @@ export class LangChainProvider {
 
     // OpenAI and OpenAI-compatible providers
     if (provider.type === 'openai' || provider.type === 'openai_compatible') {
-      return llm.withStructuredOutput(schema)
-    }
-
-    // BrowserOS uses the appropriate method based on underlying provider
-    if (provider.type === 'browseros') {
       return llm.withStructuredOutput(schema)
     }
 
