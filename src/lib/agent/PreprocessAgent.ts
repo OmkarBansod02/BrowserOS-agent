@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { SystemMessage, HumanMessage } from "@langchain/core/messages";
-import { getLLM } from "@/lib/llm/LangChainProvider";
+import { getLLM, getStructuredLLM } from "@/lib/llm/LangChainProvider";
 import { Logging } from "@/lib/utils/Logging";
 import { invokeWithRetry } from "@/lib/utils/retryable";
 import { PubSubChannel } from "@/lib/pubsub/PubSubChannel";
@@ -310,11 +310,10 @@ export class PreprocessAgent {
         eventId: event.id,
         targetElement: event.target?.element?.tagName || 'none'
       });
-      const llm = await getLLM({
+      const structuredLLM = await getStructuredLLM(EventAnalysisSchema, {
         temperature: 0.3,
         maxTokens: 2048
       });
-      const structuredLLM = llm.withStructuredOutput(EventAnalysisSchema);
 
       // Build multi-message context for LLM
       const systemPrompt = generateEventAnalysisPrompt();
@@ -490,11 +489,10 @@ ${narration ? `"${narration}"` : "(No narration provided)"}
         hasNarration: !!narration
       });
 
-      const llm = await getLLM({
+      const structuredLLM = await getStructuredLLM(WorkflowMetadataSchema, {
         temperature: 0.3,
         maxTokens: 1024
       });
-      const structuredLLM = llm.withStructuredOutput(WorkflowMetadataSchema);
 
       const systemPrompt = generateWorkflowMetadataPrompt();
 

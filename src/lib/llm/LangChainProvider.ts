@@ -14,6 +14,7 @@ import { ChatOllama } from "@langchain/ollama"
 import { ChatGoogleGenerativeAI } from "@langchain/google-genai"
 import { BaseChatModel } from "@langchain/core/language_models/chat_models"
 import { BaseMessage } from "@langchain/core/messages"
+import { Runnable } from "@langchain/core/runnables"
 import { LLMSettingsReader } from "@/lib/llm/settings/LLMSettingsReader"
 import { BrowserOSProvider } from '@/lib/llm/settings/browserOSTypes'
 import { Logging } from '@/lib/utils/Logging'
@@ -67,7 +68,7 @@ export class LangChainProvider {
   // Model config cache for BrowserOS - now stores full API response
   private modelConfigCache: { config: BrowserOSModelConfig; timestamp: number } | null = null
   private readonly CACHE_DURATION_MS = 5 * 60 * 1000  // 5 minutes
-  
+
   // Constructor and initialization
   static getInstance(): LangChainProvider {
     if (!LangChainProvider.instance) {
@@ -75,7 +76,7 @@ export class LangChainProvider {
     }
     return LangChainProvider.instance
   }
-  
+
   // Public getter methods
   async getLLM(options?: LLMOptions): Promise<BaseChatModel> {
     // Parse and validate options with defaults
@@ -177,6 +178,50 @@ export class LangChainProvider {
     }
 
     return { maxTokens, supportsImages }
+  }
+
+  /**
+   * Get a structured LLM that's configured for the current provider
+   * Handles provider-specific quirks for structured output
+   * @param schema - Zod schema for the structured output
+   * @param options - LLM options (temperature, maxTokens, etc.)
+   * @returns Runnable configured for structured output
+   */
+  async getStructuredLLM(schema: z.ZodSchema, options?: LLMOptions): Promise<Runnable> {
+    const provider = await LLMSettingsReader.read()
+    const llm = await this.getLLM(options)
+
+    // OpenRouter and BrowserOS (which uses OpenRouter) need special handling
+    if (provider.type === 'openrouter' || provider.type === 'browseros') {
+      // Use json_schema method to properly pass response_format
+      // This ensures OpenRouter routes to providers that support structured outputs
+      try {
+        return llm.withStructuredOutput(schema, {
+          method: 'json_schema',
+          name: 'structured_output',
+          strict: true
+        } as any)
+      } catch (error) {
+        // Fallback to default if json_schema method not supported
+        Logging.log('LangChainProvider',
+          `${provider.type} json_schema method failed, falling back to default`,
+          'warning')
+        return llm.withStructuredOutput(schema)
+      }
+    }
+
+    // Anthropic works well with default structured output
+    if (provider.type === 'anthropic') {
+      return llm.withStructuredOutput(schema)
+    }
+
+    // OpenAI and OpenAI-compatible providers
+    if (provider.type === 'openai' || provider.type === 'openai_compatible') {
+      return llm.withStructuredOutput(schema)
+    }
+
+    // Ollama and other providers - use default
+    return llm.withStructuredOutput(schema)
   }
 
   async getCurrentProviderType(): Promise<string> {
@@ -453,50 +498,42 @@ export class LangChainProvider {
     }
 
     let model: BaseChatModel
-    const isAnthropicProvider = selectedProvider.indexOf('claude') !== -1 ||
-                                selectedProvider.indexOf('anthropic') !== -1
 
-    if (isAnthropicProvider) {
-      model = new ChatAnthropic({
-        modelName: selectedProvider,
-        temperature,
-        maxTokens,
-        streaming,
-        anthropicApiKey: 'nokey',
-        anthropicApiUrl: proxyUrl
-      })
-    } else {
-      // For OpenAI and all other providers (openai/, gpt, etc.)
-      // Check if it's a reasoning model that needs special handling
-      const isReasoningModel = this._isReasoningModel(selectedProvider)
+    // OpenRouter (used by BrowserOS) provides OpenAI-compatible API
+    // Always use ChatOpenAI, even for Claude models
+    // ChatAnthropic would send Anthropic-specific parameters (system, thinking, top_k)
+    // that OpenRouter doesn't recognize
 
-      const config: any = {
-        modelName: selectedProvider,
-        temperature: isReasoningModel ? 1 : temperature,  // Reasoning models use temperature 1
-        streaming,
-        openAIApiKey: 'nokey',
-        configuration: {
-          baseURL: proxyUrl,
-          apiKey: 'nokey',
-          dangerouslyAllowBrowser: true
-        }
+    // Check if it's a reasoning model that needs special handling
+    const isReasoningModel = this._isReasoningModel(selectedProvider)
+
+    const config: any = {
+      modelName: selectedProvider,
+      temperature: isReasoningModel ? 1 : temperature,  // Reasoning models use temperature 1
+      topP: isReasoningModel ? undefined : 1,  // Reasoning models don't support topP
+      streaming,
+      openAIApiKey: 'nokey',
+      configuration: {
+        baseURL: proxyUrl,
+        apiKey: 'nokey',
+        dangerouslyAllowBrowser: true
       }
-
-      // For reasoning models, use appropriate token parameter
-      if (isReasoningModel && maxTokens) {
-        if (this._isO1StyleReasoningModel(selectedProvider)) {
-          config.modelKwargs = {
-            max_completion_tokens: maxTokens
-          }
-        } else if (this._isGPT5StyleReasoningModel(selectedProvider)) {
-          // GPT-5: No token limit until API schema is officially released
-        }
-      } else if (maxTokens) {
-        config.maxTokens = maxTokens
-      }
-
-      model = new ChatOpenAI(config)
     }
+
+    // For reasoning models, use appropriate token parameter
+    if (isReasoningModel && maxTokens) {
+      if (this._isO1StyleReasoningModel(selectedProvider)) {
+        config.modelKwargs = {
+          max_completion_tokens: maxTokens
+        }
+      } else if (this._isGPT5StyleReasoningModel(selectedProvider)) {
+        // GPT-5: No token limit until API schema is officially released
+      }
+    } else if (maxTokens) {
+      config.maxTokens = maxTokens
+    }
+
+    model = new ChatOpenAI(config)
 
     return this._patchTokenCounting(model)
   }
@@ -543,6 +580,7 @@ export class LangChainProvider {
       }
     } else {
       config.temperature = temperature
+      config.topP = 1
       if (maxTokens) {
         config.maxTokens = maxTokens
       }
@@ -570,6 +608,7 @@ export class LangChainProvider {
       temperature,
       maxTokens,
       streaming,
+      topP: 1,
       anthropicApiKey: provider.apiKey,
       anthropicApiUrl: provider.baseUrl || 'https://api.anthropic.com'
     })
@@ -594,7 +633,8 @@ export class LangChainProvider {
       temperature,
       maxOutputTokens: maxTokens,
       apiKey: provider.apiKey,
-      convertSystemMessageToHumanContent: true
+      convertSystemMessageToHumanContent: true,
+      baseUrl: provider.baseUrl || 'https://generativelanguage.googleapis.com'
     })
 
     return this._patchTokenCounting(model)
@@ -642,4 +682,9 @@ export const langChainProvider = LangChainProvider.getInstance()
 // Convenience function for quick access
 export async function getLLM(options?: LLMOptions): Promise<BaseChatModel> {
   return langChainProvider.getLLM(options)
+}
+
+// Convenience function for getting structured LLM
+export async function getStructuredLLM(schema: z.ZodSchema, options?: LLMOptions): Promise<Runnable> {
+  return langChainProvider.getStructuredLLM(schema, options)
 }

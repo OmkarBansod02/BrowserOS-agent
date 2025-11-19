@@ -80,7 +80,7 @@ export function TeachModeHome() {
 
           {/* Title Section - Always visible */}
           <div className="flex flex-col items-center justify-center -mt-4">
-            <h2 className="text-3xl font-bold text-muted-foreground animate-fade-in-up text-center px-2 leading-tight">
+            <h2 className="text-3xl font-bold text-muted-foreground text-center px-2 leading-tight">
               <div className="flex items-center justify-center gap-2">
                 <span>Your</span>
                 <span className="text-brand">Copycat</span>
@@ -90,7 +90,7 @@ export function TeachModeHome() {
                 <img
                   src="/assets/browseros.svg"
                   alt="BrowserOS"
-                  className="w-8 h-8 inline-block align-middle animate-fade-in-up"
+                  className="w-8 h-8 inline-block align-middle"
                 />
               </div>
             </h2>
@@ -98,7 +98,7 @@ export function TeachModeHome() {
 
           {/* Question */}
           <div className="mb-8 mt-2">
-            <h3 className="text-lg font-semibold text-foreground mb-6 animate-fade-in-up" style={{ animationDelay: '0.4s' }}>
+            <h3 className="text-lg font-semibold text-foreground mb-6">
               What would you like to automate?
             </h3>
 
@@ -255,10 +255,10 @@ export function TeachModeHome() {
                 onClick={handleCreateNew}
                 size="sm"
                 className="h-9 rounded-full px-4 bg-[hsl(var(--brand))] hover:bg-[hsl(var(--brand))]/90 text-white shadow-lg flex items-center gap-2 whitespace-nowrap w-full min-[450px]:w-auto"
-                aria-label="Teach new workflow"
+                aria-label="Teach"
               >
                 <Wand2 className="w-4 h-4" />
-                Teach new workflow
+                Teach
               </Button>
             </div>
           </div>

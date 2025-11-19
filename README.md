@@ -1,6 +1,6 @@
 # BrowserOS Agent
 
-> **⚠️ Note:** This is only the submodule for the browserOS agent, the main project is at -- https://github.com/browseros-ai/BrowserOS
+> **⚠️ NOTE:** This is only a submodule for the browserOS agent, the main project is at -- https://github.com/browseros-ai/BrowserOS
 
 ## Contributing
 
