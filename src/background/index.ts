@@ -54,7 +54,17 @@ function registerHandlers(): void {
   // Execution handlers
   messageRouter.registerHandler(
     MessageType.EXECUTE_QUERY,
-    (msg, port) => executionHandler.handleExecuteQuery(msg, port)
+    (msg, port) => {
+      // Security: Validate origin to prevent IPC spoofing
+      const EXTENSION_ORIGIN = new URL(chrome.runtime.getURL("/")).origin
+      const SIDE_PANEL_URL = chrome.runtime.getURL("sidepanel.html")
+      
+      if (port.sender?.origin === EXTENSION_ORIGIN && port.sender?.url === SIDE_PANEL_URL) {
+        return executionHandler.handleExecuteQuery(msg, port)
+      } else {
+        Logging.log('Background', `Blocked unauthorized IPC attempt from: ${port.sender?.url}`, 'warning')
+      }
+    }
   )
   
   messageRouter.registerHandler(
@@ -388,6 +398,16 @@ chrome.runtime.onInstalled.addListener(async (details) => {
     }
   }
   // On update: do nothing (user has already seen it or can revisit from settings)
+  
+  // Security: Restrict storage access
+  try {
+    // @ts-ignore - setAccessLevel might not be in the types yet but is supported
+    if (chrome.storage.local.setAccessLevel) {
+      await chrome.storage.local.setAccessLevel({ accessLevel: 'TRUSTED_CONTEXTS' })
+    }
+  } catch (error) {
+    console.error('Failed to set storage access level:', error)
+  }
 })
 
 /**
@@ -433,6 +453,21 @@ function initialize(): void {
     if (message.type === 'NEWTAB_EXECUTE_QUERY') {
       executionHandler.handleNewtabQuery(message, sendResponse)
       return true  // Keep message channel open for async response
+    }
+    
+    // Secure storage access for content scripts
+    if (message.type === 'getStorageValue') {
+      const { key } = message
+      const SAFE_KEYS = new Set(['nxtscape-glow-enabled', 'theme'])
+      
+      if (SAFE_KEYS.has(key)) {
+        chrome.storage.local.get(key, (result) => {
+          sendResponse({ status: 'success', value: result[key] })
+        })
+        return true
+      } else {
+        sendResponse({ status: 'error', error: 'Access denied' })
+      }
     }
   })
   

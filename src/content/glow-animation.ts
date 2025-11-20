@@ -116,12 +116,20 @@
   function isGlowEnabled (): Promise<boolean> {
     return new Promise((resolve) => {
       try {
-        chrome.storage?.local?.get(GLOW_ENABLED_KEY, (result) => {
-          // If key is missing, treat as enabled by default
-          const enabled = result && Object.prototype.hasOwnProperty.call(result, GLOW_ENABLED_KEY)
-            ? result[GLOW_ENABLED_KEY] !== false
-            : true
-          resolve(enabled)
+        chrome.runtime.sendMessage({ type: 'getStorageValue', key: GLOW_ENABLED_KEY }, (response) => {
+          // Check for runtime error (e.g. connection closed)
+          if (chrome.runtime.lastError) {
+            resolve(true) // Fail open
+            return
+          }
+          
+          if (response && response.status === 'success') {
+            // If value is explicitly false, return false. Otherwise true (undefined/null/true)
+            const enabled = response.value !== false
+            resolve(enabled)
+          } else {
+            resolve(true) // Fail open
+          }
         })
       } catch (_e) {
         // Fail-open to avoid breaking flows
